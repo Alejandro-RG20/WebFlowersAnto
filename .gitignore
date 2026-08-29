@@ -5,9 +5,12 @@
 config.local.php
 
 # --- Datos del negocio, no código ------------------------------------
-# Fotos subidas desde el panel
+# Fotos subidas desde el panel. El .htaccess sí viaja: es la protección que
+# impide que se ejecute código en esta carpeta, y sin él el proyecto se
+# descargaría sin esa defensa.
 uploads/*
 !uploads/.gitkeep
+!uploads/.htaccess
 
 # Comprobantes de pago, respaldos y registros
 storage/comprobantes/*
