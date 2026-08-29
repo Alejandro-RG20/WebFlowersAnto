@@ -1,0 +1,18 @@
+# Flowers Anto
+User-agent: *
+Allow: /
+
+# Zonas privadas o sin valor para los buscadores
+Disallow: /admin/
+Disallow: /cuenta/
+Disallow: /api/
+Disallow: /storage/
+Disallow: /includes/
+Disallow: /db/
+Disallow: /instalar.php
+Disallow: /checkout.php
+Disallow: /carrito.php
+Disallow: /pedido.php
+Disallow: /comprobante.php
+
+Sitemap: /sitemap.php

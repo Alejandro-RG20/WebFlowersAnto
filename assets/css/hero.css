@@ -1,0 +1,270 @@
+/* =====================================================================
+   Hero editorial + temporada — Flowers Anto
+   Composición por capas: palabra gigante al fondo, arreglo protagonista
+   delante, arreglos secundarios a los lados con menor escala y desenfoque.
+   ===================================================================== */
+
+.hero-editorial{
+  position:relative;
+  width:100%;
+  height:100svh;
+  min-height:560px;
+  max-height:1000px;
+  overflow:hidden;
+  background:var(--hero-fondo, #EFD9DE);
+  transition:background-color 650ms cubic-bezier(.4,0,.2,1);
+  isolation:isolate;
+}
+
+/* Velo que oscurece ligeramente el borde inferior para asentar la composición */
+.hero-editorial::after{
+  content:"";position:absolute;inset:auto 0 0 0;height:38%;
+  background:linear-gradient(to top, rgba(40,26,30,.20), transparent);
+  pointer-events:none;z-index:4;
+}
+
+/* --------------------------------------------------------------- grano */
+.hero-grano{
+  position:absolute;inset:0;z-index:8;pointer-events:none;opacity:.32;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='r'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='4'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23r)' opacity='.07'/%3E%3C/svg%3E");
+  background-size:200px 200px;
+  mix-blend-mode:overlay;
+}
+
+/* ------------------------------------------------- palabra gigante */
+.hero-palabra{
+  position:absolute;inset-inline:0;top:16%;z-index:2;
+  display:flex;align-items:center;justify-content:center;
+  pointer-events:none;user-select:none;
+  font-family:'Playfair Display',Georgia,serif;
+  font-weight:900;
+  font-size:clamp(78px, 25vw, 380px);
+  line-height:.86;
+  letter-spacing:-.035em;
+  text-transform:uppercase;
+  white-space:nowrap;
+  color:#fff;
+  opacity:.55;
+  transition:opacity 650ms cubic-bezier(.4,0,.2,1);
+}
+.hero-palabra span{display:block}
+
+/* ------------------------------------------------------ etiqueta marca */
+.hero-etiqueta{
+  position:absolute;top:calc(var(--alto-navbar, 72px) + 14px);left:22px;z-index:30;
+  display:flex;align-items:center;gap:10px;
+  font-size:.7rem;font-weight:600;letter-spacing:.2em;text-transform:uppercase;
+  color:#fff;opacity:.92;
+}
+.hero-etiqueta .punto{width:6px;height:6px;border-radius:50%;background:#fff;opacity:.8}
+
+/* Cinta de temporada activa */
+.hero-temporada{
+  display:inline-flex;align-items:center;gap:8px;
+  background:rgba(255,255,255,.9);color:#3B2A2E;
+  padding:5px 13px;border-radius:40px;
+  font-size:.68rem;font-weight:700;letter-spacing:.14em;text-transform:uppercase;
+  box-shadow:0 3px 14px rgba(50,30,36,.14);
+}
+
+/* --------------------------------------------------------- carrusel */
+.hero-escenario{position:absolute;inset:0;z-index:3}
+
+.hero-pieza{
+  position:absolute;
+  aspect-ratio:.62 / 1;
+  will-change:transform, filter, opacity, left;
+  transition:
+    transform 650ms cubic-bezier(.4,0,.2,1),
+    filter    650ms cubic-bezier(.4,0,.2,1),
+    opacity   650ms cubic-bezier(.4,0,.2,1),
+    left      650ms cubic-bezier(.4,0,.2,1),
+    height    650ms cubic-bezier(.4,0,.2,1),
+    bottom    650ms cubic-bezier(.4,0,.2,1);
+}
+.hero-pieza img{
+  width:100%;height:100%;
+  object-fit:contain;object-position:bottom center;
+  filter:drop-shadow(0 24px 44px rgba(45,28,33,.28));
+  border-radius:6px;
+}
+
+/* Protagonista */
+.hero-pieza[data-rol="centro"]{
+  left:50%;bottom:0;height:88%;z-index:20;
+  transform:translateX(-50%) scale(1.02);
+  filter:none;opacity:1;
+}
+/* Secundarios a los lados */
+.hero-pieza[data-rol="izq"],
+.hero-pieza[data-rol="der"]{
+  bottom:13%;height:30%;z-index:10;
+  transform:translateX(-50%) scale(1);
+  filter:blur(2px);opacity:.82;
+}
+.hero-pieza[data-rol="izq"]{left:22%}
+.hero-pieza[data-rol="der"]{left:78%}
+/* Al fondo, detrás del protagonista */
+.hero-pieza[data-rol="fondo"]{
+  left:50%;bottom:13%;height:23%;z-index:5;
+  transform:translateX(-50%) scale(1);
+  filter:blur(4px);opacity:.7;
+}
+/* Fuera de escena */
+.hero-pieza[data-rol="oculto"]{
+  left:50%;bottom:13%;height:20%;z-index:1;
+  transform:translateX(-50%) scale(.9);
+  filter:blur(6px);opacity:0;pointer-events:none;
+}
+
+/* --------------------------------------------------------- panel texto */
+.hero-panel{
+  position:absolute;left:22px;bottom:26px;z-index:30;
+  max-width:min(340px, 62vw);color:#fff;
+}
+.hero-panel .categoria{
+  display:block;font-size:.68rem;font-weight:600;letter-spacing:.18em;
+  text-transform:uppercase;opacity:.8;margin-bottom:7px;
+}
+.hero-panel h1{
+  font-family:'Playfair Display',Georgia,serif;
+  font-size:clamp(1.5rem, 4.2vw, 2.5rem);
+  font-weight:600;line-height:1.08;letter-spacing:-.02em;
+  margin-bottom:8px;text-shadow:0 2px 18px rgba(40,24,30,.28);
+}
+.hero-panel .resumen{
+  font-size:.88rem;line-height:1.55;opacity:.9;margin-bottom:10px;
+  display:-webkit-box;-webkit-line-clamp:2;line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
+}
+.hero-panel .precio{
+  display:block;font-size:1.05rem;font-weight:600;margin-bottom:18px;
+}
+.hero-panel .precio small{font-weight:400;opacity:.75;font-size:.82rem;margin-left:6px}
+
+/* Transición del texto al cambiar de producto */
+.hero-panel .cambia{transition:opacity 300ms ease, transform 300ms ease}
+.hero-escenario.cambiando ~ .hero-panel .cambia,
+.hero-panel.cambiando .cambia{opacity:0;transform:translateY(6px)}
+
+/* -------------------------------------------------------- navegación */
+.hero-nav{display:flex;gap:11px}
+.hero-nav button{
+  width:54px;height:54px;border-radius:50%;
+  border:1.5px solid rgba(255,255,255,.75);
+  background:transparent;color:#fff;cursor:pointer;
+  display:inline-flex;align-items:center;justify-content:center;font-size:1rem;
+  transition:transform 160ms ease, background-color 160ms ease, border-color 160ms ease;
+}
+.hero-nav button:hover{transform:scale(1.07);background:rgba(255,255,255,.15);border-color:#fff}
+.hero-nav button:active{transform:scale(.98)}
+.hero-nav button:disabled{opacity:.45;cursor:default;transform:none}
+
+/* ------------------------------------------------------ enlace inferior */
+.hero-llamada{
+  position:absolute;right:22px;bottom:26px;z-index:30;
+  display:inline-flex;align-items:center;gap:12px;
+  font-family:'Playfair Display',Georgia,serif;
+  font-size:clamp(1.15rem, 3.6vw, 3rem);
+  font-weight:600;line-height:1;letter-spacing:-.02em;
+  text-transform:uppercase;color:#fff;text-decoration:none;opacity:.94;
+  transition:opacity 200ms ease, gap 200ms ease;
+}
+.hero-llamada:hover{opacity:1;gap:18px}
+.hero-llamada i{font-size:.5em}
+
+/* --------------------------------------------------------- indicadores */
+.hero-puntos{
+  position:absolute;left:50%;bottom:26px;transform:translateX(-50%);z-index:30;
+  display:flex;gap:8px;
+}
+.hero-puntos button{
+  width:7px;height:7px;padding:0;border-radius:50%;border:0;cursor:pointer;
+  background:rgba(255,255,255,.45);transition:width 300ms ease, background-color 300ms ease;
+}
+.hero-puntos button[aria-current="true"]{width:26px;border-radius:6px;background:#fff}
+
+/* ============================ MÓVIL ============================
+   No se comprime el escritorio: la composición se reordena para
+   que el arreglo y el texto no compitan por el mismo espacio.     */
+@media (max-width: 780px){
+  .hero-editorial{height:100svh;min-height:600px}
+
+  .hero-palabra{top:11%;font-size:clamp(64px, 27vw, 200px);opacity:.5}
+
+  .hero-pieza[data-rol="centro"]{height:52%;bottom:31%;transform:translateX(-50%) scale(1.12)}
+  .hero-pieza[data-rol="izq"]{left:15%}
+  .hero-pieza[data-rol="der"]{left:85%}
+  .hero-pieza[data-rol="izq"],
+  .hero-pieza[data-rol="der"]{height:16%;bottom:34%;opacity:.7}
+  .hero-pieza[data-rol="fondo"]{height:13%;bottom:34%}
+
+  .hero-etiqueta{left:16px;font-size:.63rem;letter-spacing:.15em}
+  .hero-panel{left:16px;right:16px;bottom:20px;max-width:none}
+  .hero-panel .resumen{display:none}
+  .hero-panel h1{font-size:1.55rem}
+  .hero-panel .precio{margin-bottom:14px}
+
+  /* En móvil los botones van bajo el texto y el enlace pasa a la derecha */
+  .hero-llamada{right:16px;bottom:28px;font-size:1.15rem;gap:8px}
+  .hero-nav button{width:48px;height:48px}
+  .hero-puntos{left:16px;transform:none;bottom:auto;top:calc(var(--alto-navbar, 68px) + 52px)}
+}
+
+@media (max-width: 400px){
+  .hero-llamada span{display:none}
+  .hero-llamada{gap:0}
+  .hero-llamada i{font-size:1.1rem}
+}
+
+/* Sin animación para quien la desactiva en su sistema */
+@media (prefers-reduced-motion: reduce){
+  .hero-editorial,.hero-pieza,.hero-palabra,.hero-nav button,.hero-llamada,.hero-puntos button{
+    transition:none !important;
+  }
+  .hero-grano{display:none}
+}
+
+/* =====================================================================
+   Sección de temporada activa
+   ===================================================================== */
+.temporada-seccion{
+  padding:70px 0;
+  background:var(--temporada-color, #F7EDEF);
+  position:relative;overflow:hidden;
+}
+.temporada-cabecera{
+  display:flex;align-items:flex-end;justify-content:space-between;
+  gap:22px;flex-wrap:wrap;margin-bottom:32px;
+}
+.temporada-marca{
+  display:inline-flex;align-items:center;gap:8px;
+  background:rgba(255,255,255,.75);border:1px solid rgba(255,255,255,.9);
+  padding:5px 13px;border-radius:40px;
+  font-size:.68rem;font-weight:700;letter-spacing:.15em;text-transform:uppercase;
+  color:#5C4348;margin-bottom:12px;
+}
+.temporada-cabecera h2{
+  font-family:'Playfair Display',Georgia,serif;
+  font-size:clamp(1.9rem, 5vw, 3.2rem);font-weight:600;
+  line-height:1.05;letter-spacing:-.025em;color:var(--dark, #3D2C2E);
+}
+.temporada-cabecera p{max-width:520px;color:var(--gray, #6B5B5E);margin-top:8px}
+.temporada-cuenta{
+  font-size:.8rem;color:var(--gray,#6B5B5E);white-space:nowrap;
+  display:inline-flex;align-items:center;gap:7px;
+}
+
+.temporada-tira{
+  display:grid;grid-auto-flow:column;grid-auto-columns:minmax(230px, 1fr);
+  gap:16px;overflow-x:auto;padding-bottom:10px;
+  scroll-snap-type:x mandatory;scrollbar-width:thin;
+  -webkit-overflow-scrolling:touch;
+}
+.temporada-tira > *{scroll-snap-align:start}
+.temporada-tira::-webkit-scrollbar{height:6px}
+.temporada-tira::-webkit-scrollbar-thumb{background:rgba(90,60,68,.2);border-radius:6px}
+
+@media (max-width:780px){
+  .temporada-seccion{padding:48px 0}
+  .temporada-tira{grid-auto-columns:minmax(190px, 78vw)}
+}

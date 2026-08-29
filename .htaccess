@@ -1,0 +1,54 @@
+# =====================================================================
+#  Flowers Anto — configuración de Apache
+# =====================================================================
+
+DirectoryIndex index.php index.html
+
+# --- Nada de listados de directorio ----------------------------------
+Options -Indexes
+
+# --- Archivos que nunca deben servirse -------------------------------
+<FilesMatch "^(\.env.*|config\.local\.php|composer\.(json|lock)|.*\.md|.*\.sql)$">
+  Require all denied
+</FilesMatch>
+
+# --- Carpetas internas ------------------------------------------------
+RedirectMatch 404 ^/(.*/)?(storage|includes|db)/
+RedirectMatch 404 ^/(.*/)?\.git
+
+# --- En uploads/ solo se sirven imágenes -----------------------------
+# Aunque algo consiguiera escribir un .php ahí, no se ejecutaría.
+<Directory "uploads">
+  <FilesMatch "\.(php|phtml|phar|php[0-9]|cgi|pl|py|sh|htaccess)$">
+    Require all denied
+  </FilesMatch>
+  php_flag engine off
+</Directory>
+
+# --- Cabeceras de seguridad ------------------------------------------
+<IfModule mod_headers.c>
+  Header always set X-Content-Type-Options "nosniff"
+  Header always set X-Frame-Options "SAMEORIGIN"
+  Header always set Referrer-Policy "strict-origin-when-cross-origin"
+  Header unset X-Powered-By
+</IfModule>
+
+# --- Caché de estáticos ------------------------------------------------
+<IfModule mod_expires.c>
+  ExpiresActive On
+  ExpiresByType image/jpeg  "access plus 30 days"
+  ExpiresByType image/png   "access plus 30 days"
+  ExpiresByType image/webp  "access plus 30 days"
+  ExpiresByType image/svg+xml "access plus 30 days"
+  ExpiresByType text/css    "access plus 7 days"
+  ExpiresByType application/javascript "access plus 7 days"
+</IfModule>
+
+# --- Compresión --------------------------------------------------------
+<IfModule mod_deflate.c>
+  AddOutputFilterByType DEFLATE text/html text/css text/plain text/xml
+  AddOutputFilterByType DEFLATE application/javascript application/json
+</IfModule>
+
+# --- Páginas de error -------------------------------------------------
+ErrorDocument 404 /404.php

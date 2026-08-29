@@ -1,0 +1,48 @@
+# --- Configuración local: nunca debe subirse -------------------------
+.env
+.env.*
+!.env.example
+config.local.php
+
+# --- Datos del negocio, no código ------------------------------------
+# Fotos subidas desde el panel
+uploads/*
+!uploads/.gitkeep
+
+# Comprobantes de pago, respaldos y registros
+storage/comprobantes/*
+!storage/comprobantes/.gitkeep
+storage/respaldos/*
+!storage/respaldos/.gitkeep
+storage/logs/*
+!storage/logs/.gitkeep
+
+# --- Respaldos sueltos ------------------------------------------------
+*.sql.bak
+respaldo*.sql
+dump*.sql
+
+# --- Archivos comprimidos --------------------------------------------
+# El proyecto se sube como carpetas, no como .rar/.zip
+*.rar
+*.zip
+*.7z
+*.tar.gz
+
+# --- Dependencias -----------------------------------------------------
+node_modules/
+vendor/
+
+# --- Editores y sistema -----------------------------------------------
+.vscode/
+.idea/
+*.swp
+*~
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# --- Registros --------------------------------------------------------
+*.log
+error_log
+php_errors.log
