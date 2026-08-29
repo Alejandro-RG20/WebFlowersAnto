@@ -67,13 +67,6 @@ APP_BASE_URL=/webANTO
 DB_NAME=flowers_anto
 DB_USER=root
 DB_PASS=
-APP_CLAVE=…genera una con el comando de abajo…
-```
-
-Genera la clave de firma:
-
-```bash
-php -r "echo bin2hex(random_bytes(32)) . PHP_EOL;"
 ```
 
 > Si tu hosting no admite archivos que empiecen por punto, copia
@@ -125,7 +118,6 @@ Se leen en este orden: variable de entorno real → `.env` → `config.local.php
 | `APP_ENTORNO` | `dev` muestra errores en pantalla. En producción: `prod` |
 | `APP_URL` | URL pública completa. La usan los correos y el callback de Google |
 | `APP_BASE_URL` | Ruta del sitio dentro del dominio (`/webANTO` o vacío) |
-| `APP_CLAVE` | Clave para firmar los enlaces de seguimiento de invitados |
 | `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASS` | Conexión a MySQL |
 | `MAX_UPLOAD_MB` | Tamaño máximo de imagen del catálogo |
 | `MAX_COMPROBANTE_MB` | Tamaño máximo de comprobante de pago |
@@ -435,7 +427,7 @@ No hay proceso de build: los archivos se sirven tal cual.
 1. Sube todo **menos** `.env`, `config.local.php`, `storage/` y `.git/`
 2. Crea la base de datos vacía en el panel del hosting
 3. Crea `.env` (o `config.local.php`) en el servidor con los datos reales
-4. Pon `APP_ENTORNO=prod` y un `APP_CLAVE` nuevo
+4. Pon `APP_ENTORNO=prod`
 5. Ejecuta `php db/migrar.php`, o abre `instalar.php` y pulsa «Aplicar migraciones»
 6. Crea la cuenta de administración desde `instalar.php`
 7. Comprueba que `uploads/` y `storage/` tengan permiso de escritura

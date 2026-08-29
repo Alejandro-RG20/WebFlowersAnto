@@ -20,7 +20,6 @@ Entorno::cargar(RAIZ);
 define('ENTORNO',  Entorno::texto('APP_ENTORNO', 'prod') === 'dev' ? 'dev' : 'prod');
 define('BASE_URL', rtrim(Entorno::texto('APP_BASE_URL', ''), '/'));
 define('APP_URL',  rtrim(Entorno::texto('APP_URL', ''), '/'));
-define('APP_CLAVE', Entorno::texto('APP_CLAVE', ''));
 
 define('MAX_UPLOAD_BYTES',      Entorno::entero('MAX_UPLOAD_MB', 5) * 1048576);
 define('MAX_COMPROBANTE_BYTES', Entorno::entero('MAX_COMPROBANTE_MB', 8) * 1048576);

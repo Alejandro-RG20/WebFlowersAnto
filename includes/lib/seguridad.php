@@ -89,23 +89,6 @@ function limpiarLimite(PDO $pdo, string $clave): void
     $pdo->prepare("DELETE FROM rate_limits WHERE clave = ?")->execute([mb_substr($clave, 0, 190)]);
 }
 
-/**
- * Firma un valor con la clave de la aplicación.
- * Se usa para que un invitado pueda seguir su pedido sin tener cuenta: el
- * enlace lleva el código del pedido y esta firma, que no se puede falsificar.
- */
-function firmar(string $valor): string
-{
-    $clave = APP_CLAVE !== '' ? APP_CLAVE : 'flowers-anto-clave-por-defecto';
-    return substr(hash_hmac('sha256', $valor, $clave), 0, 32);
-}
-
-/** Comprueba una firma en tiempo constante. */
-function firmaValida(string $valor, ?string $firma): bool
-{
-    return is_string($firma) && hash_equals(firmar($valor), $firma);
-}
-
 /** Cabecera Content-Security-Policy de las páginas públicas. */
 function cabeceraCSP(): void
 {

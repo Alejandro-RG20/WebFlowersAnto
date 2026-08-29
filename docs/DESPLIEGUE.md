@@ -81,22 +81,7 @@ DB_PASS=
 MAIL_TRANSPORTE=log
 ```
 
-Falta la clave de firma. Abre <http://localhost/webANTO/> — no funcionará
-todavía — o mejor, genera la clave desde la consola de XAMPP:
-
-```
-C:\xampp\php\php.exe -r "echo bin2hex(random_bytes(32));"
-```
-
-Copia lo que salga (64 caracteres) y pégalo en:
-
-```ini
-APP_CLAVE=aquí_lo_que_salió
-```
-
-> Si no quieres usar la consola: sirve cualquier texto largo y aleatorio que
-> escribas tú. Solo tiene que ser secreto y no cambiar después, porque con él se
-> firman los enlaces de seguimiento de los pedidos de invitados.
+Y ya está: no hay ninguna clave más que generar.
 
 ## 5. Instalar
 
@@ -271,20 +256,16 @@ return [
     'MAIL_TRANSPORTE'       => 'smtp',
     'MAIL_REMITENTE'        => 'tucorreo@gmail.com',
     'MAIL_REMITENTE_NOMBRE' => 'Flowers Anto',
-
-    'APP_CLAVE' => 'otra_clave_de_64_caracteres_distinta_a_la_de_local',
 ];
 ```
 
-Cuatro cosas importantes de este archivo:
+Tres cosas importantes de este archivo:
 
 1. **`APP_ENTORNO` en `prod`** — oculta los errores técnicos al visitante.
    Déjalo en `dev` solo mientras depuras un problema, y vuélvelo a `prod`.
 2. **`APP_BASE_URL` vacío** — porque el sitio está en la raíz del dominio, no
    en una subcarpeta como en local.
-3. **`APP_CLAVE` distinta** de la de tu computadora, y que no cambie después:
-   con ella se firman los enlaces de seguimiento de los pedidos.
-4. **Los MB bajos** — el plan gratuito limita el tamaño de subida. Con 3 MB
+3. **Los MB bajos** — el plan gratuito limita el tamaño de subida. Con 3 MB
    caben de sobra las capturas de comprobante.
 
 ## 5. Instalar

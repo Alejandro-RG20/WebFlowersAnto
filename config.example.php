@@ -31,6 +31,4 @@ return [
     'MAIL_TRANSPORTE'       => 'log',
     'MAIL_REMITENTE'        => 'no-responder@flowersanto.com',
     'MAIL_REMITENTE_NOMBRE' => 'Flowers Anto',
-
-    'APP_CLAVE' => '',
 ];
