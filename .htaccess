@@ -1,5 +1,11 @@
 # =====================================================================
 #  Flowers Anto — configuración de Apache
+#
+#  Ojo al tocar este archivo: una sola directiva no admitida aquí tumba
+#  el sitio entero con un «Error interno del servidor», sin más pistas
+#  que el registro de errores de Apache. Todo lo que dependa de un módulo
+#  va envuelto en <IfModule>, y las directivas que solo valen en la
+#  configuración principal (como <Directory>) no aparecen.
 # =====================================================================
 
 DirectoryIndex index.php index.html
@@ -13,17 +19,12 @@ Options -Indexes
 </FilesMatch>
 
 # --- Carpetas internas ------------------------------------------------
+# Los comprobantes, los respaldos y el código no se sirven nunca por URL.
 RedirectMatch 404 ^/(.*/)?(storage|includes|db)/
 RedirectMatch 404 ^/(.*/)?\.git
 
-# --- En uploads/ solo se sirven imágenes -----------------------------
-# Aunque algo consiguiera escribir un .php ahí, no se ejecutaría.
-<Directory "uploads">
-  <FilesMatch "\.(php|phtml|phar|php[0-9]|cgi|pl|py|sh|htaccess)$">
-    Require all denied
-  </FilesMatch>
-  php_flag engine off
-</Directory>
+# La protección de uploads/ vive en uploads/.htaccess: <Directory> no se
+# admite en un .htaccess y usarlo aquí devuelve un error 500.
 
 # --- Cabeceras de seguridad ------------------------------------------
 <IfModule mod_headers.c>
@@ -50,5 +51,13 @@ RedirectMatch 404 ^/(.*/)?\.git
   AddOutputFilterByType DEFLATE application/javascript application/json
 </IfModule>
 
-# --- Páginas de error -------------------------------------------------
-ErrorDocument 404 /404.php
+# --- Página de error 404 ------------------------------------------------
+# La ruta es absoluta desde la raíz del dominio, así que solo se puede
+# activar cuando se sabe dónde está instalado el sitio:
+#
+#   en la raíz del dominio      ->  ErrorDocument 404 /404.php
+#   en htdocs/webANTO (XAMPP)   ->  ErrorDocument 404 /webANTO/404.php
+#
+# Descoméntala con la ruta que corresponda. Si se deja mal, el navegador
+# muestra un error doble bastante confuso, así que viene desactivada.
+# ErrorDocument 404 /404.php
