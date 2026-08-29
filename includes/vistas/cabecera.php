@@ -57,6 +57,12 @@ $waGeneral = enlace_whatsapp(
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700;900&family=Poppins:wght@300;400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<script>
+  /* Antes de pintar nada: marca que hay JavaScript, para que las animaciones
+     de aparición puedan esconder el contenido sin riesgo de dejarlo invisible
+     si el script principal no llega a cargarse. */
+  document.documentElement.classList.add('js');
+</script>
 <link rel="stylesheet" href="<?= e(url('assets/css/estilos.css')) ?>">
 <link rel="stylesheet" href="<?= e(url('assets/css/app.css')) ?>">
 <?php if (!empty($cssExtra)): foreach ((array)$cssExtra as $hoja): ?>

@@ -595,8 +595,15 @@ a.creditos-dev:hover { background: rgba(255,255,255,.13); border-color: rgba(255
 .footer-bottom { display: flex; justify-content: space-between; align-items: center; gap: 18px; flex-wrap: wrap; }
 
 /* --- Toasts -------------------------------------------------------------- */
-.toast-container { position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%); z-index: 4000;
-                   display: flex; flex-direction: column; gap: 9px; width: min(92vw, 400px); }
+.toast-container {
+  position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%); z-index: 4000;
+  display: flex; flex-direction: column; gap: 9px; width: min(92vw, 400px);
+  /* El contenedor está siempre presente, aunque no haya ningún aviso. Sin esto
+     taparía los clics de lo que quede debajo — en pantallas cortas, el botón
+     de enviar de un formulario. Los avisos sí vuelven a recibirlos. */
+  pointer-events: none;
+}
+.toast { pointer-events: auto; }
 .toast {
   display: flex; gap: 11px; align-items: flex-start; padding: 13px 16px; border-radius: var(--radio-sm);
   background: var(--tinta); color: #fff; font-size: .91rem; line-height: 1.5;
@@ -609,9 +616,16 @@ a.creditos-dev:hover { background: rgba(255,255,255,.13); border-color: rgba(255
 @keyframes entraToast { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
 @keyframes saleToast  { to { opacity: 0; transform: translateY(10px); } }
 
-/* --- Aparición al hacer scroll -------------------------------------------- */
-.aparece { opacity: 0; transform: translateY(18px); transition: opacity .55s ease, transform .55s cubic-bezier(.4,0,.2,1); }
-.aparece.visible { opacity: 1; transform: none; }
+/* --- Aparición al hacer scroll --------------------------------------------
+   Solo se esconde el contenido cuando hay JavaScript para volver a mostrarlo.
+   La clase `js` la pone un script en línea del propio <head>: si falla la
+   descarga de app.js, o el visitante lo tiene bloqueado, la web se ve entera
+   en vez de quedarse con secciones en blanco. */
+.js .aparece {
+  opacity: 0; transform: translateY(18px);
+  transition: opacity .55s ease, transform .55s cubic-bezier(.4,0,.2,1);
+}
+.js .aparece.visible { opacity: 1; transform: none; }
 
 /* --- Móvil ---------------------------------------------------------------- */
 @media (max-width: 900px) {
@@ -654,5 +668,5 @@ a.creditos-dev:hover { background: rgba(255,255,255,.13); border-color: rgba(255
     animation-duration: .01ms !important; animation-iteration-count: 1 !important;
     transition-duration: .01ms !important; scroll-behavior: auto !important;
   }
-  .aparece { opacity: 1; transform: none; }
+  .js .aparece { opacity: 1; transform: none; }
 }

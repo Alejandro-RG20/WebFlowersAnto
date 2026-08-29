@@ -367,7 +367,13 @@ dialog.modal .modal-pie {
 .soltar-imagen input { display: none; }
 
 /* --- Toasts ------------------------------------------------------------------------------- */
-.toast-container { position: fixed; bottom: 20px; right: 20px; z-index: 4000; display: flex; flex-direction: column; gap: 9px; width: min(90vw, 360px); }
+.toast-container {
+  position: fixed; bottom: 20px; right: 20px; z-index: 4000;
+  display: flex; flex-direction: column; gap: 9px; width: min(90vw, 360px);
+  /* Vacío o no, el contenedor no debe robar los clics de lo que tenga debajo. */
+  pointer-events: none;
+}
+.toast { pointer-events: auto; }
 .toast {
   display: flex; gap: 10px; align-items: flex-start; padding: 12px 15px; border-radius: 10px;
   background: var(--p-tinta); color: #fff; font-size: .88rem; box-shadow: var(--p-sombra2);
@@ -378,8 +384,14 @@ dialog.modal .modal-pie {
 @keyframes entra { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
 
 /* --- Gráfico de barras --------------------------------------------------------------------- */
-.grafico { display: flex; align-items: flex-end; gap: 6px; height: 150px; padding-top: 10px; }
-.grafico-barra { flex: 1; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; gap: 6px; min-width: 0; }
+.grafico { display: flex; align-items: stretch; gap: 6px; height: 150px; padding-top: 10px; }
+/* La columna ocupa todo el alto del gráfico: sin eso, el `height` en
+   porcentaje de la barra no tendría contra qué calcularse y se quedaría
+   en cero, dejando el gráfico en blanco. */
+.grafico-barra {
+  flex: 1; height: 100%; min-width: 0;
+  display: flex; flex-direction: column; justify-content: flex-end; align-items: center; gap: 6px;
+}
 .grafico-barra .valor {
   width: 100%; background: linear-gradient(180deg, var(--p-rosa), #E0A8BB); border-radius: 5px 5px 0 0;
   min-height: 3px; transition: height .4s cubic-bezier(.4,0,.2,1);
