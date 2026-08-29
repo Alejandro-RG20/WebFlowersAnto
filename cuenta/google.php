@@ -16,4 +16,4 @@ if (!Google::configurado()) {
     redirigir('cuenta/entrar.php');
 }
 
-redirigir(Google::urlAutorizacion(texto('volver', 120, $_GET)));
+redirigir_externo(Google::urlAutorizacion(texto('volver', 120, $_GET)));

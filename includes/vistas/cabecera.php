@@ -24,7 +24,9 @@ $tituloPagina      = $tituloPagina      ?? $tienda . ' — Arreglos florales en 
 $descripcionPagina = $descripcionPagina ?? Ajustes::texto('meta_descripcion',
     'Arreglos florales hechos a mano en Managua. Ramos, cajas y arreglos de temporada.');
 $imagenOg    = $imagenOg    ?? Ajustes::texto('og_imagen', Ajustes::texto('hero_imagen', 'images/placeholders/hero-01.svg'));
-$urlCanonica = $urlCanonica ?? url_absoluta(ltrim((string)parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH), '/'));
+// La ruta va con su barra inicial: así url_absoluta() reconoce que ya
+// incluye la subcarpeta del sitio y no la vuelve a anteponer.
+$urlCanonica = $urlCanonica ?? url_absoluta((string)parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH));
 $cuerpoClase = $cuerpoClase ?? '';
 
 $unidadesCarrito = Carrito::unidades();

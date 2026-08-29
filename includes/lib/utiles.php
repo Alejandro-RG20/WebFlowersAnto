@@ -27,15 +27,31 @@ function url(string $ruta = ''): string
     return BASE_URL . ($ruta === '' ? '/' : '/' . $ruta);
 }
 
-/** URL completa con esquema y dominio. Se usa en correos y metadatos SEO. */
+/**
+ * URL completa con esquema y dominio. La usan los correos, los mensajes de
+ * WhatsApp y los metadatos para buscadores.
+ *
+ * De APP_URL se toma solo el origen (esquema, dominio y puerto). APP_URL ya
+ * incluye la subcarpeta del sitio, y la ruta que devuelve `url_interna()`
+ * también: concatenarlas enteras daba http://localhost/webANTO/webANTO/… y
+ * dejaba sin servir, entre otros, el enlace para restablecer la contraseña.
+ */
 function url_absoluta(string $ruta = ''): string
 {
+    // Deja la ruta con la base aplicada una sola vez, venga relativa
+    // ('productos.php') o ya completa ('/webANTO/productos.php').
+    $ruta = url_interna($ruta);
+
     if (APP_URL !== '') {
-        return APP_URL . url($ruta);
+        $partes = parse_url(APP_URL);
+        $origen = ($partes['scheme'] ?? 'http') . '://' . ($partes['host'] ?? 'localhost')
+                . (isset($partes['port']) ? ':' . $partes['port'] : '');
+        return $origen . $ruta;
     }
+
     $esquema = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
     $host    = $_SERVER['HTTP_HOST'] ?? 'localhost';
-    return $esquema . '://' . $host . url($ruta);
+    return $esquema . '://' . $host . $ruta;
 }
 
 /**
@@ -55,10 +71,69 @@ function url_imagen(?string $ruta, string $def = 'images/placeholders/logo.svg')
     return url($ruta);
 }
 
-/** Redirige y termina. */
+/**
+ * Convierte un destino en una URL interna segura.
+ *
+ * Resuelve dos problemas a la vez:
+ *
+ * 1. La ruta base se aplicaba dos veces. Hay destinos que ya la llevan —los
+ *    que salen de `url()`, y los `REQUEST_URI` que se guardan para volver
+ *    después de iniciar sesión— y volver a anteponerla producía
+ *    /webANTO/webANTO/pedido.php y un 404. No se nota cuando el sitio está en
+ *    la raíz del dominio, porque ahí la base es una cadena vacía; aparece solo
+ *    al instalarlo en una subcarpeta.
+ *
+ * 2. Un destino externo. El parámetro `?volver=` de la pantalla de acceso lo
+ *    escribe quien visita la web, así que `?volver=https://otro-sitio` habría
+ *    llevado al usuario fuera después de iniciar sesión, con la credibilidad
+ *    que da venir de un enlace del sitio real. Cualquier destino con esquema
+ *    propio o protocolo relativo se descarta y se vuelve al inicio.
+ */
+function url_interna(string $destino): string
+{
+    $destino = trim($destino);
+
+    // Fuera del sitio: https://otro.com, //otro.com, javascript:…
+    if ($destino === ''
+        || str_starts_with($destino, '//')
+        || preg_match('#^[a-z][a-z0-9+.-]*:#i', $destino)) {
+        return url();
+    }
+
+    // Ya viene con la ruta base: se usa tal cual.
+    if (BASE_URL !== '' && ($destino === BASE_URL || str_starts_with($destino, BASE_URL . '/'))) {
+        return $destino;
+    }
+
+    // El sitio vive en la raíz y el destino ya es absoluto desde ella.
+    if (BASE_URL === '' && str_starts_with($destino, '/')) {
+        return $destino;
+    }
+
+    return url($destino);
+}
+
+/** Redirige dentro del sitio y termina. */
 function redirigir(string $ruta, int $codigo = 302): never
 {
-    header('Location: ' . (preg_match('#^https?://#i', $ruta) ? $ruta : url($ruta)), true, $codigo);
+    header('Location: ' . url_interna($ruta), true, $codigo);
+    exit;
+}
+
+/**
+ * Redirige a una dirección de otro dominio.
+ *
+ * Existe aparte de `redirigir()` a propósito: así salir del sitio es siempre
+ * una decisión explícita de quien escribe el código, y nunca algo que pueda
+ * provocar un valor que venga de la URL. Hoy solo la usa el acceso con Google.
+ */
+function redirigir_externo(string $url, int $codigo = 302): never
+{
+    if (!preg_match('#^https://#i', $url)) {
+        error_log('Flowers Anto — redirección externa rechazada: ' . $url);
+        redirigir('/');
+    }
+    header('Location: ' . $url, true, $codigo);
     exit;
 }
 
