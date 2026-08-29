@@ -1,0 +1,19 @@
+# Las fotos del catálogo son públicas, pero aquí nunca se ejecuta código.
+#
+# La defensa que siempre funciona es el FilesMatch: es Apache de base y no
+# depende de ningún módulo. Apagar el motor de PHP es un extra, y va
+# envuelto en <IfModule> porque `php_flag` solo existe cuando PHP corre
+# como módulo de Apache; con PHP-FPM o CGI, sin envolver, daría un 500.
+
+<FilesMatch "\.(php|phtml|phar|php[0-9]|cgi|pl|py|sh|htaccess)$">
+  Require all denied
+</FilesMatch>
+
+<IfModule mod_php.c>
+  php_flag engine off
+</IfModule>
+<IfModule mod_php7.c>
+  php_flag engine off
+</IfModule>
+
+Options -Indexes
