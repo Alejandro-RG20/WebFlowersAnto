@@ -277,3 +277,87 @@ al tocar una dirección guardada.
 
 Todo repetido en las dos configuraciones de ruta: en la raíz del dominio y en
 una subcarpeta (`APP_BASE_URL=/webANTO`), que es como corre en XAMPP.
+
+---
+
+## 11. Tercera entrega: correcciones y despacho al motorizado
+
+**Tres errores, uno de ellos con pérdida de datos.**
+
+El primero explicaba a los otros dos. Al añadir las pestañas *Envío y zonas* y
+*Avisos por correo* quedaron fuera de la lista blanca que decide qué grupo de
+ajustes guarda el formulario. Su POST caía en el grupo por defecto —*Marca*— y
+guardaba **los campos de Marca con el formulario vacío**: el correo de avisos no
+se guardaba nunca, la página volvía al inicio de configuración, y de paso se
+borraban el nombre de la tienda y el eslogan. Como el correo de avisos nunca
+llegaba a guardarse, tampoco salía el aviso de pedido nuevo.
+
+Arreglado, y arreglado para que no se repita: el valor por defecto del grupo ya
+no es *Marca* sino vacío, y un grupo que no se reconoce **no escribe nada** en
+la base y lo dice. Añadir una pestaña y olvidarse de la lista ya no puede
+borrar los ajustes de otra.
+
+*Si actualizas desde la versión anterior, revisa el nombre de la tienda y el
+eslogan en Configuración → Marca: pueden haber quedado vacíos.*
+
+El segundo era la vista previa del comprobante. La cabecera
+`Content-Security-Policy` permitía imágenes de `self`, `data:` y `https:`, pero
+no `blob:` — que es justo lo que produce `URL.createObjectURL()` para enseñar el
+archivo antes de subirlo. El navegador bloqueaba la miniatura y quedaba una
+imagen rota, con el texto alternativo desbordado. Se añadió `blob:` a `img-src`
+y la miniatura cae a un icono si aun así no se puede pintar.
+
+El tercero estaba en la misma zona: el `<input type=file>` era un punto de 1×1
+posicionado en absoluto dentro de un contenedor sin `position`, así que acababa
+en cualquier parte. Al enviar sin archivo, el navegador saltaba a ese punto
+invisible para enseñar un aviso que no se veía. Ahora el input cubre el recuadro
+y el globo señala lo que hay que rellenar. De paso, esos mensajes del navegador
+salen en español: antes decían «Please select a file» aunque la web esté en
+español, porque los escribe el navegador según *su* idioma, no el de la página.
+
+**Correos con la marca.** Dejaron de ser un aviso de sistema: llevan el logo, el
+nombre, el eslogan y los colores configurados, con los datos de contacto reales
+en el pie. El texto sobre la banda de color se decide con la luminancia del
+color primario, así que se lee igual con un rosa pastel que con un vino oscuro,
+sin tener que acordarse de cambiarlo al cambiar de marca. Si el logo es un SVG
+se escribe el nombre: Gmail y Outlook no pintan SVG y habría salido roto. El
+nombre acompaña siempre al logo, porque las imágenes llegan bloqueadas por
+defecto. Están hechos con tablas y estilos en línea, que es lo único que pintan
+igual todos los clientes de correo.
+
+**Y el correo que no salía ni avisaba.** El transporte `log` escribe en un
+archivo y no envía nada, pero se comportaba igual que uno bien configurado: en
+silencio. Ahora la pestaña *Avisos por correo* dice qué transporte está activo,
+avisa en rojo cuando no sale ningún correo, y tiene un botón que manda una
+prueba de verdad y cuenta el error concreto si falla —«SMTP_HOST está vacío»,
+«la función mail() devolvió error»— en vez de no hacer nada.
+
+**Repartidores y despacho.** Tabla propia, no usuarios: al motorizado no le hace
+falta cuenta ni entrar al panel. Se registran con nombre, WhatsApp, vehículo y
+disponibilidad, y el panel enseña cuántas entregas lleva cada uno y la fecha de
+la última.
+
+Desde la ficha del pedido se elige a quién mandársela y se abre WhatsApp con la
+dirección, la zona, la referencia, el enlace del mapa, el detalle y cuánto
+cobrar —nada si ya se pagó por transferencia, que evita que le vuelva a cobrar
+al cliente—. El mensaje se arma en el servidor con lo que hay en la base, y su
+texto se edita desde la configuración con etiquetas entre llaves.
+
+El pedido guarda a quién se le asignó, con nombre y teléfono copiados, para que
+borrar la ficha del repartidor no borre el historial. Un pedido de retiro en
+tienda no se despacha y solo se ofrecen los repartidores activos: las dos cosas
+se comprueban en el servidor, no escondiendo el botón.
+
+### Cómo se probó
+
+Reproducido el borrado de datos antes de tocar nada, y verificado después que
+las dos pestañas guardan, se quedan donde estaban y que un grupo inventado no
+escribe nada. Miniatura del comprobante comprobada en un navegador real
+(`naturalWidth > 0`), y el salto de la página medido antes y después. Alta,
+edición, desactivación y borrado de repartidores; teléfono inválido rechazado;
+despacho completo revisando el mensaje que se abre, la asignación en la base y
+el apunte en el historial. Retiro en tienda, repartidor inactivo y repartidor
+inexistente: los tres rechazados. Un empleado de catálogo recibe 403 en la
+página, en el despacho y en el alta enviada a mano, y las tres denegaciones
+quedan en la auditoría. Los correos revisados con marca clara y oscura, con
+logo PNG y con SVG.

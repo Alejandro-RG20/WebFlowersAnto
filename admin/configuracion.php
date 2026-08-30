@@ -21,7 +21,49 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     Rbac::exigir('configuracion.editar');
 
     $accion = opcion('accion', ['guardar', 'cuenta_guardar', 'cuenta_eliminar',
-                                'zona_guardar', 'zona_eliminar', 'mensajes_guardar'], 'guardar');
+                                'zona_guardar', 'zona_eliminar', 'mensajes_guardar',
+                                'correo_prueba'], 'guardar');
+
+    // --- Correo de prueba -----------------------------------------------
+    if ($accion === 'correo_prueba') {
+        // Sin esto no hay forma de saber si el correo sale. El transporte
+        // «log» no envía nada y se comporta igual que uno bien configurado:
+        // en silencio. Aquí se prueba de verdad y se dice qué pasó.
+        $destino = correoValido('correo_destino')
+                ?: Ajustes::texto('email_avisos', Ajustes::texto('email_contacto'));
+
+        if ($destino === '') {
+            flash('error', 'Escribe una dirección a la que mandar la prueba.');
+            redirigir('admin/configuracion.php?t=avisos');
+        }
+
+        $html = Correo::plantilla(
+            'Prueba de correo',
+            '<p>Si estás leyendo esto, el correo de la tienda funciona: este mensaje salió '
+            . 'desde el panel de <strong>' . e(Ajustes::texto('nombre_tienda', 'Flowers Anto')) . '</strong>.</p>'
+            . '<p>Así es como van a ver tus clientes los avisos de su pedido.</p>'
+            . '<p style="color:#8A7A7D;font-size:13.5px;">Transporte: <strong>' . e(Correo::transporte())
+            . '</strong> · Enviado el ' . e(date('d/m/Y H:i')) . '</p>',
+            ['url' => url_absoluta('admin/'), 'texto' => 'Ir al panel']
+        );
+        $ok = Correo::enviar($destino, 'Prueba de correo — ' . Ajustes::texto('nombre_tienda', 'Flowers Anto'), $html);
+
+        Auditoria::registrar($pdo, 'editar', 'sistema', [
+            'recurso_tipo' => 'correo', 'recurso_id' => 'prueba',
+            'resultado'    => $ok ? 'exito' : 'error',
+            'descripcion'  => 'Correo de prueba a ' . $destino . ' (' . Correo::transporte() . ').',
+        ]);
+
+        if ($ok && !Correo::entregaDeVerdad()) {
+            flash('info', 'El mensaje se escribió en storage/logs/correos.log, pero NO se envió: '
+                        . 'MAIL_TRANSPORTE está en «log». Cámbialo a «smtp» en el .env para que salga de verdad.');
+        } elseif ($ok) {
+            flash('exito', 'Correo de prueba enviado a ' . $destino . '. Revisa la bandeja y también el spam.');
+        } else {
+            flash('error', 'No se pudo enviar: ' . (Correo::ultimoError() ?: 'el transporte rechazó el mensaje.'));
+        }
+        redirigir('admin/configuracion.php?t=avisos');
+    }
 
     // --- Zonas de envío -------------------------------------------------
     if ($accion === 'zona_eliminar') {
@@ -171,7 +213,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     // --- Configuración general ------------------------------------------
-    $grupo  = opcion('grupo', ['marca', 'portada', 'contacto', 'pedidos', 'banco', 'desarrollador'], 'marca');
+    // La lista tiene que incluir TODAS las pestañas que guardan ajustes. Si
+    // falta una, su POST caería en el grupo por defecto y guardaría los campos
+    // de otra pestaña con el formulario vacío, borrándolos. Por eso el valor
+    // por defecto es vacío y abajo se rechaza en vez de escribir nada.
+    $grupo  = opcion('grupo', ['marca', 'portada', 'contacto', 'pedidos',
+                               'envio', 'avisos', 'banco', 'desarrollador'], '');
     $antes  = Ajustes::todos();
 
     $campos = match ($grupo) {
@@ -222,9 +269,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'franjas_entrega'        => texto('franjas_entrega', 300),
         ],
         'envio' => [
-            'costo_envio'        => decimal('costo_envio'),
-            'envio_gratis_desde' => decimal('envio_gratis_desde'),
-            'pedir_mapa_url'     => casilla('pedir_mapa_url'),
+            'costo_envio'         => decimal('costo_envio'),
+            'envio_gratis_desde'  => decimal('envio_gratis_desde'),
+            'pedir_mapa_url'      => casilla('pedir_mapa_url'),
+            'mensaje_repartidor'  => textoLargo('mensaje_repartidor', 1500),
         ],
         'avisos' => [
             'email_avisos'   => correoValido('email_avisos'),
@@ -244,19 +292,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         default => [],
     };
 
-    if ($campos) {
-        $asignaciones = implode(', ', array_map(fn($c) => "`$c` = ?", array_keys($campos)));
-        $pdo->prepare("UPDATE configuracion SET $asignaciones WHERE id = 1")
-            ->execute(array_values($campos));
-        Ajustes::refrescar();
-
-        Auditoria::registrar($pdo, 'editar', 'sistema', [
-            'recurso_tipo' => 'configuracion', 'recurso_id' => $grupo,
-            'descripcion'  => 'Configuración actualizada: ' . $grupo,
-            'detalles'     => Auditoria::diferencias($antes, $campos, array_keys($campos)),
-        ]);
-        flash('exito', 'Configuración guardada.');
+    if (!$campos) {
+        // Grupo desconocido: no se toca la base. Antes de escribir hay que
+        // saber exactamente qué columnas toca este formulario.
+        error_log('Flowers Anto — configuración: grupo no reconocido «' . crudo('grupo') . '»');
+        flash('error', 'No reconocimos qué sección intentabas guardar. No se cambió nada.');
+        redirigir('admin/configuracion.php');
     }
+
+    $asignaciones = implode(', ', array_map(fn($c) => "`$c` = ?", array_keys($campos)));
+    $pdo->prepare("UPDATE configuracion SET $asignaciones WHERE id = 1")
+        ->execute(array_values($campos));
+    Ajustes::refrescar();
+
+    Auditoria::registrar($pdo, 'editar', 'sistema', [
+        'recurso_tipo' => 'configuracion', 'recurso_id' => $grupo,
+        'descripcion'  => 'Configuración actualizada: ' . $grupo,
+        'detalles'     => Auditoria::diferencias($antes, $campos, array_keys($campos)),
+    ]);
+    flash('exito', 'Configuración guardada.');
     redirigir('admin/configuracion.php?t=' . $grupo);
 }
 
@@ -708,6 +762,21 @@ function campoImagen(string $nombre, string $etiqueta, string $valor, string $ay
           <label for="pedir_mapa_url">Pedir enlace de ubicación en el checkout
             <small>El cliente pega su punto de Google Maps o Waze; el repartidor lo abre desde el panel.</small></label>
         </div>
+
+        <div class="campo" style="margin-top:8px;">
+          <label for="mensaje_repartidor">Mensaje que se le manda al motorizado</label>
+          <textarea id="mensaje_repartidor" name="mensaje_repartidor" maxlength="1500"
+                    style="min-height:220px; font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:.85rem;"
+                    ><?= e((string)($c['mensaje_repartidor'] ?? '')) ?></textarea>
+          <p class="ayuda">Se envía por WhatsApp desde la ficha del pedido.
+            Las etiquetas entre llaves se cambian por los datos reales:</p>
+          <div class="etiquetas-plantilla">
+            <?php foreach (Repartidores::etiquetas() as $etiqueta => $queEs): ?>
+              <span title="<?= e($queEs) ?>"><?= e($etiqueta) ?></span>
+            <?php endforeach; ?>
+          </div>
+        </div>
+
         <?php if ($editable): ?>
           <button type="submit" class="boton boton-principal">
             <i class="fa-solid fa-floppy-disk" aria-hidden="true"></i> Guardar</button>
@@ -768,6 +837,23 @@ function campoImagen(string $nombre, string $etiqueta, string $valor, string $ay
   <form method="post" action="<?= e(url('admin/configuracion.php')) ?>">
     <?= campoToken() ?>
     <input type="hidden" name="grupo" value="avisos">
+    <?php if (!Correo::entregaDeVerdad()): ?>
+      <div class="caja-aviso alerta">
+        <i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i>
+        <span><strong>Ahora mismo no sale ningún correo.</strong>
+          <code>MAIL_TRANSPORTE</code> está en <strong>log</strong>: los mensajes se escriben en
+          <code>storage/logs/correos.log</code> y nadie los recibe. Para que lleguen de verdad,
+          pon <code>MAIL_TRANSPORTE=smtp</code> en el archivo <code>.env</code> junto con los datos
+          de tu servidor de correo. Con <code>mail</code> tampoco salen en XAMPP.</span>
+      </div>
+    <?php else: ?>
+      <div class="caja-aviso exito">
+        <i class="fa-solid fa-paper-plane" aria-hidden="true"></i>
+        <span>Los correos salen por <strong><?= e(Correo::transporte()) ?></strong>.
+          Usa el botón de prueba de abajo cada vez que cambies algo del servidor de correo.</span>
+      </div>
+    <?php endif; ?>
+
     <section class="panel">
       <div class="panel-cabecera"><div><h2>Avisos al equipo</h2>
         <p>Correos que recibe la tienda, no el cliente.</p></div></div>
@@ -798,6 +884,29 @@ function campoImagen(string $nombre, string $etiqueta, string $valor, string $ay
       </div>
     </section>
   </form>
+
+  <?php if ($editable): ?>
+    <section class="panel">
+      <div class="panel-cabecera"><div><h2>Probar el envío</h2>
+        <p>Manda un correo real para comprobar cómo se ve y si llega.</p></div></div>
+      <div class="panel-cuerpo">
+        <form method="post" action="<?= e(url('admin/configuracion.php')) ?>">
+          <?= campoToken() ?>
+          <input type="hidden" name="accion" value="correo_prueba">
+          <div class="campo">
+            <label for="correo_destino">Mandar la prueba a</label>
+            <input type="email" id="correo_destino" name="correo_destino" maxlength="150"
+                   placeholder="<?= e((string)($c['email_avisos'] ?: $c['email_contacto'] ?: 'tucorreo@gmail.com')) ?>">
+            <p class="ayuda">Si lo dejas vacío se manda al correo de avisos.
+              Llega con el logo, los colores y el eslogan que tengas puestos: es el mismo
+              diseño que ve el cliente.</p>
+          </div>
+          <button type="submit" class="boton boton-principal">
+            <i class="fa-solid fa-paper-plane" aria-hidden="true"></i> Enviar correo de prueba</button>
+        </form>
+      </div>
+    </section>
+  <?php endif; ?>
 
   <form method="post" action="<?= e(url('admin/configuracion.php')) ?>">
     <?= campoToken() ?>

@@ -148,6 +148,7 @@ los dos motores y se pueda re-ejecutar sin romper nada.
 | `004_comercio.php` | Favoritos, carrito, pedidos, comprobantes, estados y bancos |
 | `005_configuracion.php` | Configuración ampliada, créditos del desarrollador y respaldos |
 | `006_envio_y_avisos.php` | Zonas de envío, libreta de direcciones, enlace de ubicación y textos de los correos |
+| `007_repartidores.php` | Repartidores, asignación del pedido y mensaje al motorizado |
 
 ```bash
 php db/migrar.php            # aplica lo pendiente
@@ -182,8 +183,9 @@ Desde el panel: *Base de datos → Aplicar migraciones* (requiere el permiso
 ├── cuenta/                 entrar, registrar, salir, recuperar, restablecer,
 │                           perfil, pedidos, direcciones, google, google-callback
 ├── admin/                  Panel: resumen, pedidos, productos, categorías,
-│                           temporadas, galería, clientes, empleados, roles,
-│                           auditoría, configuración, respaldos, base de datos
+│                           temporadas, galería, clientes, repartidores,
+│                           empleados, roles, auditoría, configuración,
+│                           respaldos, base de datos
 ├── api/                    carrito.php y favoritos.php (POST, JSON)
 │
 ├── includes/
@@ -191,7 +193,8 @@ Desde el panel: *Base de datos → Aplicar migraciones* (requiere el permiso
 │   ├── entorno.php         Lector de .env y config.local.php
 │   ├── lib/                utiles, validacion, seguridad, ajustes, auditoria,
 │   │                       auth, rbac, correo, catalogo, envios, carrito,
-│   │                       favoritos, pedidos, archivos, respaldos, google
+│   │                       favoritos, pedidos, repartidores, archivos,
+│   │                       respaldos, google
 │   └── vistas/             cabecera, pie, tarjeta_producto, menu_cuenta
 │
 ├── assets/css/             estilos.css, app.css, hero.css, admin.css
@@ -201,7 +204,7 @@ Desde el panel: *Base de datos → Aplicar migraciones* (requiere el permiso
 │   ├── Migrador.php        Motor de migraciones
 │   ├── migrar.php          Ejecutor por consola
 │   ├── seed.php            Datos de ejemplo
-│   └── migraciones/        001…006
+│   └── migraciones/        001…007
 │
 ├── images/                 Imágenes del proyecto y placeholders
 ├── uploads/                Fotos subidas desde el panel (públicas)
@@ -290,6 +293,17 @@ y el detalle; y comprobante subido, con el monto, el banco y la referencia que
 declaró el cliente. Los dos se activan y desactivan por separado en
 *Configuración → Avisos por correo*.
 
+Todos salen con la plantilla de la marca: logo, nombre, eslogan y los colores
+que haya configurados. El color del texto sobre la banda superior se calcula
+con la luminancia del color primario, así que se lee igual con un rosa pastel
+que con un vino oscuro. Si el logo es un SVG se escribe el nombre en su lugar,
+porque Gmail y Outlook no pintan SVG.
+
+Como el transporte `log` no envía nada y se comporta igual que uno bien
+configurado —en silencio—, la pestaña *Avisos por correo* dice cuál está activo,
+avisa cuando no sale ningún correo y tiene un botón para mandar una prueba real
+que informa del error concreto si falla.
+
 El texto de cada aviso de estado se edita en esa misma pestaña
 (`estados_pedido.mensaje_correo`), y cada estado puede dejar de enviar correo
 sin dejar de existir (`avisar_cliente`). Al texto fijo se le añade la nota que
@@ -366,6 +380,26 @@ Quien tenga cuenta puede marcar «guardar esta dirección» y la encuentra como
 chip en su próximo pedido, o la administra en *Mi cuenta → Mis direcciones*.
 Guardar dos veces la misma dirección en la misma zona actualiza la que ya
 existe en vez de acumular copias.
+
+### Despacho al motorizado
+
+Los repartidores viven en su propia tabla, no como usuarios: al motorizado no
+le hace falta una cuenta ni entrar al panel, solo su nombre y su WhatsApp.
+
+Desde la ficha del pedido se elige a quién mandársela y se abre WhatsApp con la
+dirección, la zona, la referencia, el enlace del mapa, el detalle y cuánto
+cobrar —nada si ya está pagado por transferencia—. El mensaje **se arma en el
+servidor** a partir de lo que hay en la base, no de lo que haya en pantalla, y
+el texto se edita en *Configuración → Envío y zonas* con etiquetas entre llaves
+(`{direccion}`, `{mapa}`, `{cobrar}`…).
+
+El pedido guarda a quién se le asignó y cuándo, con el nombre y el teléfono
+copiados: si el repartidor deja de trabajar y se borra su ficha, el pedido
+sigue diciendo quién lo llevó. Cada despacho queda en el historial del pedido y
+en la auditoría.
+
+Un pedido de retiro en tienda no se puede despachar, y solo se ofrecen los
+repartidores activos; ambas cosas se comprueban en el servidor.
 
 ### Regla del pago
 
@@ -457,8 +491,10 @@ al panel; el resto, no.
 - **Envío y zonas:** zonas de entrega con su propio precio, agrupadas en dentro
   y fuera de Managua; costo por defecto, umbral de envío gratis y si se pide el
   enlace de ubicación en el checkout
-- **Avisos por correo:** correo del equipo, qué avisos recibe y el texto que lee
-  el cliente en cada estado del pedido
+- **Avisos por correo:** correo del equipo, qué avisos recibe, el texto que lee
+  el cliente en cada estado del pedido y una prueba de envío real
+- **Repartidores:** nombre, WhatsApp, vehículo y disponibilidad, más el texto
+  del mensaje que se les manda
 - **Transferencias:** varias cuentas bancarias con banco, titular, número, tipo,
   moneda e identificación, más las instrucciones para el cliente
 - **Créditos del desarrollador:** nombre, logo, descripción, enlace y visibilidad

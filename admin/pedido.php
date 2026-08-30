@@ -40,7 +40,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $volverA = 'admin/pedido.php?id=' . $id;
     exigirToken(false, $volverA);
 
-    switch (opcion('accion', ['aprobar', 'rechazar', 'estado', 'nota', 'revisar'], '')) {
+    switch (opcion('accion', ['aprobar', 'rechazar', 'estado', 'nota', 'revisar', 'despachar'], '')) {
         case 'revisar':
             Rbac::exigir('pagos.revisar');
             Pedidos::tomarEnRevision($pdo, $pedido);
@@ -68,6 +68,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             flash($r['ok'] ? 'exito' : 'error', $r['ok'] ? 'Estado actualizado.' : $r['error']);
             redirigir($volverA);
 
+        case 'despachar':
+            Rbac::exigir('pedidos.despachar');
+
+            if ($pedido['entrega_tipo'] !== 'domicilio') {
+                flash('alerta', 'Este pedido es para retiro en la tienda: no hay nada que mandarle al motorizado.');
+                redirigir($volverA);
+            }
+            $repartidor = Repartidores::porId($pdo, identificador('repartidor_id'));
+            if (!$repartidor) {
+                flash('error', 'Elige un repartidor disponible.');
+                redirigir($volverA);
+            }
+
+            // El mensaje se arma aquí, con los datos de la base, y no en el
+            // navegador: lo que se le manda al motorizado tiene que ser el
+            // pedido tal como está guardado.
+            $mensaje = Repartidores::mensaje($pdo, $pedido, $repartidor);
+            Repartidores::asignar($pdo, $pedido, $repartidor);
+
+            Auditoria::registrar($pdo, 'editar', 'pedidos', [
+                'recurso_tipo' => 'pedido', 'recurso_id' => (string)$id,
+                'descripcion'  => 'Entrega del pedido ' . $pedido['codigo']
+                                . ' enviada a ' . $repartidor['nombre'] . '.',
+            ]);
+
+            // WhatsApp se abre desde el navegador, así que la URL se guarda un
+            // momento en la sesión y la página de vuelta la abre en otra
+            // pestaña. Redirigir directo a wa.me perdería el aviso y dejaría
+            // al empleado fuera del panel.
+            $_SESSION['despacho_whatsapp'] = enlace_whatsapp($mensaje, (string)$repartidor['telefono']);
+            flash('exito', 'Entrega enviada a ' . $repartidor['nombre'] . '. Se abre WhatsApp con el mensaje listo.');
+            redirigir($volverA);
+
         case 'nota':
             Rbac::exigir('pedidos.editar');
             $nota = textoLargo('notas_internas', 1000);
@@ -86,6 +119,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
+// El enlace de WhatsApp lo dejó el despacho en la sesión: se consume una sola
+// vez, para que al recargar la página no se vuelva a abrir la conversación.
+$abrirWhatsapp = (string)($_SESSION['despacho_whatsapp'] ?? '');
+unset($_SESSION['despacho_whatsapp']);
+
+$repartidores  = Repartidores::activos($pdo);
+$puedeDespachar = Rbac::puede('pedidos.despachar') && $pedido['entrega_tipo'] === 'domicilio';
+
 $estadoPedido = Pedidos::estado($pdo, 'pedido', (string)$pedido['estado']);
 $estadoPago   = Pedidos::estado($pdo, 'pago',   (string)$pedido['estado_pago']);
 $siguientes   = Pedidos::siguientes((string)$pedido['estado']);
@@ -98,6 +139,15 @@ $subtituloPanel = 'Recibido el ' . fecha_larga((string)$pedido['created_at']);
 
 require __DIR__ . '/_cabecera.php';
 ?>
+
+<?php if ($abrirWhatsapp !== ''): ?>
+  <div class="caja-aviso exito" data-abrir-whatsapp="<?= e($abrirWhatsapp) ?>">
+    <i class="fa-brands fa-whatsapp" aria-hidden="true"></i>
+    <span>Abriendo WhatsApp con la entrega…
+      <a href="<?= e($abrirWhatsapp) ?>" target="_blank" rel="noopener noreferrer">
+        Si no se abre solo, toca aquí</a>.</span>
+  </div>
+<?php endif; ?>
 
 <div style="margin-bottom:18px; display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
   <a class="boton boton-claro boton-mini" href="<?= e(url('admin/pedidos.php')) ?>">
@@ -352,6 +402,63 @@ require __DIR__ . '/_cabecera.php';
           <p class="ayuda" style="margin-top:8px;">
             Punto exacto que marcó el cliente. Envíaselo al repartidor junto con la dirección escrita.
           </p>
+        <?php endif; ?>
+
+        <?php if ($puedeDespachar): ?>
+          <div style="margin-top:20px; padding-top:18px; border-top:1px solid var(--p-linea);">
+            <p class="etiqueta">Mandar al motorizado</p>
+
+            <?php if ($pedido['repartidor_nombre'] !== ''): ?>
+              <div class="caja-aviso exito" style="margin-bottom:14px;">
+                <i class="fa-solid fa-motorcycle" aria-hidden="true"></i>
+                <span>Ya se le mandó a <strong><?= e((string)$pedido['repartidor_nombre']) ?></strong>
+                  (<?= e((string)$pedido['repartidor_telefono']) ?>)
+                  el <?= e(fecha_larga((string)$pedido['repartidor_enviado_en'])) ?>.
+                  Puedes volver a mandarlo o pasárselo a otro.</span>
+              </div>
+            <?php endif; ?>
+
+            <?php if (!$repartidores): ?>
+              <div class="caja-aviso alerta">
+                <i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i>
+                <span>No hay ningún repartidor disponible.
+                  <?php if (Rbac::puede('repartidores.gestionar')): ?>
+                    <a href="<?= e(url('admin/repartidores.php')) ?>">Añade uno aquí</a>
+                    con su número de WhatsApp.
+                  <?php else: ?>
+                    Pídele a un administrador que registre uno.
+                  <?php endif; ?></span>
+              </div>
+            <?php else: ?>
+              <form method="post" action="<?= e(url('admin/pedido.php')) ?>">
+                <?= campoToken() ?>
+                <input type="hidden" name="id" value="<?= $id ?>">
+                <input type="hidden" name="accion" value="despachar">
+
+                <div class="campo">
+                  <label for="repartidor_id">¿A quién se lo mandamos?</label>
+                  <select id="repartidor_id" name="repartidor_id" required>
+                    <?php foreach ($repartidores as $rp): ?>
+                      <option value="<?= (int)$rp['id'] ?>"
+                              <?= (int)$pedido['repartidor_id'] === (int)$rp['id'] ? 'selected' : '' ?>>
+                        <?= e((string)$rp['nombre']) ?>
+                        <?= (string)$rp['vehiculo'] !== '' ? ' — ' . e((string)$rp['vehiculo']) : '' ?>
+                      </option>
+                    <?php endforeach; ?>
+                  </select>
+                </div>
+
+                <button type="submit" class="boton boton-principal boton-bloque">
+                  <i class="fa-brands fa-whatsapp" aria-hidden="true"></i>
+                  Enviar la entrega por WhatsApp
+                </button>
+                <p class="ayuda" style="margin-top:8px;">
+                  Se abre WhatsApp con la dirección, la zona, la referencia, el enlace del mapa,
+                  el detalle y cuánto cobrar. Queda anotado en el historial del pedido.
+                </p>
+              </form>
+            <?php endif; ?>
+          </div>
         <?php endif; ?>
 
         <?php if ($pedido['dedicatoria'] !== ''): ?>

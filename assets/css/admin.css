@@ -190,6 +190,15 @@ table.tabla .acciones { text-align: right; white-space: nowrap; }
 .boton-peligro { background: var(--p-alerta); color: #fff; }
 .boton-peligro:hover { background: #7B2931; }
 .boton-mini { padding: 5px 11px; font-size: .79rem; border-radius: 7px; }
+.boton-bloque { display: flex; width: 100%; justify-content: center; }
+
+/* Etiquetas de una plantilla ({codigo}, {direccion}…) */
+.etiquetas-plantilla { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 9px; }
+.etiquetas-plantilla span {
+  padding: 4px 10px; border-radius: 20px; background: var(--p-rosa-sw);
+  border: 1px solid var(--p-linea2); font-size: .78rem; color: var(--p-suave);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace; cursor: help;
+}
 .boton:disabled, .boton[aria-disabled="true"] { opacity: .5; cursor: not-allowed; }
 .boton-icono {
   width: 32px; height: 32px; padding: 0; border-radius: 8px; border: 1px solid var(--p-linea2);

@@ -233,4 +233,16 @@
       barra.style.height = (barra.dataset.altura || '0') + '%';
     });
   });
+  // -------------------------------------------------------------------
+  // Despacho al motorizado
+  //
+  // El servidor ya guardó la asignación y dejó preparado el enlace; aquí solo
+  // se abre WhatsApp en otra pestaña para no sacar al empleado del panel. Si
+  // el navegador bloquea la ventana emergente queda el enlace visible.
+  // -------------------------------------------------------------------
+  const despacho = document.querySelector('[data-abrir-whatsapp]');
+  if (despacho) {
+    window.open(despacho.dataset.abrirWhatsapp, '_blank', 'noopener');
+  }
+
 })();

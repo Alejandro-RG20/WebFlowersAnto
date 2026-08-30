@@ -98,7 +98,9 @@ function cabeceraCSP(): void
     header(
         "Content-Security-Policy: " .
         "default-src 'self'; " .
-        "img-src 'self' data: https:; " .
+        // blob: lo necesita la vista previa del comprobante, que pinta el
+        // archivo elegido con URL.createObjectURL() antes de subirlo.
+        "img-src 'self' data: blob: https:; " .
         "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com; " .
         "font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com; " .
         "script-src 'self' 'unsafe-inline'; " .

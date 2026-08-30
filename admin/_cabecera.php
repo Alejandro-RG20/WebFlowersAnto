@@ -96,7 +96,8 @@ if (Rbac::puede('pedidos.ver')) {
               $pendientesPago > 0 ? '<span class="globo">' . (int)$pendientesPago . '</span>' : ''
           );
       }
-      itemMenu('clientes', 'clientes.php', 'fa-solid fa-users', 'Clientes', 'clientes.ver', $seccion);
+      itemMenu('clientes',     'clientes.php',     'fa-solid fa-users',      'Clientes',     'clientes.ver',     $seccion);
+      itemMenu('repartidores', 'repartidores.php', 'fa-solid fa-motorcycle', 'Repartidores', 'repartidores.ver', $seccion);
     ?>
 
     <p class="grupo">Catálogo</p>

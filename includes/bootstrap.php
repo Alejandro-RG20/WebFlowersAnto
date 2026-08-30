@@ -128,6 +128,7 @@ require_once __DIR__ . '/lib/envios.php';
 require_once __DIR__ . '/lib/carrito.php';
 require_once __DIR__ . '/lib/favoritos.php';
 require_once __DIR__ . '/lib/pedidos.php';
+require_once __DIR__ . '/lib/repartidores.php';
 require_once __DIR__ . '/lib/archivos.php';
 
 Auth::iniciar($pdo);

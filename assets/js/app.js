@@ -393,7 +393,7 @@
 
       const visual = archivo.type === 'application/pdf'
         ? '<div class="vista-previa-icono"><i class="fa-solid fa-file-pdf"></i></div>'
-        : '<img alt="Vista previa del comprobante">';
+        : '<img alt="">';
 
       previa.innerHTML = '<div class="vista-previa-caja">' + visual +
         '<div class="vista-previa-datos"><strong></strong><small>' + kb + '</small></div>' +
@@ -405,8 +405,18 @@
       const img = previa.querySelector('img');
       if (img) {
         const url = URL.createObjectURL(archivo);
-        img.src = url;
         img.addEventListener('load', () => URL.revokeObjectURL(url), { once: true });
+        // Si el navegador no puede pintar la miniatura, se pone el icono del
+        // archivo en su lugar: mejor eso que dejar una imagen rota, que hace
+        // dudar al cliente de si el comprobante se subió bien.
+        img.addEventListener('error', () => {
+          URL.revokeObjectURL(url);
+          const icono = document.createElement('div');
+          icono.className = 'vista-previa-icono';
+          icono.innerHTML = '<i class="fa-solid fa-file-image"></i>';
+          img.replaceWith(icono);
+        }, { once: true });
+        img.src = url;
       }
       $('#quitarArchivo').addEventListener('click', () => {
         entrada.value = '';
@@ -433,6 +443,50 @@
       }
     });
   }
+
+  // -------------------------------------------------------------------
+  // Mensajes de validación del navegador, en español
+  //
+  // Sin esto Chrome escribe «Please select a file.» o «Please fill out this
+  // field.» según el idioma del navegador, no el de la página: un cliente
+  // nicaragüense con Chrome en inglés ve la web en español y el aviso en
+  // inglés. El texto se limpia al escribir para que el navegador vuelva a
+  // validar de verdad y no se quede pegado un mensaje viejo.
+  // -------------------------------------------------------------------
+  (function validacionEnEspanol() {
+    const mensaje = (campo) => {
+      const v = campo.validity;
+      if (v.valueMissing) {
+        if (campo.type === 'file')     { return 'Elige un archivo.'; }
+        if (campo.type === 'checkbox') { return 'Marca esta casilla para continuar.'; }
+        if (campo.tagName === 'SELECT') { return 'Elige una opción.'; }
+        return 'Completa este campo.';
+      }
+      if (v.typeMismatch) {
+        return campo.type === 'email'
+          ? 'Escribe un correo válido, con @ y el dominio.'
+          : 'El formato no es válido.';
+      }
+      if (v.tooShort)     { return 'Escribe al menos ' + campo.minLength + ' caracteres.'; }
+      if (v.rangeUnderflow) { return 'El valor mínimo es ' + campo.min + '.'; }
+      if (v.rangeOverflow)  { return 'El valor máximo es ' + campo.max + '.'; }
+      if (v.patternMismatch) { return 'Ese formato no es el esperado.'; }
+      return '';
+    };
+
+    document.addEventListener('invalid', (ev) => {
+      const campo = ev.target;
+      if (!campo.setCustomValidity) { return; }
+      campo.setCustomValidity(mensaje(campo));
+    }, true);
+
+    document.addEventListener('input',  (ev) => {
+      if (ev.target.setCustomValidity) { ev.target.setCustomValidity(''); }
+    }, true);
+    document.addEventListener('change', (ev) => {
+      if (ev.target.setCustomValidity) { ev.target.setCustomValidity(''); }
+    }, true);
+  })();
 
   // -------------------------------------------------------------------
   // Medidor de fuerza de la contraseña

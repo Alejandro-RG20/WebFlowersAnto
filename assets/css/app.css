@@ -454,6 +454,9 @@ a { color: inherit; }
 
 /* --- Subida de comprobante ---------------------------------------------- */
 .zona-archivo {
+  /* display:block porque es un <label>: en línea, el input absoluto de dentro
+     no se estira sobre todo el recuadro. */
+  display: block; position: relative;
   border: 2px dashed var(--linea-fuerte); border-radius: var(--radio); padding: 28px 20px;
   text-align: center; cursor: pointer; background: #FDFAFA;
   transition: border-color var(--transicion), background var(--transicion);
@@ -462,7 +465,13 @@ a { color: inherit; }
 .zona-archivo i { font-size: 1.9rem; color: var(--rose-pastel); margin-bottom: 10px; display: block; }
 .zona-archivo strong { display: block; color: var(--tinta); margin-bottom: 4px; }
 .zona-archivo small { color: var(--tenue); font-size: .84rem; }
-.zona-archivo input[type="file"] { position: absolute; width: 1px; height: 1px; opacity: 0; }
+/* El input cubre la zona en vez de ser un punto de 1px: así el globo de
+   «selecciona un archivo» del navegador señala el recuadro que se ve, y no
+   un punto invisible al que la página salta sin enseñar nada. */
+.zona-archivo input[type="file"] {
+  position: absolute; inset: 0;
+  opacity: 0; cursor: pointer;
+}
 .vista-previa { display: none; margin-top: 14px; }
 .vista-previa.visible { display: block; animation: subir .25s ease; }
 @keyframes subir { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
@@ -470,7 +479,12 @@ a { color: inherit; }
   display: flex; gap: 13px; align-items: center; padding: 12px;
   border: 1px solid var(--linea); border-radius: var(--radio-sm); background: var(--papel);
 }
-.vista-previa-caja img { width: 62px; height: 62px; object-fit: cover; border-radius: 8px; }
+.vista-previa-caja img {
+  width: 62px; height: 62px; object-fit: cover; border-radius: 8px;
+  /* Sin esto, mientras la miniatura carga —o si el archivo no se puede
+     pintar— el texto alternativo se desborda del recuadro. */
+  background: var(--rose-soft); overflow: hidden; font-size: 0;
+}
 .vista-previa-icono {
   width: 62px; height: 62px; border-radius: 8px; background: var(--rose-soft);
   display: grid; place-items: center; color: var(--rose-mid); font-size: 1.5rem; flex-shrink: 0;

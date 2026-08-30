@@ -340,8 +340,11 @@ Desde *Panel → Configuración*:
    añade las que falten. Aquí también se activa el enlace de ubicación del
    checkout y el umbral de envío gratis.
 6. **Avisos por correo** — el correo donde quieres recibir los pedidos nuevos y
-   los comprobantes, y el texto que lee el cliente en cada estado
-7. **Créditos** — nombre, logo, descripción y enlace de ANDRODEV
+   los comprobantes, y el texto que lee el cliente en cada estado.
+   **Usa el botón «Enviar correo de prueba»**: si no llega, no llegará ninguno.
+7. **Repartidores** — nombre y WhatsApp de cada motorizado, para poder mandarles
+   la entrega desde el pedido
+8. **Créditos** — nombre, logo, descripción y enlace de ANDRODEV
 
 Y desde *Panel → Productos*, sube los arreglos reales.
 
@@ -357,6 +360,8 @@ molestan pero conviene quitarlos.
 - [ ] Un pedido de prueba llega hasta «Pago en revisión»
 - [ ] El envío cambia de precio al elegir otra zona en el checkout
 - [ ] Te llega el correo de «Pedido nuevo» al buzón del equipo
+- [ ] El correo de prueba llega con el logo y los colores de la floristería
+- [ ] Desde un pedido puedes mandarle la entrega a un repartidor por WhatsApp
 - [ ] El comprobante se sube y se ve desde el panel
 - [ ] Aprobar y rechazar funcionan
 - [ ] Los correos llegan (o sabes que no van y es a propósito)
