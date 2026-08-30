@@ -56,6 +56,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'palabra_hero' => mb_strtoupper(texto('palabra_hero', 20)),
         'banner'       => rutaImagen('banner'),
         'color_acento' => colorHex('color_acento'),
+        'estilo'       => Temporadas::estiloValido(texto('estilo', 40)),
         'fecha_inicio' => fechaOpcional('fecha_inicio'),
         'fecha_fin'    => fechaOpcional('fecha_fin'),
         'prioridad'    => entero('prioridad', 0, 999),
@@ -74,21 +75,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $esNueva = $id === 0;
     $valores = array_values($datos);
 
+    // Las columnas salen de las claves de $datos, no de una lista escrita a
+    // mano: así añadir un campo arriba no puede desalinear los valores con los
+    // marcadores y guardar cada dato en la columna equivocada.
+    $columnas = array_keys($datos);
+
     if ($esNueva) {
         $pdo->prepare(
-            "INSERT INTO temporadas
-                (nombre, titulo, subtitulo, descripcion, palabra_hero, banner, color_acento,
-                 fecha_inicio, fecha_fin, prioridad, activo)
-             VALUES (?,?,?,?,?,?,?,?,?,?,?)"
+            'INSERT INTO temporadas (`' . implode('`, `', $columnas) . '`) VALUES ('
+            . implode(',', array_fill(0, count($columnas), '?')) . ')'
         )->execute($valores);
         $id = (int)$pdo->lastInsertId();
     } else {
         $valores[] = $id;
         $pdo->prepare(
-            "UPDATE temporadas SET nombre = ?, titulo = ?, subtitulo = ?, descripcion = ?,
-                    palabra_hero = ?, banner = ?, color_acento = ?, fecha_inicio = ?,
-                    fecha_fin = ?, prioridad = ?, activo = ?
-              WHERE id = ?"
+            'UPDATE temporadas SET '
+            . implode(', ', array_map(static fn(string $c): string => "`$c` = ?", $columnas))
+            . ' WHERE id = ?'
         )->execute($valores);
     }
 
@@ -151,7 +154,7 @@ require __DIR__ . '/_cabecera.php';
   <?php else: ?>
     <div class="tabla-envoltura">
       <table class="tabla">
-        <thead><tr><th>Campaña</th><th>Vigencia</th><th class="num">Prioridad</th>
+        <thead><tr><th>Campaña</th><th>Estilo</th><th>Vigencia</th><th class="num">Prioridad</th>
                    <th class="num">Productos</th><th>Estado</th><th></th></tr></thead>
         <tbody>
           <?php foreach ($temporadas as $t):
@@ -166,6 +169,16 @@ require __DIR__ . '/_cabecera.php';
                 <?php endif; ?>
                 <br><span class="celda-sub"><?= e((string)$t['nombre']) ?>
                   <?= $t['palabra_hero'] ? ' · palabra: ' . e((string)$t['palabra_hero']) : '' ?></span>
+              </td>
+              <td>
+                <?php $est = Temporadas::estilo((string)$t['estilo']); ?>
+                <?php if ($est): ?>
+                  <span class="pastilla-estilo" style="--c: <?= e((string)$t['color_acento']) ?>;">
+                    <i class="fa-solid <?= e($est['icono']) ?>" aria-hidden="true"></i>
+                    <?= e($est['nombre']) ?></span>
+                <?php else: ?>
+                  <span class="celda-sub">Solo color</span>
+                <?php endif; ?>
               </td>
               <td class="celda-sub">
                 <?= $t['fecha_inicio'] ? e(fecha_corta((string)$t['fecha_inicio'])) : 'sin inicio' ?>
@@ -186,6 +199,7 @@ require __DIR__ . '/_cabecera.php';
                           data-campo-descripcion="<?= e((string)$t['descripcion']) ?>"
                           data-campo-palabra_hero="<?= e((string)$t['palabra_hero']) ?>"
                           data-campo-color_acento="<?= e((string)$t['color_acento']) ?>"
+                          data-campo-estilo="<?= e((string)$t['estilo']) ?>"
                           data-campo-fecha_inicio="<?= e((string)$t['fecha_inicio']) ?>"
                           data-campo-fecha_fin="<?= e((string)$t['fecha_fin']) ?>"
                           data-campo-prioridad="<?= (int)$t['prioridad'] ?>"
@@ -257,7 +271,22 @@ require __DIR__ . '/_cabecera.php';
         <div class="campo">
           <label for="t_color_acento">Color de la campaña</label>
           <input type="color" id="t_color_acento" name="color_acento" value="#EFD9DE">
+          <p class="ayuda">Tiñe los acentos del sitio mientras la campaña esté vigente.</p>
         </div>
+      </div>
+      <div class="campo">
+        <label for="t_estilo">Estilo visual</label>
+        <select id="t_estilo" name="estilo">
+          <option value="">Ninguno — solo el color, sin animaciones</option>
+          <?php foreach (Temporadas::estilos() as $clave => $est): ?>
+            <option value="<?= e($clave) ?>"><?= e($est['nombre']) ?></option>
+          <?php endforeach; ?>
+        </select>
+        <p class="ayuda">
+          Añade animaciones discretas en los laterales y un pequeño detalle al añadir al
+          carrito o confirmar un pedido. Se apagan solas cuando la campaña termina, y no
+          se muestran a quien tenga desactivadas las animaciones en su dispositivo.
+        </p>
       </div>
       <div class="rejilla-campos tres">
         <div class="campo">

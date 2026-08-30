@@ -104,6 +104,13 @@ $devUrl    = Ajustes::texto('dev_url');
   <i class="fa-brands fa-whatsapp" aria-hidden="true"></i>
 </a>
 
+<?php if (!empty($temaTemporada['estilo'])): ?>
+<!-- Formas de la temporada. Solo van las que usa el estilo vigente. -->
+<svg width="0" height="0" aria-hidden="true" focusable="false"
+     style="position:absolute"><defs><?= Temporadas::sprite($temaTemporada['estilo']) ?></defs></svg>
+<script src="<?= e(url_recurso('assets/js/temporada.js')) ?>" defer></script>
+<?php endif; ?>
+
 <script src="<?= e(url_recurso('assets/js/app.js')) ?>" defer></script>
 <?php if (!empty($jsExtra)): foreach ((array)$jsExtra as $script): ?>
 <script src="<?= e(url_recurso($script)) ?>" defer></script>

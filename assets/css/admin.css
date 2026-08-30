@@ -192,6 +192,16 @@ table.tabla .acciones { text-align: right; white-space: nowrap; }
 .boton-mini { padding: 5px 11px; font-size: .79rem; border-radius: 7px; }
 .boton-bloque { display: flex; width: 100%; justify-content: center; }
 
+/* Estilo asignado a una temporada, con su propio color de campaña */
+.pastilla-estilo {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 4px 11px; border-radius: 20px; font-size: .79rem; font-weight: 600;
+  background: color-mix(in srgb, var(--c, #F8B0C2) 18%, #fff);
+  border: 1px solid color-mix(in srgb, var(--c, #F8B0C2) 45%, #fff);
+  color: color-mix(in srgb, var(--c, #F8B0C2) 72%, #2C2124);
+}
+.pastilla-estilo i { font-size: .85em; }
+
 /* Etiquetas de una plantilla ({codigo}, {direccion}…) */
 .etiquetas-plantilla { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 9px; }
 .etiquetas-plantilla span {

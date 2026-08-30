@@ -1,0 +1,136 @@
+/* ===================================================================
+   Estilos de temporada
+   ===================================================================
+   Se carga solo cuando hay una temporada vigente CON estilo asignado.
+
+   Todo lo que se mueve lo hace con `transform` y `opacity`, que el navegador
+   resuelve en la GPU sin volver a calcular el diseño de la página: por muchas
+   partículas que haya, el desplazamiento sigue siendo suave.
+
+   Reglas que la capa nunca rompe:
+     · no recibe clics        -> pointer-events:none
+     · no tapa la navegación  -> z-index por debajo de la barra y los modales
+     · no ensancha la página  -> el contenedor recorta lo que se salga
+     · no molesta a quien pidió menos movimiento -> se apaga entera
+   =================================================================== */
+
+.capa-temporada {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+  /* Contenido puramente decorativo: nada aquí aporta información. */
+  contain: strict;
+}
+
+.capa-temporada svg {
+  position: absolute;
+  top: -8vh;
+  /* Cinturón y tirantes: el símbolo ya trae fill=currentColor, y aquí se
+     asegura por si algún navegador antiguo no lo hereda del <use>. */
+  fill: currentColor;
+  width: var(--tam, 22px);
+  height: var(--tam, 22px);
+  color: var(--temporada-color, #F8B0C2);
+  opacity: 0;
+  will-change: transform, opacity;
+  animation: temporada-caer var(--dur, 20s) linear var(--esperar, 0s) infinite;
+}
+
+/* Caída con vaivén: el desplazamiento lateral va en un envoltorio propio para
+   no pelearse con la rotación de la forma. */
+@keyframes temporada-caer {
+  0%   { transform: translate3d(0, -10vh, 0) rotate(0deg);    opacity: 0; }
+  8%   { opacity: var(--opacidad, .5); }
+  92%  { opacity: var(--opacidad, .5); }
+  100% { transform: translate3d(var(--deriva, 30px), 112vh, 0) rotate(var(--giro, 220deg)); opacity: 0; }
+}
+
+/* --- Estallido al interactuar -------------------------------------
+   El detalle tipo «tarea enviada»: un puñado de formas que salen del punto
+   que se tocó, suben y se desvanecen. Viven medio segundo y se borran solas.  */
+.chispa-temporada {
+  position: fixed;
+  z-index: 2500;
+  width: 18px;
+  height: 18px;
+  pointer-events: none;
+  color: var(--temporada-color, #F8B0C2);
+  will-change: transform, opacity;
+  animation: temporada-chispa 900ms cubic-bezier(.15, .7, .35, 1) forwards;
+}
+
+@keyframes temporada-chispa {
+  0%   { transform: translate3d(0,0,0) scale(.3) rotate(0deg); opacity: 0; }
+  15%  { opacity: 1; }
+  100% { transform: translate3d(var(--dx, 0), var(--dy, -90px), 0) scale(var(--esc, 1)) rotate(var(--rot, 180deg)); opacity: 0; }
+}
+
+/* --- Detalles del tema en el sitio --------------------------------
+   Complementan el diseño de Flowers Anto, no lo sustituyen: solo se tiñe la
+   cinta superior de la campaña y los acentos finos.                          */
+.con-temporada .temporada-seccion {
+  background: var(--temporada-claro, #F7EDEF);
+}
+.con-temporada .temporada-marca {
+  background: var(--temporada-color);
+  color: var(--temporada-contraste, #2C2124);
+}
+.con-temporada .temporada-cuenta {
+  border-color: var(--temporada-medio);
+  color: var(--temporada-fuerte);
+}
+.con-temporada .section-tag {
+  color: var(--temporada-fuerte);
+}
+
+/* Franja fina bajo la barra de navegación: el guiño más discreto posible a que
+   hay campaña, visible en todas las páginas. */
+.con-temporada .navbar::after {
+  content: '';
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  height: 2px;
+  background: linear-gradient(90deg,
+              transparent,
+              var(--temporada-color) 22%,
+              var(--temporada-suave) 50%,
+              var(--temporada-color) 78%,
+              transparent);
+  opacity: .85;
+}
+
+/* --- Cantidad de partículas por tamaño de pantalla -----------------
+   En lugar de calcularlo en JavaScript, la hoja de estilos esconde las que
+   sobran: el teléfono no llega a pintarlas nunca.                            */
+@media (max-width: 900px) {
+  .capa-temporada svg:nth-child(n + 11) { display: none; }
+}
+@media (max-width: 560px) {
+  .capa-temporada svg:nth-child(n + 7)  { display: none; }
+  .capa-temporada svg { --tam: 16px; }
+}
+
+/* --- Quien pidió menos movimiento no ve ninguno -------------------- */
+@media (prefers-reduced-motion: reduce) {
+  .capa-temporada,
+  .chispa-temporada { display: none !important; }
+  .con-temporada .navbar::after { opacity: .5; }
+}
+
+/* --- Ajustes por estilo -------------------------------------------
+   Cada temporada tiene su propio ritmo: los pétalos caen despacio y giran, la
+   nieve baja recta, el confeti cae rápido.                                    */
+.temporada--flores_amarillas .capa-temporada svg { --opacidad: .55; }
+.temporada--san_valentin     .capa-temporada svg { --opacidad: .45; }
+.temporada--primavera        .capa-temporada svg { --opacidad: .5; }
+.temporada--dia_madres       .capa-temporada svg { --opacidad: .45; }
+
+.temporada--navidad   .capa-temporada svg { --opacidad: .7; color: #FFFFFF; filter: drop-shadow(0 0 2px rgba(var(--temporada-rgb), .55)); }
+.temporada--halloween .capa-temporada svg { --opacidad: .5; }
+.temporada--ano_nuevo .capa-temporada svg { --opacidad: .75; }
+.temporada--verano    .capa-temporada svg { --opacidad: .45; }
+
+/* La nieve y el confeti no dan volteretas: se ven raras girando. */
+.temporada--navidad   .capa-temporada svg { animation-timing-function: ease-in-out; }

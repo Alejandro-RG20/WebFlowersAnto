@@ -370,3 +370,85 @@ seguía sirviendo los que ya tenía en caché. La web se comportaba como antes
 viendo era la versión vieja. Ahora cada enlace lleva detrás la fecha de
 modificación del archivo (`app.js?v=1788052669`), que cambia sola al subir una
 versión nueva y obliga al navegador a descargarla.
+
+---
+
+## 12. Estilos de temporada
+
+Rama `EstilosdeTemporada`. Dos objetivos: que el color de la campaña se aplique
+de verdad, y que cada temporada pueda vestir el sitio.
+
+### Por qué el color no llegaba
+
+No era un problema de guardado ni de recuperación: el color se guardaba bien y
+se leía bien. Se perdía después.
+
+`--temporada-color` se escribía en un único sitio —el atributo `style` de la
+tira de temporada de la portada— y esa sección está detrás de
+`if ($temporada && !empty($temporada['productos']))`. Una temporada recién
+creada, sin productos vinculados todavía, no pintaba nada: ni la sección ni el
+color. Y aun con productos, el color solo teñía el fondo de esa tira; al resto
+del sitio no llegaba nunca, porque los datos que se le pasan al carrusel de la
+portada incluyen el título y la palabra de la campaña pero no su color.
+
+Reproducido antes de tocar nada: temporada vigente, `#F4C400` en la base, y el
+color apareciendo **cero veces** en el HTML de la portada.
+
+La corrección va donde corresponde: la cabecera —que se imprime en todas las
+páginas— resuelve la temporada vigente y emite el color en el bloque `:root`
+que ya existía para los colores de la marca, junto con cinco variables
+derivadas. La tira de la portada sigue funcionando igual; ahora es una de las
+cosas que usan el color, no la única que lo tiene.
+
+Para no pagar una consulta por página se separó `temporadaVigente()` —solo la
+fila, memoizada por petición, guardando también el «no hay ninguna»— de
+`temporadaActiva()`, que sigue trayendo los productos para la portada.
+
+### Los estilos
+
+Una columna, `temporadas.estilo`, y un catálogo cerrado en el código: cada
+estilo es un nombre, un icono, las formas que caen y la que sale al
+interactuar. La migración propone estilo a las temporadas que ya existen
+mirando su nombre —«Navidad» → navidad, «San Valentín» → san_valentin— y solo
+toca las que lo tienen vacío, así que una elección hecha a mano nunca se pisa.
+
+Las animaciones son CSS puro sobre `transform` y `opacity`. El JavaScript crea
+catorce elementos, les pone unas variables y no vuelve a intervenir: no hay
+trabajo por fotograma. Van en franjas laterales estrechas, con el centro
+despejado, en una capa que no recibe clics y que recorta lo que se salga para
+que no aparezca desplazamiento horizontal. En el teléfono la hoja de estilos
+esconde las que sobran —seis en vez de catorce— y con `prefers-reduced-motion`
+no se crea ninguna.
+
+El detalle al interactuar —un puñado de formas que suben desde el punto tocado
+y se desvanecen— se engancha por su cuenta a los favoritos, al formulario de
+añadir al carrito y al aviso de éxito que el servidor ya pinta al confirmar un
+pedido. No se tocó ni una línea de la lógica del carrito: si mañana cambia,
+esto deja de dispararse, pero no la rompe.
+
+### Un arreglo de paso
+
+El `INSERT`/`UPDATE` de temporadas usaba una lista de columnas escrita a mano y
+`array_values($datos)` como valores. Añadir un campo arriba y olvidar la lista
+habría guardado cada dato en la columna equivocada —el mismo tipo de fallo que
+borró el nombre de la tienda en la entrega anterior—. Ahora las columnas salen
+de las claves del propio array y no pueden desalinearse.
+
+### Cómo se probó
+
+El color, ciclo completo por el panel: guardar `#F4C400`, recargar, cambiarlo a
+`#7E57C2` comprobando que los derivados y el contraste cambian con él, y volver
+al primero. Con productos vinculados y sin ellos.
+
+Los estilos, en un navegador real: los seis principales, contando partículas y
+midiendo que ninguno provoca desplazamiento horizontal; el teléfono con seis en
+vez de catorce; `prefers-reduced-motion` sin capa pero con color; la temporada
+desactivada y la temporada fuera de fechas sin capa, sin color y sin clase en
+el cuerpo. El estallido: diez piezas al marcar un favorito, cero al segundo y
+medio, y seis clics seguidos sin pasar de diez. Las doce formas se revisaron
+dibujadas en grande y a 26 px; el girasol, la flor y el murciélago se
+rehicieron porque no se leían.
+
+Y la regresión de siempre —compra como invitado, comprobante, seguimiento,
+zonas de envío, redirección externa, 27 páginas sin un solo aviso de PHP— en
+la raíz y en subcarpeta.

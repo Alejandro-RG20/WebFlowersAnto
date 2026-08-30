@@ -245,11 +245,24 @@ final class Catalogo
     }
 
     /**
-     * Temporada vigente hoy, o null.
-     * Vigente = activa, ya empezó (o no tiene fecha de inicio) y no ha terminado.
+     * Temporada vigente hoy, sin sus productos.
+     *
+     * Vigente = activa, ya empezó (o no tiene fecha de inicio) y no ha
+     * terminado. La cabecera la consulta en todas las páginas para aplicar el
+     * color y el estilo, así que se resuelve una sola vez por petición y sin
+     * arrastrar el catálogo: la portada sí necesita los productos, el resto
+     * del sitio no.
+     *
+     * El resultado se guarda incluso cuando es null, para no repetir la
+     * consulta en las semanas en que no hay ninguna campaña.
      */
-    public static function temporadaActiva(PDO $pdo): ?array
+    public static function temporadaVigente(PDO $pdo): ?array
     {
+        static $cache = false;
+        if ($cache !== false) {
+            return $cache;
+        }
+
         $fila = $pdo->query(
             "SELECT * FROM temporadas
               WHERE activo = 1
@@ -257,6 +270,16 @@ final class Catalogo
                 AND (fecha_fin    IS NULL OR fecha_fin    >= CURDATE())
               ORDER BY prioridad DESC, id DESC LIMIT 1"
         )->fetch();
+
+        return $cache = ($fila ?: null);
+    }
+
+    /**
+     * Temporada vigente con los productos de la campaña. La usa la portada.
+     */
+    public static function temporadaActiva(PDO $pdo): ?array
+    {
+        $fila = self::temporadaVigente($pdo);
         if (!$fila) {
             return null;
         }

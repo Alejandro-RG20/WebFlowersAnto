@@ -29,6 +29,16 @@ $imagenOg    = $imagenOg    ?? Ajustes::texto('og_imagen', Ajustes::texto('hero_
 $urlCanonica = $urlCanonica ?? url_absoluta((string)parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH));
 $cuerpoClase = $cuerpoClase ?? '';
 
+// Tema de la temporada vigente. Se resuelve aquí, en la cabecera, para que el
+// color llegue a TODAS las páginas: antes solo se aplicaba al fondo de la tira
+// de temporada de la portada, y únicamente si la campaña tenía productos
+// vinculados, así que una temporada recién creada no cambiaba nada en el sitio.
+$temaTemporada = Temporadas::tema($pdo);
+if ($temaTemporada) {
+    $cuerpoClase = trim($cuerpoClase . ' con-temporada'
+                 . ($temaTemporada['estilo_id'] !== '' ? ' temporada--' . $temaTemporada['estilo_id'] : ''));
+}
+
 $unidadesCarrito = Carrito::unidades();
 $totalFavoritos  = Favoritos::total($pdo);
 $mensajeFlash    = flash();
@@ -77,13 +87,24 @@ $waGeneral = enlace_whatsapp(
     --rose-light:  <?= e(Ajustes::texto('color_secundario', '#FADADD')) ?>;
     --cream:       <?= e(Ajustes::texto('color_fondo', '#FFF9F5')) ?>;
     --text:        <?= e(Ajustes::texto('color_texto', '#4A3B3D')) ?>;
+<?php if ($temaTemporada): foreach (Temporadas::variablesCss($temaTemporada) as $prop => $valor): ?>
+    <?= $prop ?>: <?= e($valor) ?>;
+<?php endforeach; endif; ?>
   }
 </style>
+<?php if ($temaTemporada && $temaTemporada['estilo']): ?>
+<link rel="stylesheet" href="<?= e(url_recurso('assets/css/temporada.css')) ?>">
+<?php endif; ?>
 <?php if (!empty($datosEstructurados)): ?>
 <script type="application/ld+json"><?= json_para_html($datosEstructurados) ?></script>
 <?php endif; ?>
 </head>
-<body class="<?= e($cuerpoClase) ?>" data-base="<?= e(url()) ?>" data-csrf="<?= e(generarToken()) ?>">
+<body class="<?= e($cuerpoClase) ?>" data-base="<?= e(url()) ?>" data-csrf="<?= e(generarToken()) ?>"
+<?php if ($temaTemporada && $temaTemporada['estilo']): ?>
+      data-temporada="<?= e($temaTemporada['estilo_id']) ?>"
+      data-temporada-formas="<?= e(implode(',', $temaTemporada['estilo']['formas'])) ?>"
+      data-temporada-chispa="<?= e($temaTemporada['estilo']['chispa']) ?>"
+<?php endif; ?>>
 
 <a class="saltar-contenido" href="#contenido">Saltar al contenido</a>
 

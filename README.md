@@ -149,6 +149,7 @@ los dos motores y se pueda re-ejecutar sin romper nada.
 | `005_configuracion.php` | Configuración ampliada, créditos del desarrollador y respaldos |
 | `006_envio_y_avisos.php` | Zonas de envío, libreta de direcciones, enlace de ubicación y textos de los correos |
 | `007_repartidores.php` | Repartidores, asignación del pedido y mensaje al motorizado |
+| `008_estilos_temporada.php` | Estilo visual asociado a cada temporada |
 
 ```bash
 php db/migrar.php            # aplica lo pendiente
@@ -192,19 +193,19 @@ Desde el panel: *Base de datos → Aplicar migraciones* (requiere el permiso
 │   ├── bootstrap.php       Configuración, sesión, PDO y carga de módulos
 │   ├── entorno.php         Lector de .env y config.local.php
 │   ├── lib/                utiles, validacion, seguridad, ajustes, auditoria,
-│   │                       auth, rbac, correo, catalogo, envios, carrito,
-│   │                       favoritos, pedidos, repartidores, archivos,
-│   │                       respaldos, google
+│   │                       auth, rbac, correo, catalogo, temporadas, envios,
+│   │                       carrito, favoritos, pedidos, repartidores,
+│   │                       archivos, respaldos, google
 │   └── vistas/             cabecera, pie, tarjeta_producto, menu_cuenta
 │
-├── assets/css/             estilos.css, app.css, hero.css, admin.css
-├── assets/js/              app.js, hero.js, admin.js
+├── assets/css/             estilos.css, app.css, hero.css, temporada.css, admin.css
+├── assets/js/              app.js, hero.js, temporada.js, admin.js
 │
 ├── db/
 │   ├── Migrador.php        Motor de migraciones
 │   ├── migrar.php          Ejecutor por consola
 │   ├── seed.php            Datos de ejemplo
-│   └── migraciones/        001…007
+│   └── migraciones/        001…008
 │
 ├── images/                 Imágenes del proyecto y placeholders
 ├── uploads/                Fotos subidas desde el panel (públicas)
@@ -411,6 +412,79 @@ con su nombre en el historial del pedido y en la auditoría.
 Al rechazar hay que escribir un motivo de al menos 10 caracteres: es lo único
 que le explica al cliente qué tiene que corregir. El pedido queda reservado y
 puede subir otro comprobante.
+
+---
+
+## Temporadas y estilos
+
+Una temporada se publica sola cuando está activa y la fecha de hoy cae en su
+rango; si hay varias vigentes gana la de mayor prioridad. Eso ya funcionaba.
+Lo que se le añadió es cómo se ve el sitio mientras dura.
+
+### El color
+
+El color de la campaña sale ahora en el bloque `:root` de la cabecera, que se
+imprime en **todas** las páginas, como un juego de variables CSS:
+
+| Variable | Qué es |
+|----------|--------|
+| `--temporada-color` | el color tal cual se eligió |
+| `--temporada-rgb` | sus componentes, para componer `rgba()` |
+| `--temporada-claro` / `--temporada-suave` / `--temporada-medio` | mezclas con blanco |
+| `--temporada-fuerte` | la versión oscura, para texto sobre fondo claro |
+| `--temporada-contraste` | blanco o tinta, lo que se lea sobre el color |
+
+Las mezclas se calculan en PHP y no con `color-mix()` para que el tema se vea
+igual en cualquier navegador. `--temporada-contraste` sale de la luminancia
+relativa: con un amarillo brillante da tinta oscura y con un vino oscuro da
+blanco, sin que haya que acordarse de cambiarlo.
+
+El tema **complementa** el diseño; no lo sustituye. Solo se tiñen la franja
+bajo la barra de navegación, la cinta de la campaña y algunos acentos finos.
+
+### Los estilos
+
+Cada temporada puede llevar un estilo de una lista cerrada (`Temporadas::ESTILOS`):
+flores amarillas, San Valentín, primavera, Día de las Madres, Navidad,
+Halloween, Año Nuevo y verano. «Ninguno» deja solo el color.
+
+Un estilo es un nombre, un icono para el panel, las formas SVG que caen y la
+que sale al interactuar. Añadir uno nuevo son dos pasos: una entrada en esa
+constante y, si se quiere afinar su ritmo, un bloque en
+`assets/css/temporada.css`.
+
+La lista es cerrada a propósito: el identificador se traduce en una clase CSS y
+en unos dibujos concretos, así que aceptar cualquier texto solo produciría
+temporadas sin animación y sin forma de saber por qué.
+
+### Las animaciones
+
+Van en una capa fija que no recibe clics, por debajo de la barra y de los
+modales, con el contenido recortado para que nunca aparezca desplazamiento
+horizontal. Las partículas se reparten en dos franjas laterales estrechas y
+dejan libre el centro, que es por donde pasan los títulos, los botones y las
+fichas.
+
+Todo el movimiento es `transform` y `opacity`, que el navegador resuelve en la
+GPU: no hay ni un cálculo por fotograma. El JavaScript solo crea los elementos
+y les pone unas variables; la animación entera la lleva el CSS.
+
+- 14 partículas en escritorio, 10 en tablet y 6 en el teléfono — la hoja de
+  estilos esconde las que sobran, así que el teléfono no llega a pintarlas.
+- Al añadir al carrito, marcar un favorito o llegar a una página con aviso de
+  éxito sale un pequeño estallido desde ese punto. Dura menos de un segundo,
+  se borra solo y no se repite más de una vez cada 400 ms.
+- Con `prefers-reduced-motion: reduce` no se crea ninguna: el color sigue, el
+  movimiento no.
+- Con la pestaña en segundo plano se pausan.
+
+Los dibujos son SVG en línea, no emoji ni imágenes: se ven nítidos en cualquier
+pantalla, pesan unos cientos de bytes, toman el color del tema con
+`fill: currentColor` y no añaden ni una petición. Solo se mandan las tres o
+cuatro formas que usa el estilo vigente, no las doce.
+
+El CSS y el JS del tema **solo se cargan cuando hay una temporada vigente con
+estilo**: fuera de campaña la página no descarga nada de esto.
 
 ---
 
