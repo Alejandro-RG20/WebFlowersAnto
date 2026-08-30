@@ -26,25 +26,87 @@
 
 .capa-temporada svg {
   position: absolute;
-  top: -8vh;
-  /* Cinturón y tirantes: el símbolo ya trae fill=currentColor, y aquí se
-     asegura por si algún navegador antiguo no lo hereda del <use>. */
-  fill: currentColor;
-  width: var(--tam, 22px);
-  height: var(--tam, 22px);
+  top: -10vh;
+  width: var(--tam, 26px);
+  height: var(--tam, 26px);
+  /* Los dibujos con color propio lo traen escrito; los genéricos usan
+     currentColor y se tiñen con el color de la temporada. */
   color: var(--temporada-color, #F8B0C2);
   opacity: 0;
   will-change: transform, opacity;
-  animation: temporada-caer var(--dur, 20s) linear var(--esperar, 0s) infinite;
+  animation-duration: var(--dur, 22s);
+  animation-delay: var(--esperar, 0s);
+  animation-iteration-count: infinite;
+  animation-timing-function: linear;
 }
 
-/* Caída con vaivén: el desplazamiento lateral va en un envoltorio propio para
-   no pelearse con la rotación de la forma. */
+/* --- Los cinco movimientos ----------------------------------------
+   Que todas las piezas hicieran lo mismo es lo que delata una animación
+   automática. Una hoja cae girando, un globo sube, una pelota bota y un
+   destello titila sin moverse del sitio.                                     */
+
+.capa-temporada .mov-caer     { animation-name: temporada-caer; }
+.capa-temporada .mov-derivar  { animation-name: temporada-derivar; animation-timing-function: ease-in-out; }
+.capa-temporada .mov-girar    { animation-name: temporada-girar; }
+.capa-temporada .mov-flotar   { animation-name: temporada-flotar; top: auto; bottom: -12vh; }
+.capa-temporada .mov-rebotar  { animation-name: temporada-rebotar; top: auto; bottom: 0;
+                                animation-timing-function: cubic-bezier(.3,0,.7,1); }
+.capa-temporada .mov-destellar{ animation-name: temporada-destellar; top: var(--alto, 40vh);
+                                animation-timing-function: ease-in-out; }
+
 @keyframes temporada-caer {
-  0%   { transform: translate3d(0, -10vh, 0) rotate(0deg);    opacity: 0; }
-  8%   { opacity: var(--opacidad, .5); }
-  92%  { opacity: var(--opacidad, .5); }
-  100% { transform: translate3d(var(--deriva, 30px), 112vh, 0) rotate(var(--giro, 220deg)); opacity: 0; }
+  0%   { transform: translate3d(0, -12vh, 0) rotate(0deg); opacity: 0; }
+  8%   { opacity: var(--opacidad, .55); }
+  92%  { opacity: var(--opacidad, .55); }
+  100% { transform: translate3d(var(--deriva, 40px), 114vh, 0) rotate(var(--giro, 200deg)); opacity: 0; }
+}
+
+/* Cae erguida, meciéndose. Una sombrilla, un farol o una portería boca abajo
+   se leen como una mancha; con este vaivén se reconocen todo el recorrido. */
+@keyframes temporada-derivar {
+  0%   { transform: translate3d(0, -12vh, 0) rotate(0deg);   opacity: 0; }
+  10%  { opacity: var(--opacidad, .55); }
+  30%  { transform: translate3d(calc(var(--deriva, 40px) * .55), 20vh, 0) rotate(9deg); }
+  60%  { transform: translate3d(calc(var(--deriva, 40px) * -.45), 58vh, 0) rotate(-8deg); }
+  90%  { opacity: var(--opacidad, .55); }
+  100% { transform: translate3d(var(--deriva, 40px), 114vh, 0) rotate(6deg); opacity: 0; }
+}
+
+/* Cae dando vueltas sobre sí misma: girasoles, rosas, estrellas de mar. */
+@keyframes temporada-girar {
+  0%   { transform: translate3d(0, -12vh, 0) rotate(0deg) scale(.9); opacity: 0; }
+  10%  { opacity: var(--opacidad, .55); }
+  90%  { opacity: var(--opacidad, .55); }
+  100% { transform: translate3d(var(--deriva, 30px), 114vh, 0) rotate(var(--giro, 720deg)) scale(1.05); opacity: 0; }
+}
+
+/* Sube despacio y se va meciendo: globos, burbujas, mariposas. */
+@keyframes temporada-flotar {
+  0%   { transform: translate3d(0, 12vh, 0) rotate(0deg); opacity: 0; }
+  12%  { opacity: var(--opacidad, .5); }
+  50%  { transform: translate3d(var(--deriva, 40px), -50vh, 0) rotate(calc(var(--giro, 40deg) * .5)); }
+  88%  { opacity: var(--opacidad, .5); }
+  100% { transform: translate3d(0, -114vh, 0) rotate(var(--giro, 40deg)); opacity: 0; }
+}
+
+/* Bota por el borde inferior y sale de escena: balones y pelotas. */
+@keyframes temporada-rebotar {
+  0%   { transform: translate3d(-14vw, -2vh, 0) rotate(0deg);   opacity: 0; }
+  6%   { opacity: var(--opacidad, .7); }
+  18%  { transform: translate3d(6vw, -22vh, 0) rotate(120deg); }
+  34%  { transform: translate3d(22vw, -2vh, 0) rotate(250deg); }
+  48%  { transform: translate3d(34vw, -15vh, 0) rotate(340deg); }
+  64%  { transform: translate3d(48vw, -2vh, 0) rotate(460deg); }
+  80%  { transform: translate3d(60vw, -9vh, 0) rotate(560deg); opacity: var(--opacidad, .7); }
+  100% { transform: translate3d(76vw, -2vh, 0) rotate(680deg); opacity: 0; }
+}
+
+/* Titila sin desplazarse: fuegos artificiales, luces, destellos. */
+@keyframes temporada-destellar {
+  0%, 100% { transform: scale(.35) rotate(0deg);   opacity: 0; }
+  20%      { transform: scale(1) rotate(30deg);    opacity: var(--opacidad, .8); }
+  45%      { transform: scale(.75) rotate(60deg);  opacity: calc(var(--opacidad, .8) * .55); }
+  70%      { transform: scale(1.08) rotate(100deg); opacity: var(--opacidad, .8); }
 }
 
 /* --- Estallido al interactuar -------------------------------------
@@ -104,12 +166,15 @@
 /* --- Cantidad de partículas por tamaño de pantalla -----------------
    En lugar de calcularlo en JavaScript, la hoja de estilos esconde las que
    sobran: el teléfono no llega a pintarlas nunca.                            */
-@media (max-width: 900px) {
-  .capa-temporada svg:nth-child(n + 11) { display: none; }
+@media (max-width: 1100px) {
+  .capa-temporada svg:nth-child(n + 15) { display: none; }
 }
-@media (max-width: 560px) {
+@media (max-width: 760px) {
+  .capa-temporada svg:nth-child(n + 9)  { display: none; }
+}
+@media (max-width: 520px) {
   .capa-temporada svg:nth-child(n + 7)  { display: none; }
-  .capa-temporada svg { --tam: 16px; }
+  .capa-temporada svg { --tam: 24px !important; }
 }
 
 /* --- Quien pidió menos movimiento no ve ninguno -------------------- */
@@ -120,17 +185,24 @@
 }
 
 /* --- Ajustes por estilo -------------------------------------------
-   Cada temporada tiene su propio ritmo: los pétalos caen despacio y giran, la
-   nieve baja recta, el confeti cae rápido.                                    */
-.temporada--flores_amarillas .capa-temporada svg { --opacidad: .55; }
-.temporada--san_valentin     .capa-temporada svg { --opacidad: .45; }
-.temporada--primavera        .capa-temporada svg { --opacidad: .5; }
-.temporada--dia_madres       .capa-temporada svg { --opacidad: .45; }
+   Cada temporada tiene su propio peso visual: la nieve y el confeti se ven,
+   los pétalos acompañan sin pedir atención.                                   */
+.temporada--flores_amarillas .capa-temporada svg { --opacidad: .62; }
+.temporada--san_valentin     .capa-temporada svg { --opacidad: .55; }
+.temporada--primavera        .capa-temporada svg { --opacidad: .58; }
+.temporada--dia_madres       .capa-temporada svg { --opacidad: .55; }
+.temporada--navidad          .capa-temporada svg { --opacidad: .8; }
+.temporada--halloween        .capa-temporada svg { --opacidad: .68; }
+.temporada--ano_nuevo        .capa-temporada svg { --opacidad: .78; }
+.temporada--verano           .capa-temporada svg { --opacidad: .62; }
+.temporada--playa            .capa-temporada svg { --opacidad: .62; }
+.temporada--deportes         .capa-temporada svg { --opacidad: .55; }
+.temporada--futbol           .capa-temporada svg { --opacidad: .55; }
+.temporada--baloncesto       .capa-temporada svg { --opacidad: .58; }
+.temporada--noche_luces      .capa-temporada svg { --opacidad: .7; }
 
-.temporada--navidad   .capa-temporada svg { --opacidad: .7; color: #FFFFFF; filter: drop-shadow(0 0 2px rgba(var(--temporada-rgb), .55)); }
-.temporada--halloween .capa-temporada svg { --opacidad: .5; }
-.temporada--ano_nuevo .capa-temporada svg { --opacidad: .75; }
-.temporada--verano    .capa-temporada svg { --opacidad: .45; }
-
-/* La nieve y el confeti no dan volteretas: se ven raras girando. */
-.temporada--navidad   .capa-temporada svg { animation-timing-function: ease-in-out; }
+/* Los copos llevan un halo del color de la campaña para que se despeguen del
+   fondo claro sin dejar de ser blancos. */
+.temporada--navidad .capa-temporada .mov-caer {
+  filter: drop-shadow(0 0 3px rgba(var(--temporada-rgb), .5));
+}

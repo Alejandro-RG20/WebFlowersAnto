@@ -19,6 +19,7 @@
   if (consulta.matches) { return; }
 
   const formas = (cuerpo.dataset.temporadaFormas || '').split(',').filter(Boolean);
+  const movs   = (cuerpo.dataset.temporadaMovs   || '').split(',');
   const chispa = cuerpo.dataset.temporadaChispa || formas[0];
   if (!formas.length) { return; }
 
@@ -42,7 +43,7 @@
   // libre: por ahí pasan los títulos, los botones y las fichas de producto, y
   // una flor cruzándolos distrae en vez de acompañar.
   // -------------------------------------------------------------------
-  const TOTAL = 14;
+  const TOTAL = 22;
 
   function montarCapa() {
     const capa = document.createElement('div');
@@ -50,18 +51,44 @@
     capa.setAttribute('aria-hidden', 'true');
 
     for (let i = 0; i < TOTAL; i++) {
-      const svg = nuevaForma(formas[i % formas.length]);
-      // Franjas estrechas a los lados: el centro, donde están los títulos,
-      // los botones y las fichas, queda siempre despejado.
-      const izquierda = i % 2 === 0;
-      svg.style.left = (izquierda ? azar(0, 15) : azar(85, 99)) + '%';
-      svg.style.setProperty('--tam',      azar(16, 32).toFixed(0) + 'px');
-      svg.style.setProperty('--dur',      azar(16, 30).toFixed(1) + 's');
-      // Retraso negativo: al cargar la página ya hay partículas repartidas por
-      // la pantalla, en vez de empezar todas juntas desde arriba.
-      svg.style.setProperty('--esperar', '-' + azar(0, 26).toFixed(1) + 's');
-      svg.style.setProperty('--deriva',   azar(-70, 70).toFixed(0) + 'px');
-      svg.style.setProperty('--giro',     azar(-320, 320).toFixed(0) + 'deg');
+      const cual = i % formas.length;
+      const mov  = movs[cual] || 'caer';
+      const svg  = nuevaForma(formas[cual]);
+      svg.classList.add('mov-' + mov);
+
+      // Las que se desplazan van en franjas estrechas a los lados: el centro,
+      // donde están los títulos, los botones y las fichas, queda despejado.
+      // Las que rebotan cruzan por abajo y las que titilan se reparten por
+      // toda la pantalla, porque no tapan nada al no moverse.
+      if (mov === 'rebotar') {
+        svg.style.left = azar(-4, 24) + '%';
+      } else if (mov === 'destellar') {
+        svg.style.left = azar(2, 96) + '%';
+        svg.style.setProperty('--alto', azar(8, 82).toFixed(0) + 'vh');
+      } else {
+        svg.style.left = (i % 2 === 0 ? azar(0, 15) : azar(85, 99)) + '%';
+      }
+
+      // Cada movimiento pide su propio tamaño y su propio ritmo.
+      // Los dibujos llevan detalle —una palmera, un farol, un ramo— y por
+      // debajo de unos 22 px dejan de leerse y parecen manchas.
+      const tam = mov === 'rebotar'   ? azar(28, 44)
+                : mov === 'destellar' ? azar(16, 30)
+                : azar(22, 42);
+      const dur = mov === 'destellar' ? azar(3.5, 7)
+                : mov === 'rebotar'   ? azar(11, 19)
+                : mov === 'flotar'    ? azar(20, 34)
+                : mov === 'derivar'   ? azar(19, 33)
+                : azar(16, 30);
+
+      svg.style.setProperty('--tam', tam.toFixed(0) + 'px');
+      svg.style.setProperty('--dur', dur.toFixed(1) + 's');
+      // Retraso negativo: al cargar la página ya hay piezas repartidas por la
+      // pantalla, en vez de empezar todas juntas desde el mismo borde.
+      svg.style.setProperty('--esperar', '-' + azar(0, dur).toFixed(1) + 's');
+      svg.style.setProperty('--deriva', azar(-70, 70).toFixed(0) + 'px');
+      svg.style.setProperty('--giro',
+        mov === 'girar' ? azar(360, 900).toFixed(0) + 'deg' : azar(-320, 320).toFixed(0) + 'deg');
       capa.appendChild(svg);
     }
     document.body.appendChild(capa);
@@ -107,7 +134,7 @@
     const trozos = [];
     for (let i = 0; i < PIEZAS; i++) {
       const svg = nuevaForma(i % 3 === 0 ? chispa : formas[i % formas.length]);
-      svg.className.baseVal = 'chispa-temporada';
+      svg.setAttribute('class', 'chispa-temporada');
       svg.style.left = x + 'px';
       svg.style.top  = y + 'px';
 

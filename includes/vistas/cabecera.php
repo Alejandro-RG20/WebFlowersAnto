@@ -103,6 +103,7 @@ $waGeneral = enlace_whatsapp(
 <?php if ($temaTemporada && $temaTemporada['estilo']): ?>
       data-temporada="<?= e($temaTemporada['estilo_id']) ?>"
       data-temporada-formas="<?= e(implode(',', $temaTemporada['estilo']['formas'])) ?>"
+      data-temporada-movs="<?= e(implode(',', Temporadas::movimientos($temaTemporada['estilo']))) ?>"
       data-temporada-chispa="<?= e($temaTemporada['estilo']['chispa']) ?>"
 <?php endif; ?>>
 

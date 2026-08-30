@@ -452,3 +452,31 @@ rehicieron porque no se leían.
 Y la regresión de siempre —compra como invitado, comprobante, seguimiento,
 zonas de envío, redirección externa, 27 páginas sin un solo aviso de PHP— en
 la raíz y en subcarpeta.
+
+### Segunda vuelta a las animaciones
+
+Con una lámina de referencia delante, las formas pasaron de doce siluetas de un
+solo color a **51 dibujos con color propio**: girasoles con tallo, corazones
+globo, cajas de regalo, árboles con estrella, faroles, telarañas, flores de
+cerezo, mariposas, rosas, ramos, fuegos artificiales, serpentinas, palmeras,
+conchas, tablas de surf, sombrillas, los cuatro balones, portería, canasta,
+guirnaldas de luces. Los genéricos —pétalos, destellos, confeti, burbujas—
+siguen tiñéndose con el color de la campaña.
+
+Y cuatro estilos más: playa, deportes, fútbol y baloncesto, más «noche de
+luces». Trece en total.
+
+Lo que más cambió la sensación no fueron los dibujos sino **los movimientos**.
+Con uno solo, catorce piezas cayendo igual se leen como un efecto automático.
+Ahora hay seis, y uno de ellos salió de mirar las capturas: la sombrilla y la
+silla de playa iban dando volteretas y se leían como manchas, así que los
+objetos con arriba y abajo caen erguidos meciéndose (`derivar`) mientras los
+pétalos y las hojas siguen volteando.
+
+Las formas se revisaron dibujadas en grande y a 26 px. Se rehicieron el
+girasol, la flor, el murciélago, la ola, la chancleta, la portería, la canasta,
+la telaraña y la flor tropical: unas no se reconocían y otras, al ser blancas o
+gris claro, desaparecían sobre el fondo crema del sitio.
+
+Peso de todo esto: 9,4 KB de CSS, 7,9 KB de JavaScript y 2,6 KB de sprite, y
+solo se descarga cuando hay campaña con estilo.

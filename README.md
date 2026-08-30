@@ -446,7 +446,8 @@ bajo la barra de navegación, la cinta de la campaña y algunos acentos finos.
 
 Cada temporada puede llevar un estilo de una lista cerrada (`Temporadas::ESTILOS`):
 flores amarillas, San Valentín, primavera, Día de las Madres, Navidad,
-Halloween, Año Nuevo y verano. «Ninguno» deja solo el color.
+Halloween, Año Nuevo, verano, playa, deportes, fútbol, baloncesto y noche de
+luces. «Ninguno» deja solo el color.
 
 Un estilo es un nombre, un icono para el panel, las formas SVG que caen y la
 que sale al interactuar. Añadir uno nuevo son dos pasos: una entrada en esa
@@ -469,7 +470,7 @@ Todo el movimiento es `transform` y `opacity`, que el navegador resuelve en la
 GPU: no hay ni un cálculo por fotograma. El JavaScript solo crea los elementos
 y les pone unas variables; la animación entera la lleva el CSS.
 
-- 14 partículas en escritorio, 10 en tablet y 6 en el teléfono — la hoja de
+- 22 partículas en escritorio, 14 en tablet y 6 en el teléfono — la hoja de
   estilos esconde las que sobran, así que el teléfono no llega a pintarlas.
 - Al añadir al carrito, marcar un favorito o llegar a una página con aviso de
   éxito sale un pequeño estallido desde ese punto. Dura menos de un segundo,
@@ -479,9 +480,29 @@ y les pone unas variables; la animación entera la lleva el CSS.
 - Con la pestaña en segundo plano se pausan.
 
 Los dibujos son SVG en línea, no emoji ni imágenes: se ven nítidos en cualquier
-pantalla, pesan unos cientos de bytes, toman el color del tema con
-`fill: currentColor` y no añaden ni una petición. Solo se mandan las tres o
-cuatro formas que usa el estilo vigente, no las doce.
+pantalla, pesan unos cientos de bytes y no añaden ni una petición. Los que
+tienen color propio lo traen escrito —un girasol es amarillo aunque la campaña
+sea azul—; los genéricos (pétalos, destellos, confeti, burbujas) usan
+`fill: currentColor` y se tiñen con el color de la temporada, que es lo que
+mantiene el conjunto unido. Del catálogo de 51 formas solo viajan al navegador
+las cuatro o cinco que usa el estilo vigente.
+
+Cada forma declara además **cómo se mueve**, porque que todas hicieran lo mismo
+es lo que delata una animación automática:
+
+| Movimiento | Qué hace | Ejemplos |
+|------------|----------|----------|
+| `caer` | cae dando volteretas | pétalos, hojas, copos |
+| `derivar` | cae erguida, meciéndose | sombrillas, faroles, palmeras |
+| `girar` | cae girando sobre sí misma | girasoles, rosas, estrellas de mar |
+| `flotar` | sube despacio | globos, burbujas, mariposas |
+| `rebotar` | bota por el borde inferior | los balones |
+| `destellar` | titila sin desplazarse | fuegos, luces, destellos |
+
+`derivar` existe porque un objeto con arriba y abajo —una sombrilla, un farol,
+una portería— boca abajo se lee como una mancha. Las que se desplazan van por
+las franjas laterales; las que solo titilan pueden repartirse por toda la
+pantalla, porque al no moverse no tapan nada.
 
 El CSS y el JS del tema **solo se cargan cuando hay una temporada vigente con
 estilo**: fuera de campaña la página no descarga nada de esto.
