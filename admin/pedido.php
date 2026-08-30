@@ -272,6 +272,11 @@ require __DIR__ . '/_cabecera.php';
 
         <dl class="lista-datos" style="margin-top:16px; border-top:1px solid var(--p-linea); padding-top:14px;">
           <div><dt>Subtotal</dt><dd><?= e((string)$pedido['moneda'] . number_format((float)$pedido['subtotal'], 2)) ?></dd></div>
+          <?php if ((float)($pedido['descuento'] ?? 0) > 0): ?>
+            <div><dt>Descuento
+              <span class="celda-sub"><?= e((string)$pedido['cupon_codigo']) ?></span></dt>
+              <dd style="color:var(--p-exito);">−<?= e((string)$pedido['moneda'] . number_format((float)$pedido['descuento'], 2)) ?></dd></div>
+          <?php endif; ?>
           <div><dt>Envío</dt><dd><?= (float)$pedido['envio'] > 0
               ? e((string)$pedido['moneda'] . number_format((float)$pedido['envio'], 2)) : 'Gratis' ?></dd></div>
           <div style="font-size:1.05rem; font-weight:700;"><dt style="color:var(--p-tinta);">Total</dt>

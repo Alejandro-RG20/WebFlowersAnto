@@ -98,6 +98,7 @@ if (Rbac::puede('pedidos.ver')) {
       }
       itemMenu('clientes',     'clientes.php',     'fa-solid fa-users',      'Clientes',     'clientes.ver',     $seccion);
       itemMenu('repartidores', 'repartidores.php', 'fa-solid fa-motorcycle', 'Repartidores', 'repartidores.ver', $seccion);
+      itemMenu('cupones',      'cupones.php',      'fa-solid fa-ticket',     'Cupones',      'cupones.ver',      $seccion);
     ?>
 
     <p class="grupo">Catálogo</p>

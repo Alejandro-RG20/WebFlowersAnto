@@ -46,7 +46,37 @@ if (!$zonaElegida && $_SERVER['REQUEST_METHOD'] !== 'POST') {
 }
 
 $tipoEntregaActual = opcion('entrega_tipo', ['domicilio', 'retiro'], 'domicilio');
-$detalle = Carrito::detalle($pdo, $zonaElegida, $tipoEntregaActual);
+
+// Cupón. El código vive en la sesión —lo pone la llamada de api/cupon.php al
+// aplicarlo— y el importe del descuento se vuelve a calcular en cada carga,
+// nunca se arrastra guardado.
+//
+// Sin JavaScript el campo viaja con el resto del formulario y se valida al
+// confirmar: el cliente no ve el descuento antes, pero se le aplica igual.
+$cuponesActivos = Cupones::activos();
+$codigoCupon    = Cupones::limpiar(
+    crudo('cupon') !== '' ? crudo('cupon') : (string)($_SESSION['cupon'] ?? '')
+);
+$avisoCupon    = '';
+$cuponAplicado = null;
+
+if ($cuponesActivos && $codigoCupon !== '') {
+    $baseCupon = Carrito::detalle($pdo, $zonaElegida, $tipoEntregaActual);
+    $revision  = Cupones::revisar(
+        $pdo, $codigoCupon, $baseCupon['subtotal'], $baseCupon['envio'],
+        Auth::id(), (string)($usuario['email'] ?? correoValido('cliente_email'))
+    );
+    if ($revision['ok']) {
+        $cuponAplicado = $revision['cupon'];
+    } else {
+        $avisoCupon = $revision['error'];
+        // Un cupón que dejó de valer no se queda pegado a la sesión estorbando
+        // en el siguiente pedido.
+        unset($_SESSION['cupon']);
+    }
+}
+
+$detalle = Carrito::detalle($pdo, $zonaElegida, $tipoEntregaActual, $cuponAplicado);
 if (!$detalle['items']) {
     flash('info', 'Tu carrito está vacío.');
     redirigir('carrito.php');
@@ -102,6 +132,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $metodosValidos[] = 'efectivo';
     }
     $datos['metodo_pago'] = opcion('metodo_pago', $metodosValidos, 'transferencia');
+    // Se le pasa el código tal cual lo tenía el cliente, valga o no: el pedido
+    // lo revalida y, si dejó de servir, devuelve el motivo para poder
+    // decírselo. Filtrarlo aquí dejaba al cliente sin descuento y sin
+    // explicación.
+    $datos['cupon']       = $codigoCupon;
     $datos['canal']       = 'web';
 
     // --- Validación ---------------------------------------------------
@@ -216,7 +251,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     'zona_envio_id' => $datos['zona_envio_id'],
                 ]);
             }
-            flash('exito', 'Recibimos tu pedido ' . $pedido['codigo'] . '.');
+            // El cupón ya se gastó o dejó de valer: el pedido se registra igual
+            // con su total correcto, pero el cliente tiene que enterarse aquí y
+            // no al abrir el correo.
+            unset($_SESSION['cupon']);
+            if (($resultado['aviso'] ?? '') !== '') {
+                flash('alerta', $resultado['aviso'] . ' Registramos tu pedido '
+                              . $pedido['codigo'] . ' sin ese descuento.');
+            } else {
+                flash('exito', 'Recibimos tu pedido ' . $pedido['codigo'] . '.');
+            }
             redirigir(Pedidos::enlaceSeguimiento($pedido));
         }
         $errores[] = $resultado['error'];
@@ -590,12 +634,44 @@ require __DIR__ . '/includes/vistas/cabecera.php';
             </div>
           <?php endforeach; ?>
 
+          <?php if ($cuponesActivos): ?>
+            <div class="bloque-cupon" id="bloqueCupon" data-aplicado="<?= $cuponAplicado ? '1' : '0' ?>">
+              <label for="cupon">¿Tienes un cupón de descuento?</label>
+              <div class="cupon-fila">
+                <input type="text" id="cupon" name="cupon" maxlength="40"
+                       autocomplete="off" spellcheck="false" inputmode="text"
+                       placeholder="Escribe tu código"
+                       value="<?= e($cuponAplicado ? (string)$cuponAplicado['codigo'] : $codigoCupon) ?>"
+                       <?= $cuponAplicado ? 'readonly' : '' ?>>
+                <button type="button" class="btn btn-outline-dark" id="btnCupon"
+                        data-accion="<?= $cuponAplicado ? 'quitar' : 'aplicar' ?>">
+                  <?= $cuponAplicado ? 'Quitar' : 'Aplicar' ?>
+                </button>
+              </div>
+              <p class="cupon-aviso<?= $cuponAplicado ? ' bien' : ($avisoCupon !== '' ? ' mal' : '') ?>"
+                 id="avisoCupon" <?= ($cuponAplicado || $avisoCupon !== '') ? '' : 'hidden' ?>>
+                <?php if ($cuponAplicado): ?>
+                  <i class="fa-solid fa-circle-check" aria-hidden="true"></i>
+                  <?= e(Cupones::resumen($cuponAplicado)) ?>
+                <?php elseif ($avisoCupon !== ''): ?>
+                  <i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i>
+                  <?= e($avisoCupon) ?>
+                <?php endif; ?>
+              </p>
+            </div>
+          <?php endif; ?>
+
           <div class="resumen-totales" style="margin-top:16px;"
                data-resumen
                data-subtotal="<?= e(number_format($detalle['subtotal'], 2, '.', '')) ?>"
                data-moneda="<?= e(Ajustes::texto('moneda_local', 'C$')) ?>"
                data-umbral="<?= e(number_format((float)Ajustes::numero('envio_gratis_desde', 0), 2, '.', '')) ?>">
             <div><span>Subtotal</span><span><?= e(dinero($detalle['subtotal'])) ?></span></div>
+            <div id="lineaDescuento" class="linea-descuento" <?= $detalle['descuento'] > 0 ? '' : 'hidden' ?>>
+              <span>Descuento <small id="cuponEtiqueta" style="color:var(--tenue);"><?=
+                $cuponAplicado ? e((string)$cuponAplicado['codigo']) : '' ?></small></span>
+              <span id="descuentoImporte" class="gratis">−<?= e(dinero($detalle['descuento'])) ?></span>
+            </div>
             <div><span>Envío <small id="envioZona" style="color:var(--tenue);"><?php
                     echo $zonaElegida ? e((string)$zonaElegida['nombre']) : ''; ?></small></span>
               <span id="envioImporte" class="<?= $detalle['envio'] > 0 ? '' : 'gratis' ?>"><?=

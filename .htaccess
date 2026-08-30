@@ -41,14 +41,23 @@ RedirectMatch 404 ^/(.*/)?\.git
   ExpiresByType image/png   "access plus 30 days"
   ExpiresByType image/webp  "access plus 30 days"
   ExpiresByType image/svg+xml "access plus 30 days"
-  ExpiresByType text/css    "access plus 7 days"
-  ExpiresByType application/javascript "access plus 7 days"
+  ExpiresByType image/avif  "access plus 30 days"
+  ExpiresByType image/x-icon "access plus 30 days"
+  ExpiresByType font/woff2  "access plus 1 year"
+  # El CSS y el JS llevan la fecha del archivo en la URL (app.js?v=1788…), así
+  # que la dirección cambia sola al publicar una versión nueva. Por eso pueden
+  # guardarse un año: el navegador nunca sirve uno viejo por error.
+  ExpiresByType text/css    "access plus 1 year"
+  ExpiresByType application/javascript "access plus 1 year"
 </IfModule>
 
 # --- Compresión --------------------------------------------------------
 <IfModule mod_deflate.c>
   AddOutputFilterByType DEFLATE text/html text/css text/plain text/xml
   AddOutputFilterByType DEFLATE application/javascript application/json
+  # Los SVG son texto y se comprimen a menos de un tercio.
+  AddOutputFilterByType DEFLATE image/svg+xml application/xml
+  AddOutputFilterByType DEFLATE font/woff2 application/font-woff
 </IfModule>
 
 # --- Página de error 404 ------------------------------------------------

@@ -266,6 +266,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'permitir_invitado'      => casilla('permitir_invitado'),
             'permitir_retiro'        => casilla('permitir_retiro'),
             'pago_efectivo_activo'   => casilla('pago_efectivo_activo'),
+            'cupones_activos'        => casilla('cupones_activos'),
             'franjas_entrega'        => texto('franjas_entrega', 300),
         ],
         'envio' => [
@@ -631,6 +632,13 @@ function campoImagen(string $nombre, string $etiqueta, string $valor, string $ay
           <input type="checkbox" id="pago_efectivo_activo" name="pago_efectivo_activo" value="1"
                  <?= (int)($c['pago_efectivo_activo'] ?? 1) ? 'checked' : '' ?>>
           <label for="pago_efectivo_activo">Aceptar efectivo contra entrega</label>
+        </div>
+        <div class="interruptor">
+          <input type="checkbox" id="cupones_activos" name="cupones_activos" value="1"
+                 <?= (int)($c['cupones_activos'] ?? 1) ? 'checked' : '' ?>>
+          <label for="cupones_activos">Aceptar cupones de descuento
+            <small>Muestra el campo del código al confirmar el pedido.
+              Los cupones se crean en <a href="<?= e(url('admin/cupones.php')) ?>">Cupones</a>.</small></label>
         </div>
         <div class="campo">
           <label for="whatsapp_pedidos">WhatsApp para pedidos</label>

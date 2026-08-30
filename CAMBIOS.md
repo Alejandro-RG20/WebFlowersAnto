@@ -493,3 +493,67 @@ blanco con el error de PDO.
 motivo en el registro de errores. Una decoración de temporada no puede impedir
 instalar el sitio. Probada la instalación entera desde una base vacía —los dos
 pasos, migrar y crear la cuenta— en la raíz y en subcarpeta.
+
+---
+
+## 13. Cupones de descuento y optimización
+
+### Cupones
+
+Del navegador solo viaja el código. El importe se recalcula en el servidor tres
+veces: al escribirlo, al repintar el resumen y al registrar el pedido. Probado
+enviando `descuento=9999` y `total=1` a mano en el POST: se cobró lo que decía
+la base.
+
+Tres tipos —porcentaje con tope opcional, importe fijo y envío gratis— con
+compra mínima, usos totales, usos por cliente y rango de fechas. El límite por
+cliente mira la cuenta y el correo a la vez, porque quien pidió como invitado y
+luego se registró es el mismo cliente.
+
+El canje se cuenta con un `UPDATE` condicional en vez de leer-y-sumar: dos
+personas gastando el último uso a la vez lo tiene que resolver la base, no el
+PHP. Y va dentro de la transacción del pedido, así que si el pedido falla el
+cupón no queda gastado.
+
+El descuento se guarda como importe propio y no restado del subtotal: al abrir
+un pedido de hace meses hay que poder ver cuánto costaba, cuánto se rebajó y con
+qué código.
+
+Dos cosas salieron al probarlo en un navegador de verdad, no en las pruebas por
+consola:
+
+- Al cambiar de zona de envío, el bloque que recalcula el total lo hacía sin
+  contar el descuento, y el cupón desaparecía del total sin desaparecer de la
+  pantalla. Ahora los dos bloques se avisan entre ellos.
+- La fila del descuento no se ocultaba al quitar el cupón: el `display:flex` de
+  las filas del resumen le ganaba al `display:none` del atributo `hidden`.
+
+Y una de diseño: si el cupón moría entre aplicar y confirmar, el pedido se
+registraba sin descuento y sin decir nada. Ahora se registra igual —perder la
+venta sería peor— pero el cliente ve el motivo en la página de su pedido.
+
+### Optimización
+
+Lo que se midió antes de tocar: 14 consultas y 13 ms en la portada, 8 en el
+catálogo, 2 en el checkout. Los índices que hacían falta ya estaban. Así que el
+margen no estaba en la base sino en la red y en el navegador.
+
+- **Caché de un año** para el CSS y el JS. Se puede porque desde la entrega
+  anterior llevan la fecha del archivo en la URL: al publicar una versión nueva
+  cambia la dirección, y el navegador nunca puede servir una vieja por error.
+  Antes eran siete días.
+- **Compresión** también para SVG y fuentes, que son texto y bajan a menos de un
+  tercio.
+- **`preconnect` a cdnjs**, que faltaba: el navegador abre la conexión de los
+  iconos mientras todavía está leyendo el HTML.
+- **La barra de navegación** escribía en el DOM en cada evento de scroll —
+  decenas por segundo—. Ahora agrupa el trabajo en el siguiente fotograma y solo
+  escribe cuando el estado cambia de verdad. Se nota en teléfonos modestos.
+- Las estadísticas de canje de los cupones salen de **una sola consulta
+  agrupada**, no de una por cupón.
+
+Lo que se revisó y ya estaba bien, y por eso no se tocó: la configuración se lee
+una vez por petición y se cachea; las animaciones de aparición usan
+`IntersectionObserver` y no el scroll; la primera imagen del carrusel ya lleva
+`fetchpriority="high"` y las demás `loading="lazy"`; las tarjetas del catálogo
+reservan su espacio con `aspect-ratio`, así que no dan saltos al cargar.

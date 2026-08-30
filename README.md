@@ -150,6 +150,7 @@ los dos motores y se pueda re-ejecutar sin romper nada.
 | `006_envio_y_avisos.php` | Zonas de envío, libreta de direcciones, enlace de ubicación y textos de los correos |
 | `007_repartidores.php` | Repartidores, asignación del pedido y mensaje al motorizado |
 | `008_estilos_temporada.php` | Estilo visual asociado a cada temporada |
+| `009_cupones.php` | Cupones de descuento y registro de canjes |
 
 ```bash
 php db/migrar.php            # aplica lo pendiente
@@ -185,16 +186,16 @@ Desde el panel: *Base de datos → Aplicar migraciones* (requiere el permiso
 │                           perfil, pedidos, direcciones, google, google-callback
 ├── admin/                  Panel: resumen, pedidos, productos, categorías,
 │                           temporadas, galería, clientes, repartidores,
-│                           empleados, roles, auditoría, configuración,
+│                           cupones, empleados, roles, auditoría, configuración,
 │                           respaldos, base de datos
-├── api/                    carrito.php y favoritos.php (POST, JSON)
+├── api/                    carrito.php, favoritos.php y cupon.php (POST, JSON)
 │
 ├── includes/
 │   ├── bootstrap.php       Configuración, sesión, PDO y carga de módulos
 │   ├── entorno.php         Lector de .env y config.local.php
 │   ├── lib/                utiles, validacion, seguridad, ajustes, auditoria,
 │   │                       auth, rbac, correo, catalogo, temporadas, envios,
-│   │                       carrito, favoritos, pedidos, repartidores,
+│   │                       cupones, carrito, favoritos, pedidos, repartidores,
 │   │                       archivos, respaldos, google
 │   └── vistas/             cabecera, pie, tarjeta_producto, menu_cuenta
 │
@@ -205,7 +206,7 @@ Desde el panel: *Base de datos → Aplicar migraciones* (requiere el permiso
 │   ├── Migrador.php        Motor de migraciones
 │   ├── migrar.php          Ejecutor por consola
 │   ├── seed.php            Datos de ejemplo
-│   └── migraciones/        001…008
+│   └── migraciones/        001…009
 │
 ├── images/                 Imágenes del proyecto y placeholders
 ├── uploads/                Fotos subidas desde el panel (públicas)
@@ -508,6 +509,42 @@ pantalla, porque al no moverse no tapan nada.
 
 El CSS y el JS del tema **solo se cargan cuando hay una temporada vigente con
 estilo**: fuera de campaña la página no descarga nada de esto.
+
+---
+
+## Cupones de descuento
+
+Del navegador solo viaja el código. El importe se vuelve a calcular en el
+servidor tres veces —al escribirlo, al repintar el resumen y al registrar el
+pedido— a partir de lo que hay en la base. Enviar `descuento=9999` en el POST
+no cambia nada.
+
+| Tipo | Qué hace |
+|------|----------|
+| Porcentaje | Un % sobre el subtotal, con tope opcional («20 % hasta C$300») |
+| Importe fijo | Rebaja una cantidad concreta |
+| Envío gratis | Pone el envío a cero, sea cual sea la zona |
+
+Condiciones por cupón: compra mínima, usos totales, usos por cliente y rango de
+fechas. El límite por cliente se comprueba por cuenta **y** por correo a la vez,
+porque quien pidió como invitado y luego se registró sigue siendo el mismo
+cliente.
+
+El canje se cuenta con un `UPDATE` condicional
+(`SET usos = usos + 1 WHERE ... AND usos < usos_maximos`), no leyendo y luego
+sumando: dos personas gastando el último uso a la vez es raro pero pasa, y quien
+tiene que decidirlo es la base de datos.
+
+Si el cupón deja de valer entre que el cliente lo aplica y confirma —se agotó,
+venció— el pedido **se registra igual** con su total correcto y se le dice por
+qué no se aplicó. Perder la venta por eso sería peor.
+
+El descuento se guarda en el pedido como importe propio, no restado del
+subtotal: al mirar un pedido viejo hay que poder ver cuánto costaba, cuánto se
+rebajó y con qué código. `cupon_usos` guarda cada canje con su pedido.
+
+Sin JavaScript el campo viaja con el formulario y se valida al confirmar: el
+cliente no ve el descuento antes, pero se le aplica igual.
 
 ---
 

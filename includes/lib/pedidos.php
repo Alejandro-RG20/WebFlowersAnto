@@ -86,8 +86,35 @@ final class Pedidos
     {
         // La zona se relee de la base: del formulario solo llega su id, nunca
         // el precio. El envío se calcula aquí, no se acepta del navegador.
-        $zona = Envios::zona($pdo, (int)($datos['zona_envio_id'] ?? 0));
-        $detalle = Carrito::detalle($pdo, $zona, (string)($datos['entrega_tipo'] ?? 'domicilio'));
+        $zona    = Envios::zona($pdo, (int)($datos['zona_envio_id'] ?? 0));
+        $entrega = (string)($datos['entrega_tipo'] ?? 'domicilio');
+
+        // Lo mismo con el cupón: del formulario llega el código y se vuelve a
+        // validar entero contra la base —vigencia, mínimo de compra, usos—
+        // antes de aplicar nada. Si dejó de ser válido mientras el cliente
+        // llenaba el formulario, el pedido se registra sin descuento y con su
+        // total correcto, en vez de fallar y perder la venta.
+        $cupon       = null;
+        $avisoCupon  = '';
+        $codigoCupon = Cupones::limpiar((string)($datos['cupon'] ?? ''));
+        if ($codigoCupon !== '') {
+            $base     = Carrito::detalle($pdo, $zona, $entrega);
+            $revision = Cupones::revisar(
+                $pdo, $codigoCupon, $base['subtotal'], $base['envio'],
+                Auth::id(), (string)($datos['cliente_email'] ?? '')
+            );
+            if ($revision['ok']) {
+                $cupon = $revision['cupon'];
+            } else {
+                // Se avisa a quien llama para que se lo diga al cliente. Un
+                // descuento que desaparece sin explicación entre la pantalla
+                // anterior y el correo de confirmación es una reclamación
+                // segura.
+                $avisoCupon = 'No pudimos aplicar el cupón ' . $codigoCupon . ': ' . $revision['error'];
+            }
+        }
+
+        $detalle = Carrito::detalle($pdo, $zona, $entrega, $cupon);
         if (!$detalle['items']) {
             return ['ok' => false, 'error' => 'Tu carrito está vacío.'];
         }
@@ -113,9 +140,10 @@ final class Pedidos
                      entrega_tipo, entrega_nombre, entrega_telefono, entrega_direccion,
                      entrega_ciudad, entrega_referencia, entrega_fecha, entrega_franja,
                      dedicatoria, notas_cliente, canal, metodo_pago, estado, estado_pago,
-                     moneda, subtotal, envio, total, token_seguimiento, ip,
-                     zona_envio_id, zona_envio_nombre, entrega_mapa_url)
-                 VALUES (?,?,?,?,?, ?,?,?,?, ?,?,?,?, ?,?, ?,?,?,?, ?,?,?,?, ?,?, ?,?,?)"
+                     moneda, subtotal, envio, descuento, total, token_seguimiento, ip,
+                     zona_envio_id, zona_envio_nombre, entrega_mapa_url,
+                     cupon_id, cupon_codigo)
+                 VALUES (?,?,?,?,?, ?,?,?,?, ?,?,?,?, ?,?, ?,?,?,?, ?,?,?,?,?, ?,?, ?,?,?, ?,?)"
             );
             $st->execute([
                 $codigo,
@@ -140,12 +168,15 @@ final class Pedidos
                 Ajustes::texto('moneda_local', 'C$'),
                 $detalle['subtotal'],
                 $detalle['envio'],
+                $detalle['descuento'],
                 $detalle['total'],
                 $token,
                 ip_cliente(),
                 $zona['id'] ?? null,
                 mb_substr((string)($zona['nombre'] ?? ($datos['entrega_ciudad'] ?? '')), 0, 100),
                 mb_substr((string)($datos['entrega_mapa_url'] ?? ''), 0, 500),
+                $cupon['id'] ?? null,
+                (string)($cupon['codigo'] ?? ''),
             ]);
             $pedidoId = (int)$pdo->lastInsertId();
 
@@ -167,9 +198,19 @@ final class Pedidos
                 $bajarStock->execute([$i['cantidad'], $i['cantidad'], $i['producto_id']]);
             }
 
+            // El canje va dentro de la transacción: si el pedido se cae, el
+            // cupón no queda gastado.
+            if ($cupon && $detalle['descuento'] > 0) {
+                Cupones::registrarUso(
+                    $pdo, $cupon, $pedidoId, Auth::id(),
+                    (string)($datos['cliente_email'] ?? ''), $detalle['descuento']
+                );
+            }
+
             self::anotarHistorial(
                 $pdo, $pedidoId, 'pedido', '', self::PENDIENTE,
-                'Pedido recibido desde ' . ($datos['canal'] === 'panel' ? 'el panel' : 'la web') . '.',
+                'Pedido recibido desde ' . ($datos['canal'] === 'panel' ? 'el panel' : 'la web') . '.'
+                . ($cupon ? ' Cupón ' . $cupon['codigo'] . ': −' . dinero($detalle['descuento']) . '.' : ''),
                 Auth::id(), Auth::autenticado() ? Auth::nombreCompleto() : 'Cliente'
             );
 
@@ -194,7 +235,7 @@ final class Pedidos
         self::notificarNuevoPedido($pdo, $pedido);
         self::avisarEquipo($pdo, $pedido);
 
-        return ['ok' => true, 'pedido' => $pedido];
+        return ['ok' => true, 'pedido' => $pedido, 'aviso' => $avisoCupon];
     }
 
     /** Código legible y único: FA-20260829-4F2A */
@@ -591,8 +632,20 @@ final class Pedidos
                 <td style="padding:7px 0;border-bottom:1px solid #F1E7E9;text-align:right;white-space:nowrap;">'
                 . e($pedido['moneda'] . number_format((float)$i['subtotal'], 2)) . '</td></tr>';
         }
+        // El descuento se enseña como línea propia: el cliente tiene que ver
+        // que su cupón se aplicó, no solo un total más bajo del que esperaba.
+        $descuento = '';
+        if ((float)($pedido['descuento'] ?? 0) > 0) {
+            $descuento = '<tr><td style="padding:8px 0 0;color:#2F6B44;">Descuento'
+                       . ((string)($pedido['cupon_codigo'] ?? '') !== ''
+                           ? ' <span style="color:#8A7A7D;">' . e((string)$pedido['cupon_codigo']) . '</span>' : '')
+                       . '</td><td style="padding:8px 0 0;text-align:right;color:#2F6B44;white-space:nowrap;">−'
+                       . e($pedido['moneda'] . number_format((float)$pedido['descuento'], 2)) . '</td></tr>';
+        }
+
         return '<table role="presentation" width="100%" cellpadding="0" cellspacing="0"
                        style="border-collapse:collapse;font-size:14.5px;margin:14px 0;">' . $filas
+             . $descuento
              . '<tr><td style="padding:10px 0 0;font-weight:600;">Total</td>
                     <td style="padding:10px 0 0;text-align:right;font-weight:600;">'
              . e($pedido['moneda'] . number_format((float)$pedido['total'], 2)) . '</td></tr></table>';

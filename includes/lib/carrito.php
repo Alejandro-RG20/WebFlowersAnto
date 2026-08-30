@@ -128,12 +128,16 @@ final class Carrito
      * @return array{items: array, subtotal: float, envio: float, total: float,
      *               unidades: int, avisos: string[]}
      */
-    public static function detalle(PDO $pdo, ?array $zona = null, string $tipoEntrega = 'domicilio'): array
-    {
+    public static function detalle(
+        PDO $pdo,
+        ?array $zona = null,
+        string $tipoEntrega = 'domicilio',
+        ?array $cupon = null
+    ): array {
         $lineas = self::lineas();
         if (!$lineas) {
-            return ['items' => [], 'subtotal' => 0.0, 'envio' => 0.0, 'total' => 0.0,
-                    'unidades' => 0, 'avisos' => []];
+            return ['items' => [], 'subtotal' => 0.0, 'envio' => 0.0, 'descuento' => 0.0,
+                    'cupon' => null, 'total' => 0.0, 'unidades' => 0, 'avisos' => []];
         }
 
         $productos = Catalogo::porIds($pdo, array_keys($lineas));
@@ -186,15 +190,25 @@ final class Carrito
             self::sincronizar($pdo);
         }
 
-        $envio = Envios::costo($zona, $subtotal, $tipoEntrega);
+        $envio     = Envios::costo($zona, $subtotal, $tipoEntrega);
+        $subtotal  = round($subtotal, 2);
+
+        // El descuento se recalcula aquí con el cupón que venga; nunca se
+        // arrastra un importe guardado antes, porque el carrito ha podido
+        // cambiar entre que se aplicó el cupón y ahora.
+        $descuento = $cupon ? Cupones::calcular($cupon, $subtotal, $envio) : 0.0;
 
         return [
-            'items'    => $items,
-            'subtotal' => round($subtotal, 2),
-            'envio'    => $envio,
-            'total'    => round($subtotal + $envio, 2),
-            'unidades' => array_sum($lineas),
-            'avisos'   => array_values(array_unique($avisos)),
+            'items'     => $items,
+            'subtotal'  => $subtotal,
+            'envio'     => $envio,
+            'descuento' => $descuento,
+            'cupon'     => $cupon,
+            // Nunca por debajo de cero: un cupón grande deja el pedido en cero,
+            // no en negativo.
+            'total'     => round(max(0, $subtotal - $descuento + $envio), 2),
+            'unidades'  => array_sum($lineas),
+            'avisos'    => array_values(array_unique($avisos)),
         ];
     }
 

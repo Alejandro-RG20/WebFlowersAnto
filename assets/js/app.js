@@ -148,9 +148,28 @@
   // -------------------------------------------------------------------
   const navbar = $('#navbar');
   if (navbar) {
-    const alHacerScroll = () => navbar.classList.toggle('scrolled', window.scrollY > 40);
-    alHacerScroll();
-    window.addEventListener('scroll', alHacerScroll, { passive: true });
+    // El evento de scroll se dispara decenas de veces por segundo. Tocar la
+    // clase en cada uno obliga al navegador a recalcular estilos todo el rato;
+    // en un teléfono modesto eso se nota. Aquí se agrupa el trabajo en el
+    // siguiente fotograma y solo se escribe cuando el estado cambia de verdad.
+    let fijada = window.scrollY > 40;
+    let pedido = false;
+    navbar.classList.toggle('scrolled', fijada);
+
+    const revisar = () => {
+      pedido = false;
+      const ahora = window.scrollY > 40;
+      if (ahora !== fijada) {
+        fijada = ahora;
+        navbar.classList.toggle('scrolled', ahora);
+      }
+    };
+    window.addEventListener('scroll', () => {
+      if (!pedido) {
+        pedido = true;
+        requestAnimationFrame(revisar);
+      }
+    }, { passive: true });
   }
 
   const hamburguesa = $('#hamburger');
@@ -445,6 +464,117 @@
   }
 
   // -------------------------------------------------------------------
+  // Cupón de descuento
+  //
+  // Se aplica sin recargar para no perder lo que el cliente ya escribió en el
+  // formulario del pedido. El servidor decide si vale y cuánto rebaja; aquí
+  // solo se pinta lo que responde. Sin JavaScript el campo viaja con el resto
+  // del formulario y se valida al confirmar.
+  // -------------------------------------------------------------------
+  (function cuponDescuento() {
+    const bloque = $('#bloqueCupon');
+    if (!bloque) { return; }
+
+    const campo  = $('#cupon');
+    const boton  = $('#btnCupon');
+    const aviso  = $('#avisoCupon');
+    const linea  = $('#lineaDescuento');
+
+    function decir(texto, clase) {
+      aviso.className = 'cupon-aviso' + (clase ? ' ' + clase : '');
+      aviso.innerHTML = '';
+      const icono = document.createElement('i');
+      icono.className = 'fa-solid ' + (clase === 'bien' ? 'fa-circle-check' : 'fa-circle-exclamation');
+      icono.setAttribute('aria-hidden', 'true');
+      const span = document.createElement('span');
+      span.textContent = texto;
+      aviso.append(icono, span);
+      aviso.hidden = texto === '';
+    }
+
+    function pintar(r) {
+      const aplicado = !!r.aplicado;
+      bloque.dataset.aplicado = aplicado ? '1' : '0';
+      campo.readOnly = aplicado;
+      campo.value = aplicado ? r.codigo : '';
+      boton.dataset.accion = aplicado ? 'quitar' : 'aplicar';
+      boton.textContent = aplicado ? 'Quitar' : 'Aplicar';
+
+      if (linea) {
+        linea.hidden = !(r.descuento > 0);
+        const imp = $('#descuentoImporte');
+        const eti = $('#cuponEtiqueta');
+        if (imp) { imp.textContent = '−' + r.texto.descuento; }
+        if (eti) { eti.textContent = aplicado ? r.codigo : ''; }
+      }
+      const envio = $('#envioImporte');
+      const total = $('#totalImporte');
+      if (envio) { envio.textContent = r.texto.envio; envio.classList.toggle('gratis', r.envio === 0); }
+      if (total) { total.textContent = r.texto.total; }
+    }
+
+    async function enviar(accion) {
+      const codigo = (campo.value || '').trim();
+      if (accion === 'aplicar' && codigo === '') {
+        decir('Escribe el código del cupón.', 'mal');
+        campo.focus();
+        return;
+      }
+
+      boton.classList.add('btn-cargando');
+      boton.disabled = true;
+      try {
+        // La zona y el tipo de entrega van en la petición: de ellos depende el
+        // envío, y de él dependen el total y los cupones de envío gratis.
+        const zona = $('#zona_envio_id');
+        const tipo = $('input[name="entrega_tipo"]:checked');
+        const correo = $('#cliente_email');
+        const r = await pedir('cupon.php', {
+          accion,
+          cupon: codigo,
+          zona_envio_id: zona ? zona.value : 0,
+          entrega_tipo: tipo ? tipo.value : 'domicilio',
+          // El correo identifica al cliente para el límite «un uso por
+          // persona»: sin él, el cupón se aceptaría aquí y se rechazaría al
+          // confirmar, que es la peor forma de enterarse.
+          cliente_email: correo ? correo.value : '',
+        });
+        pintar(r);
+        decir(r.mensaje || '', r.aplicado ? 'bien' : '');
+        // El bloque de zonas mantiene su propio total; se le avisa para que lo
+        // recalcule con el descuento nuevo.
+        document.dispatchEvent(new CustomEvent('resumen:cambiado'));
+        if (r.mensaje) { aviso.dispatchEvent(new CustomEvent('cupon:ok', { bubbles: true })); }
+      } catch (e) {
+        decir(e.message, 'mal');
+      } finally {
+        boton.classList.remove('btn-cargando');
+        boton.disabled = false;
+      }
+    }
+
+    boton.addEventListener('click', () => enviar(boton.dataset.accion || 'aplicar'));
+
+    // Si el cliente escribe su correo después de aplicar el cupón, se vuelve a
+    // comprobar: puede que ese correo ya lo haya usado.
+    const correo = $('#cliente_email');
+    if (correo) {
+      correo.addEventListener('change', () => {
+        if (bloque.dataset.aplicado === '1') { enviar('aplicar'); }
+      });
+    }
+
+    // Enter dentro del campo aplica el cupón; no confirma el pedido, que es lo
+    // que haría por defecto al estar dentro del formulario grande.
+    campo.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Enter') {
+        ev.preventDefault();
+        enviar(boton.dataset.accion || 'aplicar');
+      }
+    });
+  })();
+
+  // -------------------------------------------------------------------
   // Mensajes de validación del navegador, en español
   //
   // Sin esto Chrome escribe «Please select a file.» o «Please fill out this
@@ -618,7 +748,17 @@
         elEnvio.textContent = envio > 0 ? importe(envio) : 'Gratis';
         elEnvio.classList.toggle('gratis', envio === 0);
       }
-      if (elTotal) { elTotal.textContent = importe(subtotal + envio); }
+      // El descuento del cupón se lee de la línea que ya está pintada: al
+      // cambiar de zona solo cambia el envío, y el total tiene que seguir
+      // llevando la rebaja.
+      let descuento = 0;
+      const lineaDesc = $('#lineaDescuento');
+      if (lineaDesc && !lineaDesc.hidden) {
+        const t = ($('#descuentoImporte') || {}).textContent || '';
+        descuento = parseFloat(t.replace(/[^\d.]/g, '')) || 0;
+      }
+
+      if (elTotal) { elTotal.textContent = importe(Math.max(0, subtotal - descuento + envio)); }
       if (elAyuda && opcion && opcion.dataset.ayuda !== undefined) {
         elAyuda.textContent = opcion.dataset.ayuda || 'El costo del envío depende de la zona.';
       }
@@ -626,6 +766,9 @@
 
     if (selZona) { selZona.addEventListener('change', repintar); }
     $$('input[name="entrega_tipo"]').forEach((r) => r.addEventListener('change', repintar));
+    // Al aplicar o quitar un cupón el total cambia, y este bloque es quien lo
+    // recompone cuando además se toca la zona.
+    document.addEventListener('resumen:cambiado', repintar);
     repintar();
 
     // Direcciones guardadas: un clic rellena dirección, referencia, zona y mapa.

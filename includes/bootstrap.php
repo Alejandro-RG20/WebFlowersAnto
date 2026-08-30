@@ -126,6 +126,7 @@ require_once __DIR__ . '/lib/correo.php';
 require_once __DIR__ . '/lib/catalogo.php';
 require_once __DIR__ . '/lib/temporadas.php';
 require_once __DIR__ . '/lib/envios.php';
+require_once __DIR__ . '/lib/cupones.php';
 require_once __DIR__ . '/lib/carrito.php';
 require_once __DIR__ . '/lib/favoritos.php';
 require_once __DIR__ . '/lib/pedidos.php';

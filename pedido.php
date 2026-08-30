@@ -330,6 +330,11 @@ require __DIR__ . '/includes/vistas/cabecera.php';
 
         <div class="resumen-totales" style="margin-top:16px;">
           <div><span>Subtotal</span><span><?= e((string)$pedido['moneda'] . number_format((float)$pedido['subtotal'], 2)) ?></span></div>
+          <?php if ((float)($pedido['descuento'] ?? 0) > 0): ?>
+            <div><span>Descuento
+              <small style="color:var(--tenue);"><?= e((string)$pedido['cupon_codigo']) ?></small></span>
+              <span class="gratis">−<?= e((string)$pedido['moneda'] . number_format((float)$pedido['descuento'], 2)) ?></span></div>
+          <?php endif; ?>
           <div><span>Envío</span>
             <?= (float)$pedido['envio'] > 0
                   ? '<span>' . e((string)$pedido['moneda'] . number_format((float)$pedido['envio'], 2)) . '</span>'
