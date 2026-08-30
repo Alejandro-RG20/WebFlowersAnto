@@ -255,6 +255,11 @@ final class Catalogo
      *
      * El resultado se guarda incluso cuando es null, para no repetir la
      * consulta en las semanas en que no hay ninguna campaña.
+     *
+     * Si la tabla todavía no existe se devuelve null en vez de reventar: esta
+     * consulta corre en la cabecera de TODAS las páginas, y una de ellas es
+     * `instalar.php`, que por definición se abre sobre una base vacía. Una
+     * decoración de temporada no puede impedir instalar el sitio.
      */
     public static function temporadaVigente(PDO $pdo): ?array
     {
@@ -263,13 +268,20 @@ final class Catalogo
             return $cache;
         }
 
-        $fila = $pdo->query(
-            "SELECT * FROM temporadas
-              WHERE activo = 1
-                AND (fecha_inicio IS NULL OR fecha_inicio <= CURDATE())
-                AND (fecha_fin    IS NULL OR fecha_fin    >= CURDATE())
-              ORDER BY prioridad DESC, id DESC LIMIT 1"
-        )->fetch();
+        try {
+            $fila = $pdo->query(
+                "SELECT * FROM temporadas
+                  WHERE activo = 1
+                    AND (fecha_inicio IS NULL OR fecha_inicio <= CURDATE())
+                    AND (fecha_fin    IS NULL OR fecha_fin    >= CURDATE())
+                  ORDER BY prioridad DESC, id DESC LIMIT 1"
+            )->fetch();
+        } catch (PDOException $ex) {
+            // Se anota para que un problema real no pase inadvertido, pero la
+            // página sigue sirviéndose sin tema de temporada.
+            error_log('Flowers Anto — temporada vigente: ' . $ex->getMessage());
+            return $cache = null;
+        }
 
         return $cache = ($fila ?: null);
     }

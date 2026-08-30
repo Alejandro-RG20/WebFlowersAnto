@@ -480,3 +480,16 @@ gris claro, desaparecían sobre el fondo crema del sitio.
 
 Peso de todo esto: 9,4 KB de CSS, 7,9 KB de JavaScript y 2,6 KB de sprite, y
 solo se descarga cuando hay campaña con estilo.
+
+### Un fallo que salió al instalar desde cero
+
+La corrección del color hizo que la cabecera consulte la temporada vigente en
+todas las páginas. Una de esas páginas es `instalar.php`, que por definición se
+abre sobre una base de datos **vacía**: la tabla `temporadas` no existe todavía,
+la consulta lanzaba una excepción y la instalación no pasaba de una pantalla en
+blanco con el error de PDO.
+
+`temporadaVigente()` ahora devuelve null cuando la tabla no está, dejando el
+motivo en el registro de errores. Una decoración de temporada no puede impedir
+instalar el sitio. Probada la instalación entera desde una base vacía —los dos
+pasos, migrar y crear la cuenta— en la raíz y en subcarpeta.
