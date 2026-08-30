@@ -472,6 +472,8 @@ y les pone unas variables; la animación entera la lleva el CSS.
 
 - 22 partículas en escritorio, 14 en tablet y 6 en el teléfono — la hoja de
   estilos esconde las que sobran, así que el teléfono no llega a pintarlas.
+- Entre 32 y 58 px las que caen, hasta 64 px las que rebotan: los dibujos
+  llevan detalle y por debajo de ese tamaño dejan de reconocerse.
 - Al añadir al carrito, marcar un favorito o llegar a una página con aviso de
   éxito sale un pequeño estallido desde ese punto. Dura menos de un segundo,
   se borra solo y no se repite más de una vez cada 400 ms.

@@ -27,8 +27,8 @@
 .capa-temporada svg {
   position: absolute;
   top: -10vh;
-  width: var(--tam, 26px);
-  height: var(--tam, 26px);
+  width: var(--tam, 38px);
+  height: var(--tam, 38px);
   /* Los dibujos con color propio lo traen escrito; los genéricos usan
      currentColor y se tiñen con el color de la temporada. */
   color: var(--temporada-color, #F8B0C2);
@@ -115,8 +115,8 @@
 .chispa-temporada {
   position: fixed;
   z-index: 2500;
-  width: 18px;
-  height: 18px;
+  width: 26px;
+  height: 26px;
   pointer-events: none;
   color: var(--temporada-color, #F8B0C2);
   will-change: transform, opacity;
@@ -174,7 +174,7 @@
 }
 @media (max-width: 520px) {
   .capa-temporada svg:nth-child(n + 7)  { display: none; }
-  .capa-temporada svg { --tam: 24px !important; }
+  .capa-temporada svg { --tam: 34px !important; }
 }
 
 /* --- Quien pidió menos movimiento no ve ninguno -------------------- */

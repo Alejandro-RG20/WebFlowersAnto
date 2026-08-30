@@ -70,11 +70,12 @@
       }
 
       // Cada movimiento pide su propio tamaño y su propio ritmo.
-      // Los dibujos llevan detalle —una palmera, un farol, un ramo— y por
-      // debajo de unos 22 px dejan de leerse y parecen manchas.
-      const tam = mov === 'rebotar'   ? azar(28, 44)
-                : mov === 'destellar' ? azar(16, 30)
-                : azar(22, 42);
+      // Los dibujos llevan detalle —una palmera, un farol, un ramo— y cuanto
+      // más grandes, mejor se reconocen. Los destellos van algo menores: son
+      // acompañamiento, no protagonistas.
+      const tam = mov === 'rebotar'   ? azar(40, 64)
+                : mov === 'destellar' ? azar(24, 42)
+                : azar(32, 58);
       const dur = mov === 'destellar' ? azar(3.5, 7)
                 : mov === 'rebotar'   ? azar(11, 19)
                 : mov === 'flotar'    ? azar(20, 34)
