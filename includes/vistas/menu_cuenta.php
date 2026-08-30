@@ -8,6 +8,8 @@ $seccion = $seccionCuenta ?? '';
     <i class="fa-solid fa-box" aria-hidden="true"></i> Mis pedidos</a>
   <a href="<?= e(url('cuenta/perfil.php')) ?>" class="<?= $seccion === 'perfil' ? 'activo' : '' ?>">
     <i class="fa-solid fa-id-card" aria-hidden="true"></i> Mis datos</a>
+  <a href="<?= e(url('cuenta/direcciones.php')) ?>" class="<?= $seccion === 'direcciones' ? 'activo' : '' ?>">
+    <i class="fa-solid fa-location-dot" aria-hidden="true"></i> Mis direcciones</a>
   <a href="<?= e(url('favoritos.php')) ?>">
     <i class="fa-regular fa-heart" aria-hidden="true"></i> Favoritos</a>
   <a href="<?= e(url('carrito.php')) ?>">

@@ -345,9 +345,18 @@ require __DIR__ . '/includes/vistas/cabecera.php';
           <?php if ($pedido['entrega_tipo'] === 'domicilio'): ?>
             <p><strong style="color:var(--tinta);">A domicilio</strong></p>
             <p><?= e((string)$pedido['entrega_direccion']) ?></p>
-            <p><?= e((string)$pedido['entrega_ciudad']) ?></p>
+            <p><?= e((string)($pedido['zona_envio_nombre'] ?: $pedido['entrega_ciudad'])) ?></p>
             <?php if ($pedido['entrega_referencia'] !== ''): ?>
               <p>Referencia: <?= e((string)$pedido['entrega_referencia']) ?></p>
+            <?php endif; ?>
+            <?php $mapaUrl = (string)($pedido['entrega_mapa_url'] ?? ''); ?>
+            <?php if ($mapaUrl !== ''): ?>
+              <p style="margin-top:8px;">
+                <a href="<?= e($mapaUrl) ?>" target="_blank" rel="noopener noreferrer nofollow">
+                  <i class="fa-solid fa-location-dot" aria-hidden="true"></i>
+                  Ver la ubicación que enviaste (<?= e(Envios::servicioMapa($mapaUrl)) ?>)
+                </a>
+              </p>
             <?php endif; ?>
           <?php else: ?>
             <p><strong style="color:var(--tinta);">Retiro en la tienda</strong></p>

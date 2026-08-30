@@ -147,6 +147,7 @@ los dos motores y se pueda re-ejecutar sin romper nada.
 | `003_catalogo.php` | URLs amigables, galería por producto y control de stock |
 | `004_comercio.php` | Favoritos, carrito, pedidos, comprobantes, estados y bancos |
 | `005_configuracion.php` | Configuración ampliada, créditos del desarrollador y respaldos |
+| `006_envio_y_avisos.php` | Zonas de envío, libreta de direcciones, enlace de ubicación y textos de los correos |
 
 ```bash
 php db/migrar.php            # aplica lo pendiente
@@ -179,7 +180,7 @@ Desde el panel: *Base de datos → Aplicar migraciones* (requiere el permiso
 ├── sitemap.php             Mapa del sitio generado del catálogo
 │
 ├── cuenta/                 entrar, registrar, salir, recuperar, restablecer,
-│                           perfil, pedidos, google, google-callback
+│                           perfil, pedidos, direcciones, google, google-callback
 ├── admin/                  Panel: resumen, pedidos, productos, categorías,
 │                           temporadas, galería, clientes, empleados, roles,
 │                           auditoría, configuración, respaldos, base de datos
@@ -189,8 +190,8 @@ Desde el panel: *Base de datos → Aplicar migraciones* (requiere el permiso
 │   ├── bootstrap.php       Configuración, sesión, PDO y carga de módulos
 │   ├── entorno.php         Lector de .env y config.local.php
 │   ├── lib/                utiles, validacion, seguridad, ajustes, auditoria,
-│   │                       auth, rbac, correo, catalogo, carrito, favoritos,
-│   │                       pedidos, archivos, respaldos, google
+│   │                       auth, rbac, correo, catalogo, envios, carrito,
+│   │                       favoritos, pedidos, archivos, respaldos, google
 │   └── vistas/             cabecera, pie, tarjeta_producto, menu_cuenta
 │
 ├── assets/css/             estilos.css, app.css, hero.css, admin.css
@@ -200,7 +201,7 @@ Desde el panel: *Base de datos → Aplicar migraciones* (requiere el permiso
 │   ├── Migrador.php        Motor de migraciones
 │   ├── migrar.php          Ejecutor por consola
 │   ├── seed.php            Datos de ejemplo
-│   └── migraciones/        001…005
+│   └── migraciones/        001…006
 │
 ├── images/                 Imágenes del proyecto y placeholders
 ├── uploads/                Fotos subidas desde el panel (públicas)
@@ -278,9 +279,22 @@ existe una cuenta con ese correo, se enlaza en lugar de duplicarla.
 - **`smtp`**: servidor propio con STARTTLS o SSL y `AUTH LOGIN`. Recomendado en
   producción porque los correos llegan a la bandeja de entrada y no a spam.
 
-Correos que envía el sistema: bienvenida, recuperación de contraseña, aviso de
-cambio de contraseña, pedido recibido, comprobante recibido, pago aprobado, pago
-rechazado (con el motivo) y cada cambio de estado del pedido.
+Correos que envía el sistema al **cliente**: bienvenida, recuperación de
+contraseña, aviso de cambio de contraseña, pedido recibido, comprobante
+recibido, pago aprobado, pago rechazado (con el motivo) y un aviso en cada
+cambio de estado del pedido.
+
+Correos que envía al **equipo** (a `email_avisos`, o al correo de contacto si
+está vacío): pedido nuevo con el cliente, la dirección, el enlace de ubicación
+y el detalle; y comprobante subido, con el monto, el banco y la referencia que
+declaró el cliente. Los dos se activan y desactivan por separado en
+*Configuración → Avisos por correo*.
+
+El texto de cada aviso de estado se edita en esa misma pestaña
+(`estados_pedido.mensaje_correo`), y cada estado puede dejar de enviar correo
+sin dejar de existir (`avisar_cliente`). Al texto fijo se le añade la nota que
+escriba quien atiende el pedido, y para los estados de entrega en curso también
+la dirección y el enlace del mapa.
 
 ---
 
@@ -314,6 +328,44 @@ El nombre, el color y el orden de cada estado se editan desde la tabla
 `estados_pedido`; el `codigo` es fijo porque es lo que consulta la lógica.
 Las transiciones válidas están definidas en `Pedidos::FLUJO`: no se puede saltar
 de «pendiente» a «enviado».
+
+### Envío por zonas
+
+El costo del envío depende del destino: no cuesta lo mismo cruzar Managua que
+salir de la ciudad. Cada zona (`zonas_envio`) lleva su nombre, su descripción
+—los barrios que abarca, que el cliente lee bajo la lista—, su precio y si está
+dentro o fuera de Managua, que es lo que agrupa la lista del checkout.
+
+El precio **siempre se vuelve a leer de la base** al calcular el resumen y al
+registrar el pedido: del formulario solo viaja el identificador de la zona, así
+que retocar el HTML no abarata un envío. El resumen que se mueve al cambiar de
+zona es presentación; el total que vale es el que confirma el servidor.
+
+Cada pedido guarda `zona_envio_id` y también `zona_envio_nombre`. La copia del
+nombre es a propósito: si mañana la zona se renombra o se borra, el pedido sigue
+diciendo a dónde se llevó.
+
+El umbral de envío gratis por importe es del negocio, no del destino: se aplica
+igual a todas las zonas.
+
+Si no hay ninguna zona configurada, el sitio se comporta como antes de que
+existieran y cobra el costo de envío general.
+
+### Enlace de ubicación
+
+El cliente puede pegar el punto exacto de entrega desde Google Maps, Waze, Apple
+Maps, OpenStreetMap o what3words, o unas coordenadas sueltas (`12.1364, -86.2514`),
+que se convierten en un enlace de Google Maps. Es lo que abre el repartidor desde
+su teléfono; aparece como botón en la ficha del pedido en el panel.
+
+La lista de servicios aceptados está cerrada a propósito (`Envios::DOMINIOS_MAPA`):
+ese enlace lo abre alguien del equipo, y admitir cualquier dirección convertiría
+el formulario del pedido en una forma cómoda de colarle un enlace a donde sea.
+
+Quien tenga cuenta puede marcar «guardar esta dirección» y la encuentra como
+chip en su próximo pedido, o la administra en *Mi cuenta → Mis direcciones*.
+Guardar dos veces la misma dirección en la misma zona actualiza la que ya
+existe en vez de acumular copias.
 
 ### Regla del pago
 
@@ -401,8 +453,12 @@ al panel; el resto, no.
 - **Nosotros:** título, texto e imagen
 - **Contacto:** WhatsApp con su mensaje, teléfono, correo, dirección, horario y redes
 - **Pedidos:** activar o desactivar la web y WhatsApp, permitir invitados y
-  retiro, aceptar efectivo, costo de envío y umbral de envío gratis, ciudades y
-  franjas horarias
+  retiro, aceptar efectivo y franjas horarias
+- **Envío y zonas:** zonas de entrega con su propio precio, agrupadas en dentro
+  y fuera de Managua; costo por defecto, umbral de envío gratis y si se pide el
+  enlace de ubicación en el checkout
+- **Avisos por correo:** correo del equipo, qué avisos recibe y el texto que lee
+  el cliente en cada estado del pedido
 - **Transferencias:** varias cuentas bancarias con banco, titular, número, tipo,
   moneda e identificación, más las instrucciones para el cliente
 - **Créditos del desarrollador:** nombre, logo, descripción, enlace y visibilidad

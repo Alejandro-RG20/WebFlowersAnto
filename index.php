@@ -253,10 +253,23 @@ require __DIR__ . '/includes/vistas/cabecera.php';
           <div class="ship-item"><i class="fa-solid fa-truck-fast" aria-hidden="true"></i><span>Entrega el mismo día</span></div>
           <div class="ship-item"><i class="fa-solid fa-shield-halved" aria-hidden="true"></i><span>Garantía de frescura</span></div>
         </div>
-        <?php $ciudades = Ajustes::lista('ciudades_entrega'); if ($ciudades): ?>
+        <?php
+          // La cobertura sale de las zonas de envío; si todavía no hay zonas se
+          // usa la lista de ciudades de siempre.
+          $zonasEnvio = Envios::zonas($pdo);
+          $cobertura  = $zonasEnvio
+              ? array_column($zonasEnvio, 'nombre')
+              : Ajustes::lista('ciudades_entrega');
+        ?>
+        <?php if ($cobertura): ?>
           <p style="margin-top:16px; font-size:.9rem; color:var(--suave);">
-            <strong>Cobertura:</strong> <?= e(implode(' · ', $ciudades)) ?>
+            <strong>Cobertura:</strong> <?= e(implode(' · ', $cobertura)) ?>
           </p>
+          <?php if ($zonasEnvio): ?>
+            <p style="margin-top:6px; font-size:.86rem; color:var(--tenue);">
+              El costo del envío cambia según la zona; lo ves antes de confirmar el pedido.
+            </p>
+          <?php endif; ?>
         <?php endif; ?>
       </div>
       <div class="shipping-map aparece">
@@ -266,6 +279,37 @@ require __DIR__ . '/includes/vistas/cabecera.php';
                   title="Ubicación de <?= e($tienda) ?>" loading="lazy"
                   referrerpolicy="no-referrer-when-downgrade"></iframe>
         </div>
+
+        <?php
+          // La dirección escrita debajo del mapa: hay quien prefiere leerla, y
+          // también la necesita quien navega con lector de pantalla o tiene el
+          // mapa bloqueado.
+          $direccionTienda = Ajustes::texto('direccion');
+          $horarioTienda   = Ajustes::texto('horario');
+          $telefonoTienda  = Ajustes::texto('telefono');
+        ?>
+        <?php if ($direccionTienda !== '' || $horarioTienda !== '' || $telefonoTienda !== ''): ?>
+          <div class="map-direccion">
+            <?php if ($direccionTienda !== ''): ?>
+              <p><i class="fa-solid fa-location-dot" aria-hidden="true"></i>
+                <span><?= e($direccionTienda) ?></span></p>
+            <?php endif; ?>
+            <?php if ($horarioTienda !== ''): ?>
+              <p><i class="fa-regular fa-clock" aria-hidden="true"></i>
+                <span><?= e($horarioTienda) ?></span></p>
+            <?php endif; ?>
+            <?php if ($telefonoTienda !== ''): ?>
+              <p><i class="fa-solid fa-phone" aria-hidden="true"></i>
+                <a href="tel:<?= e(preg_replace('/[^0-9+]/', '', $telefonoTienda)) ?>"><?= e($telefonoTienda) ?></a></p>
+            <?php endif; ?>
+            <?php if ($direccionTienda !== ''): ?>
+              <a class="btn btn-outline-dark btn-sm" style="margin-top:10px;"
+                 href="https://www.google.com/maps/search/?api=1&amp;query=<?= rawurlencode($direccionTienda) ?>"
+                 target="_blank" rel="noopener noreferrer">
+                <i class="fa-solid fa-diamond-turn-right" aria-hidden="true"></i> Cómo llegar</a>
+            <?php endif; ?>
+          </div>
+        <?php endif; ?>
       </div>
     </div>
   </div>

@@ -210,5 +210,70 @@ cliente.
    Sin ellos el botón no aparece y el resto funciona igual.
 5. **Créditos del desarrollador** — *Configuración → Créditos*: nombre, logo,
    descripción y enlace.
-6. **`APP_ENTORNO=prod` y `APP_CLAVE` nueva** antes de publicar.
+6. **`APP_ENTORNO=prod`** antes de publicar, para que los errores no salgan en pantalla.
 7. **HTTPS**, para que la cookie de sesión se marque como segura.
+8. **Zonas de envío con precios reales** — *Configuración → Envío y zonas*. La
+   migración crea las ciudades que ya estaban configuradas más unas zonas de
+   ejemplo de Managua, todas con el costo de envío que hubiera. Hay que poner el
+   precio de cada una.
+9. **Correo del equipo** — *Configuración → Avisos por correo*. Si se deja
+   vacío se usa el de contacto.
+
+---
+
+## 10. Segunda entrega: envío por zonas, ubicación y avisos
+
+Cinco cambios pedidos después de la primera entrega, todos sobre el código que
+ya estaba funcionando.
+
+**1. El envío cuesta según la zona.** Tabla `zonas_envio` con nombre,
+descripción, precio y si está dentro o fuera de Managua. El checkout las agrupa
+en esos dos bloques y el resumen se actualiza al elegir. El precio se vuelve a
+leer de la base al registrar el pedido: enviar `envio=1` en el POST no cambia
+lo que se cobra (probado). Cada pedido guarda además el nombre de la zona, para
+que renombrarla o borrarla no reescriba el historial.
+
+**2. Enlace de ubicación para el repartidor.** Campo opcional donde el cliente
+pega su punto de Google Maps, Waze, Apple Maps, OpenStreetMap o what3words, o
+unas coordenadas, que se convierten en un enlace de Google Maps. La lista de
+servicios es cerrada: el enlace lo abre alguien del equipo desde su teléfono, y
+aceptar cualquier dirección habría convertido el formulario en una vía cómoda
+para colarle un enlace a donde sea. En el panel aparece como botón «Abrir en
+Google Maps» junto a la dirección escrita.
+
+**3. Libreta de direcciones.** Quien tiene cuenta puede guardar la dirección al
+pedir y reutilizarla con un toque; la que marque como predeterminada llega ya
+elegida al checkout, con su zona. Se administran en *Mi cuenta → Mis
+direcciones*. Guardar la misma dirección en la misma zona actualiza la que ya
+existe en vez de acumular copias.
+
+**4. Correo personalizado en cada cambio de estado.** El texto de cada estado se
+edita en *Configuración → Avisos por correo*, y cada estado puede dejar de
+enviar correo sin desaparecer del flujo. Al texto fijo se le añade la nota que
+escriba quien atiende el pedido, y en los estados de entrega en curso también la
+dirección y el enlace del mapa.
+
+**5. Aviso al equipo.** Un correo al entrar un pedido —con el cliente, el
+teléfono, la entrega, el enlace de ubicación, el detalle y un botón al panel— y
+otro al subirse un comprobante, con el monto, el banco y la referencia que
+declaró el cliente. Van al correo configurado, aparte del correo al cliente: si
+el buzón del equipo rebota, el cliente igual recibe su confirmación.
+
+**Y la dirección escrita bajo el mapa de la portada**, con el horario y el
+teléfono y un botón «Cómo llegar». El mapa incrustado no le sirve a todo el
+mundo.
+
+### Cómo se probó
+
+Pedido real por cada zona verificando lo que quedó en la base; intento de
+falsear el precio desde el POST (se cobró el de la base); enlace de mapa a un
+dominio no permitido (rechazado, sin crear el pedido); retiro en tienda (sin
+zona, sin envío y sin mapa); umbral de envío gratis (el navegador y el servidor
+coinciden); alta, edición, ocultado y borrado de zonas desde el panel, incluido
+el nombre duplicado; recorrido completo de estados comprobando qué correos
+salen y cuáles no según `avisar_cliente`; y el checkout en un navegador real
+—Chromium— viendo el total moverse al cambiar de zona y el formulario llenarse
+al tocar una dirección guardada.
+
+Todo repetido en las dos configuraciones de ruta: en la raíz del dominio y en
+una subcarpeta (`APP_BASE_URL=/webANTO`), que es como corre en XAMPP.

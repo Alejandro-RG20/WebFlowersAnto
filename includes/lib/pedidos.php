@@ -84,7 +84,10 @@ final class Pedidos
      */
     public static function crearDesdeCarrito(PDO $pdo, array $datos): array
     {
-        $detalle = Carrito::detalle($pdo);
+        // La zona se relee de la base: del formulario solo llega su id, nunca
+        // el precio. El envío se calcula aquí, no se acepta del navegador.
+        $zona = Envios::zona($pdo, (int)($datos['zona_envio_id'] ?? 0));
+        $detalle = Carrito::detalle($pdo, $zona, (string)($datos['entrega_tipo'] ?? 'domicilio'));
         if (!$detalle['items']) {
             return ['ok' => false, 'error' => 'Tu carrito está vacío.'];
         }
@@ -110,8 +113,9 @@ final class Pedidos
                      entrega_tipo, entrega_nombre, entrega_telefono, entrega_direccion,
                      entrega_ciudad, entrega_referencia, entrega_fecha, entrega_franja,
                      dedicatoria, notas_cliente, canal, metodo_pago, estado, estado_pago,
-                     moneda, subtotal, envio, total, token_seguimiento, ip)
-                 VALUES (?,?,?,?,?, ?,?,?,?, ?,?,?,?, ?,?, ?,?,?,?, ?,?,?,?, ?,?)"
+                     moneda, subtotal, envio, total, token_seguimiento, ip,
+                     zona_envio_id, zona_envio_nombre, entrega_mapa_url)
+                 VALUES (?,?,?,?,?, ?,?,?,?, ?,?,?,?, ?,?, ?,?,?,?, ?,?,?,?, ?,?, ?,?,?)"
             );
             $st->execute([
                 $codigo,
@@ -139,6 +143,9 @@ final class Pedidos
                 $detalle['total'],
                 $token,
                 ip_cliente(),
+                $zona['id'] ?? null,
+                mb_substr((string)($zona['nombre'] ?? ($datos['entrega_ciudad'] ?? '')), 0, 100),
+                mb_substr((string)($datos['entrega_mapa_url'] ?? ''), 0, 500),
             ]);
             $pedidoId = (int)$pdo->lastInsertId();
 
@@ -185,6 +192,7 @@ final class Pedidos
         ]);
 
         self::notificarNuevoPedido($pdo, $pedido);
+        self::avisarEquipo($pdo, $pedido);
 
         return ['ok' => true, 'pedido' => $pedido];
     }
@@ -408,7 +416,9 @@ final class Pedidos
             'descripcion'  => 'Comprobante recibido para el pedido ' . $pedido['codigo'],
         ]);
 
-        self::notificarComprobante($pdo, self::porId($pdo, (int)$pedido['id']));
+        $actualizado = self::porId($pdo, (int)$pedido['id']);
+        self::notificarComprobante($pdo, $actualizado);
+        self::avisarEquipoComprobante($actualizado, $extra);
         return ['ok' => true];
     }
 
@@ -588,6 +598,28 @@ final class Pedidos
              . e($pedido['moneda'] . number_format((float)$pedido['total'], 2)) . '</td></tr></table>';
     }
 
+    /** Bloque con los datos de entrega, para los correos. */
+    private static function bloqueEntrega(array $pedido): string
+    {
+        if ($pedido['entrega_tipo'] === 'retiro') {
+            return '<p style="margin:14px 0 0;"><strong>Retiro en la tienda</strong><br>'
+                 . e(Ajustes::texto('direccion')) . '</p>';
+        }
+
+        $lineas = ['<strong>Entrega a domicilio</strong>', e((string)$pedido['entrega_direccion'])];
+        if (($pedido['zona_envio_nombre'] ?? '') !== '') {
+            $lineas[] = e((string)$pedido['zona_envio_nombre']);
+        }
+        if ($pedido['entrega_referencia'] !== '') {
+            $lineas[] = 'Referencia: ' . e((string)$pedido['entrega_referencia']);
+        }
+        if ($pedido['entrega_fecha']) {
+            $lineas[] = 'Fecha: ' . e(fecha_corta((string)$pedido['entrega_fecha']))
+                      . ($pedido['entrega_franja'] !== '' ? ' · ' . e((string)$pedido['entrega_franja']) : '');
+        }
+        return '<p style="margin:14px 0 0;line-height:1.6;">' . implode('<br>', $lineas) . '</p>';
+    }
+
     private static function notificarNuevoPedido(PDO $pdo, ?array $pedido): void
     {
         if (!$pedido || $pedido['cliente_email'] === '') {
@@ -602,10 +634,108 @@ final class Pedidos
         $html = Correo::plantilla(
             'Recibimos tu pedido ' . $pedido['codigo'],
             '<p>Hola ' . e((string)$pedido['cliente_nombre']) . ', gracias por tu pedido.</p>'
-            . self::tablaItems($pedido) . $extra,
+            . self::tablaItems($pedido) . self::bloqueEntrega($pedido) . $extra,
             ['url' => $enlace, 'texto' => 'Ver mi pedido']
         );
         Correo::enviar((string)$pedido['cliente_email'], 'Pedido ' . $pedido['codigo'] . ' recibido', $html);
+    }
+
+    /**
+     * Avisa al equipo de que entró un pedido.
+     *
+     * Va aparte del correo al cliente a propósito: si el buzón del equipo
+     * rebota o está mal escrito, el cliente igual recibe su confirmación.
+     */
+    private static function avisarEquipo(PDO $pdo, ?array $pedido): void
+    {
+        if (!$pedido || !Ajustes::activo('avisar_pedidos', true)) {
+            return;
+        }
+        $destino = Ajustes::texto('email_avisos', Ajustes::texto('email_contacto'));
+        if ($destino === '') {
+            return;
+        }
+
+        $entrega = $pedido['entrega_tipo'] === 'retiro'
+            ? 'Retiro en la tienda'
+            : trim((string)$pedido['entrega_direccion'] . ' — ' . (string)$pedido['zona_envio_nombre'], ' —');
+
+        $mapa = '';
+        if (($pedido['entrega_mapa_url'] ?? '') !== '') {
+            $mapa = '<p><a href="' . e((string)$pedido['entrega_mapa_url']) . '">Abrir la ubicación en '
+                  . e(Envios::servicioMapa((string)$pedido['entrega_mapa_url'])) . '</a></p>';
+        }
+
+        $html = Correo::plantilla(
+            'Pedido nuevo: ' . $pedido['codigo'],
+            '<p>Entró un pedido por ' . e(dinero($pedido['total'])) . '.</p>'
+            . '<table role="presentation" cellpadding="0" cellspacing="0" style="font-size:14.5px;line-height:1.7;">'
+            . '<tr><td style="color:#8A7A7D;padding-right:14px;">Cliente</td><td>'
+            . e((string)$pedido['cliente_nombre']) . '</td></tr>'
+            . '<tr><td style="color:#8A7A7D;padding-right:14px;">Teléfono</td><td>'
+            . e((string)$pedido['cliente_telefono']) . '</td></tr>'
+            . '<tr><td style="color:#8A7A7D;padding-right:14px;">Entrega</td><td>' . e($entrega) . '</td></tr>'
+            . ($pedido['entrega_fecha']
+                ? '<tr><td style="color:#8A7A7D;padding-right:14px;">Fecha</td><td>'
+                  . e(fecha_corta((string)$pedido['entrega_fecha'])) . '</td></tr>' : '')
+            . '<tr><td style="color:#8A7A7D;padding-right:14px;">Pago</td><td>'
+            . e(ucfirst((string)$pedido['metodo_pago'])) . '</td></tr>'
+            . '</table>'
+            . self::tablaItems($pedido)
+            . $mapa
+            . ($pedido['metodo_pago'] === 'transferencia'
+                ? '<p style="color:#8A6410;">Queda a la espera del comprobante. Nada se aprueba solo.</p>'
+                : ''),
+            ['url' => url_absoluta('admin/pedido.php?id=' . (int)$pedido['id']), 'texto' => 'Abrir en el panel']
+        );
+
+        Correo::enviar($destino, 'Pedido nuevo ' . $pedido['codigo'] . ' — ' . dinero($pedido['total']), $html);
+    }
+
+    /**
+     * Avisa al equipo de que hay un comprobante esperando verificación.
+     *
+     * Es el momento en que alguien tiene que mirar el archivo a mano: el
+     * sistema nunca aprueba un pago solo, así que si nadie se entera el pedido
+     * se queda parado.
+     */
+    private static function avisarEquipoComprobante(?array $pedido, array $extra = []): void
+    {
+        if (!$pedido || !Ajustes::activo('avisar_pagos', true)) {
+            return;
+        }
+        $destino = Ajustes::texto('email_avisos', Ajustes::texto('email_contacto'));
+        if ($destino === '') {
+            return;
+        }
+
+        $referencia = trim((string)($extra['referencia'] ?? ''));
+        $banco      = trim((string)($extra['banco'] ?? ''));
+        $monto      = (float)($extra['monto'] ?? 0);
+
+        $html = Correo::plantilla(
+            'Comprobante por verificar',
+            '<p>El cliente ' . e((string)$pedido['cliente_nombre']) . ' subió un comprobante del pedido '
+            . '<strong>' . e((string)$pedido['codigo']) . '</strong>.</p>'
+            . '<table role="presentation" cellpadding="0" cellspacing="0" style="font-size:14.5px;line-height:1.7;">'
+            . '<tr><td style="color:#8A7A7D;padding-right:14px;">Total del pedido</td><td>'
+            . e(dinero($pedido['total'])) . '</td></tr>'
+            . ($monto > 0
+                ? '<tr><td style="color:#8A7A7D;padding-right:14px;">Monto declarado</td><td>'
+                  . e(dinero($monto)) . '</td></tr>' : '')
+            . ($banco !== ''
+                ? '<tr><td style="color:#8A7A7D;padding-right:14px;">Banco</td><td>'
+                  . e($banco) . '</td></tr>' : '')
+            . ($referencia !== ''
+                ? '<tr><td style="color:#8A7A7D;padding-right:14px;">Referencia</td><td>'
+                  . e($referencia) . '</td></tr>' : '')
+            . '</table>'
+            . '<p style="color:#8A6410;">El pedido queda en revisión hasta que una persona '
+            . 'apruebe o rechace el comprobante desde el panel.</p>',
+            ['url' => url_absoluta('admin/pedido.php?id=' . (int)$pedido['id']), 'texto' => 'Verificar el comprobante']
+        );
+
+        Correo::enviar($destino, 'Comprobante por verificar — ' . $pedido['codigo'], $html);
     }
 
     private static function notificarComprobante(PDO $pdo, ?array $pedido): void
@@ -658,27 +788,60 @@ final class Pedidos
         Correo::enviar((string)$pedido['cliente_email'], 'Revisión del pago — ' . $pedido['codigo'], $html);
     }
 
+    /**
+     * Avisa al cliente de un cambio de estado.
+     *
+     * El texto sale de `estados_pedido.mensaje_correo`, que se edita desde el
+     * panel: así el negocio cambia lo que dice cada aviso sin tocar código, y
+     * puede desactivar los que no quiera enviar. Si el estado no tiene mensaje
+     * propio se usa su descripción, para que nunca salga un correo vacío.
+     *
+     * La nota que escribe quien atiende el pedido se añade al final: es la
+     * parte que cambia de un pedido a otro («sale a las 3», «el portón está
+     * pintado de verde»).
+     */
     private static function notificarCambioEstado(PDO $pdo, ?array $pedido, string $nuevo, string $nota): void
     {
         if (!$pedido || $pedido['cliente_email'] === '') {
             return;
         }
-        // El paso a «confirmado» ya se avisa con el correo de pago aprobado.
-        if (in_array($nuevo, [self::PAGO_REVISION, self::CONFIRMADO], true)) {
+
+        $estado = self::estado($pdo, 'pedido', $nuevo);
+        if (isset($estado['avisar_cliente']) && (int)$estado['avisar_cliente'] === 0) {
             return;
         }
-        $estado = self::estado($pdo, 'pedido', $nuevo);
-        $html = Correo::plantilla(
-            'Tu pedido: ' . $estado['nombre'],
-            '<p>Hola ' . e((string)$pedido['cliente_nombre']) . ', el pedido <strong>'
-            . e((string)$pedido['codigo']) . '</strong> cambió de estado.</p>'
-            . '<p style="font-size:17px;font-weight:600;color:' . e((string)$estado['color']) . ';">'
-            . e((string)$estado['nombre']) . '</p>'
-            . '<p>' . e((string)$estado['descripcion']) . '</p>'
-            . ($nota !== '' ? '<p style="color:#6B5B5E;">' . e($nota) . '</p>' : ''),
-            ['url' => self::enlaceSeguimiento($pedido, true), 'texto' => 'Ver mi pedido']
+
+        $mensaje = trim((string)($estado['mensaje_correo'] ?? ''));
+        if ($mensaje === '') {
+            $mensaje = (string)$estado['descripcion'];
+        }
+
+        $cuerpo = '<p>Hola ' . e((string)$pedido['cliente_nombre']) . ', tu pedido <strong>'
+                . e((string)$pedido['codigo']) . '</strong> cambió de estado.</p>'
+                . '<p style="display:inline-block;background:' . e((string)$estado['color'])
+                . ';color:#ffffff;font-weight:600;font-size:15px;padding:7px 16px;border-radius:30px;">'
+                . e((string)$estado['nombre']) . '</p>'
+                . '<p style="line-height:1.7;">' . nl2br(e($mensaje)) . '</p>';
+
+        if ($nota !== '') {
+            $cuerpo .= '<p style="background:#FBF0F3;border-left:3px solid #C4788F;padding:11px 14px;'
+                     . 'margin:16px 0;color:#4A3B3D;line-height:1.6;">' . nl2br(e($nota)) . '</p>';
+        }
+
+        // En los estados en que el cliente aún tiene que hacer algo o esperar
+        // una entrega, se le recuerdan los datos de la entrega.
+        if (in_array($nuevo, [self::CONFIRMADO, self::PREPARACION, self::LISTO, self::ENVIADO], true)) {
+            $cuerpo .= self::bloqueEntrega($pedido);
+        }
+
+        Correo::enviar(
+            (string)$pedido['cliente_email'],
+            $estado['nombre'] . ' — pedido ' . $pedido['codigo'],
+            Correo::plantilla(
+                'Tu pedido: ' . $estado['nombre'],
+                $cuerpo,
+                ['url' => self::enlaceSeguimiento($pedido, true), 'texto' => 'Ver mi pedido']
+            )
         );
-        Correo::enviar((string)$pedido['cliente_email'],
-            $estado['nombre'] . ' — pedido ' . $pedido['codigo'], $html);
     }
 }

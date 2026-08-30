@@ -320,7 +320,12 @@ require __DIR__ . '/_cabecera.php';
           <div><dt>Modalidad</dt><dd><?= $pedido['entrega_tipo'] === 'retiro' ? 'Retiro en tienda' : 'A domicilio' ?></dd></div>
           <?php if ($pedido['entrega_tipo'] === 'domicilio'): ?>
             <div><dt>Dirección</dt><dd><?= e((string)$pedido['entrega_direccion']) ?></dd></div>
-            <div><dt>Ciudad</dt><dd><?= e((string)$pedido['entrega_ciudad']) ?></dd></div>
+            <div><dt>Zona</dt><dd>
+              <?= e((string)($pedido['zona_envio_nombre'] ?: $pedido['entrega_ciudad'])) ?>
+              <?php if ((float)$pedido['envio'] > 0): ?>
+                <span class="celda-sub">envío <?= e(dinero($pedido['envio'])) ?></span>
+              <?php endif; ?>
+            </dd></div>
             <?php if ($pedido['entrega_referencia'] !== ''): ?>
               <div><dt>Referencia</dt><dd><?= e((string)$pedido['entrega_referencia']) ?></dd></div>
             <?php endif; ?>
@@ -336,6 +341,18 @@ require __DIR__ . '/_cabecera.php';
             <div><dt>Franja</dt><dd><?= e((string)$pedido['entrega_franja']) ?></dd></div>
           <?php endif; ?>
         </dl>
+
+        <?php $mapaUrl = (string)($pedido['entrega_mapa_url'] ?? ''); ?>
+        <?php if ($mapaUrl !== '' && $pedido['entrega_tipo'] === 'domicilio'): ?>
+          <a href="<?= e($mapaUrl) ?>" target="_blank" rel="noopener noreferrer nofollow"
+             class="boton boton-principal" style="margin-top:16px;">
+            <i class="fa-solid fa-location-dot" aria-hidden="true"></i>
+            Abrir en <?= e(Envios::servicioMapa($mapaUrl)) ?>
+          </a>
+          <p class="ayuda" style="margin-top:8px;">
+            Punto exacto que marcó el cliente. Envíaselo al repartidor junto con la dirección escrita.
+          </p>
+        <?php endif; ?>
 
         <?php if ($pedido['dedicatoria'] !== ''): ?>
           <p class="etiqueta" style="margin-top:16px;">Dedicatoria</p>

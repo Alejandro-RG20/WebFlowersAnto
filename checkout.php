@@ -19,16 +19,38 @@ if (!Ajustes::activo('pedido_web_activo', true)) {
     redirigir('carrito.php');
 }
 
-$detalle = Carrito::detalle($pdo);
-if (!$detalle['items']) {
+if (Carrito::vacio()) {
     flash('info', 'Tu carrito está vacío.');
     redirigir('carrito.php');
 }
 
-$usuario   = Auth::usuario();
-$cuentas   = Ajustes::cuentasBancarias($pdo);
-$ciudades  = Ajustes::lista('ciudades_entrega', ['Managua']);
-$franjas   = Ajustes::lista('franjas_entrega', ['Mañana (8:00 - 12:00)', 'Tarde (12:00 - 17:00)']);
+$usuario     = Auth::usuario();
+$cuentas     = Ajustes::cuentasBancarias($pdo);
+$zonas       = Envios::zonas($pdo);
+$direcciones = Envios::direcciones($pdo, (int)(Auth::id() ?? 0));
+$franjas     = Ajustes::lista('franjas_entrega', ['Mañana (8:00 - 12:00)', 'Tarde (12:00 - 17:00)']);
+$pedirMapa   = Ajustes::activo('pedir_mapa_url', true);
+
+// Zona elegida: la del formulario, la de la dirección predeterminada, o la
+// primera de la lista. Hace falta antes de pintar nada porque de ella depende
+// el costo del envío que se muestra en el resumen.
+$zonaElegida = Envios::zona($pdo, identificador('zona_envio_id'));
+if (!$zonaElegida && $_SERVER['REQUEST_METHOD'] !== 'POST') {
+    foreach ($direcciones as $d) {
+        if ((int)$d['predeterminada'] === 1 && $d['zona_envio_id']) {
+            $zonaElegida = Envios::zona($pdo, (int)$d['zona_envio_id']);
+            break;
+        }
+    }
+    $zonaElegida ??= ($zonas[0] ?? null) ? Envios::zona($pdo, (int)$zonas[0]['id']) : null;
+}
+
+$tipoEntregaActual = opcion('entrega_tipo', ['domicilio', 'retiro'], 'domicilio');
+$detalle = Carrito::detalle($pdo, $zonaElegida, $tipoEntregaActual);
+if (!$detalle['items']) {
+    flash('info', 'Tu carrito está vacío.');
+    redirigir('carrito.php');
+}
 $permitirRetiro   = Ajustes::activo('permitir_retiro', true);
 $permitirInvitado = Ajustes::activo('permitir_invitado', true);
 $efectivoActivo   = Ajustes::activo('pago_efectivo_activo', true);
@@ -44,6 +66,8 @@ $datos = [
     'entrega_direccion'  => '',
     'entrega_ciudad'     => $ciudades[0] ?? 'Managua',
     'entrega_referencia' => '',
+    'entrega_mapa_url'   => '',
+    'zona_envio_id'      => (int)($zonaElegida['id'] ?? 0),
     'entrega_fecha'      => '',
     'entrega_franja'     => $franjas[0] ?? '',
     'dedicatoria'        => '',
@@ -67,6 +91,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $datos['entrega_direccion']  = texto('entrega_direccion', 255);
     $datos['entrega_ciudad']     = texto('entrega_ciudad', 80);
     $datos['entrega_referencia'] = texto('entrega_referencia', 255);
+    $datos['zona_envio_id']      = identificador('zona_envio_id');
     $datos['entrega_fecha']      = fechaOpcional('entrega_fecha');
     $datos['entrega_franja']     = texto('entrega_franja', 40);
     $datos['dedicatoria']        = textoLargo('dedicatoria', 400);
@@ -89,14 +114,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($datos['cliente_telefono'] === '') {
         $errores['cliente_telefono'] = 'Escribe un teléfono de contacto de 8 dígitos o más.';
     }
+    // El enlace de ubicación se comprueba siempre: si viene mal, se avisa en
+    // lugar de guardar una dirección que el repartidor no podrá abrir.
+    $revisionMapa = Envios::revisarEnlaceMapa(crudo('entrega_mapa_url'));
+    $datos['entrega_mapa_url'] = $revisionMapa['url'];
+    if (!$revisionMapa['ok']) {
+        $errores['entrega_mapa_url'] = $revisionMapa['error'];
+    }
+
     if ($datos['entrega_tipo'] === 'domicilio') {
         if (mb_strlen($datos['entrega_direccion']) < 10) {
             $errores['entrega_direccion'] = 'Necesitamos una dirección con la referencia suficiente para llegar.';
         }
-        if ($datos['entrega_ciudad'] === '') {
+        if ($zonas && !$zonaElegida) {
+            $errores['zona_envio_id'] = 'Elige la zona de entrega: de ella depende el costo del envío.';
+        }
+        // La zona manda sobre lo que se escriba en el campo de ciudad.
+        if ($zonaElegida) {
+            $datos['entrega_ciudad'] = mb_substr((string)$zonaElegida['nombre'], 0, 80);
+        } elseif ($datos['entrega_ciudad'] === '') {
             $errores['entrega_ciudad'] = 'Indica la ciudad de entrega.';
         }
+    } else {
+        // En retiro no hay zona ni ubicación que valgan.
+        $datos['zona_envio_id']    = 0;
+        $datos['entrega_mapa_url'] = '';
+        $zonaElegida = null;
     }
+
+    // Con la zona ya confirmada se recalcula el total que se va a cobrar.
+    $detalle = Carrito::detalle($pdo, $zonaElegida, $datos['entrega_tipo']);
     if ($datos['entrega_fecha'] !== null && $datos['entrega_fecha'] < date('Y-m-d')) {
         $errores['entrega_fecha'] = 'La fecha de entrega no puede ser anterior a hoy.';
     }
@@ -156,6 +203,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $resultado = Pedidos::crearDesdeCarrito($pdo, $datos);
         if ($resultado['ok']) {
             $pedido = $resultado['pedido'];
+
+            // La dirección se guarda solo si hay cuenta y el cliente lo pidió.
+            if (Auth::autenticado() && casilla('guardar_direccion') && $datos['entrega_tipo'] === 'domicilio') {
+                Envios::guardarDireccion($pdo, (int)Auth::id(), [
+                    'etiqueta'      => texto('etiqueta_direccion', 60) ?: 'Mi dirección',
+                    'nombre_recibe' => $datos['entrega_nombre'],
+                    'telefono'      => $datos['entrega_telefono'],
+                    'direccion'     => $datos['entrega_direccion'],
+                    'referencia'    => $datos['entrega_referencia'],
+                    'mapa_url'      => $datos['entrega_mapa_url'],
+                    'zona_envio_id' => $datos['zona_envio_id'],
+                ]);
+            }
             flash('exito', 'Recibimos tu pedido ' . $pedido['codigo'] . '.');
             redirigir(Pedidos::enlaceSeguimiento($pedido));
         }
@@ -308,6 +368,29 @@ require __DIR__ . '/includes/vistas/cabecera.php';
           <?php endif; ?>
 
           <div id="bloqueDomicilio" <?= $datos['entrega_tipo'] === 'retiro' ? 'hidden' : '' ?>>
+
+            <?php if ($direcciones): ?>
+              <p class="etiqueta-campo">Tus direcciones guardadas</p>
+              <div class="chips" style="margin:0 0 18px;">
+                <?php foreach ($direcciones as $d): ?>
+                  <button type="button" class="chip" data-direccion='<?= json_para_html([
+                      'direccion'  => $d['direccion'],
+                      'referencia' => $d['referencia'],
+                      'mapa'       => $d['mapa_url'],
+                      'zona'       => (int)$d['zona_envio_id'],
+                      'nombre'     => $d['nombre_recibe'],
+                      'telefono'   => $d['telefono'],
+                  ]) ?>'>
+                    <i class="fa-solid fa-location-dot" aria-hidden="true"></i>
+                    <?= e((string)$d['etiqueta']) ?>
+                    <?php if ($d['zona_nombre']): ?>
+                      <span class="cuenta"><?= e((string)$d['zona_nombre']) ?></span>
+                    <?php endif; ?>
+                  </button>
+                <?php endforeach; ?>
+              </div>
+            <?php endif; ?>
+
             <div class="campo<?= isset($errores['entrega_direccion']) ? ' con-error' : '' ?>">
               <label for="entrega_direccion">Dirección *</label>
               <input type="text" id="entrega_direccion" name="entrega_direccion" autocomplete="street-address"
@@ -319,24 +402,82 @@ require __DIR__ . '/includes/vistas/cabecera.php';
             </div>
 
             <div class="campo-fila">
-              <div class="campo<?= isset($errores['entrega_ciudad']) ? ' con-error' : '' ?>">
-                <label for="entrega_ciudad">Ciudad *</label>
-                <select id="entrega_ciudad" name="entrega_ciudad">
-                  <?php foreach ($ciudades as $ciudad): ?>
-                    <option value="<?= e($ciudad) ?>"<?= $datos['entrega_ciudad'] === $ciudad ? ' selected' : '' ?>>
-                      <?= e($ciudad) ?></option>
-                  <?php endforeach; ?>
-                </select>
-                <?php if (isset($errores['entrega_ciudad'])): ?>
-                  <p class="error-campo"><?= e($errores['entrega_ciudad']) ?></p>
-                <?php endif; ?>
-              </div>
+              <?php if ($zonas): ?>
+                <div class="campo<?= isset($errores['zona_envio_id']) ? ' con-error' : '' ?>">
+                  <label for="zona_envio_id">Zona de entrega *</label>
+                  <select id="zona_envio_id" name="zona_envio_id" required>
+                    <?php
+                      $dentro = array_filter($zonas, fn($z) => (int)$z['es_managua'] === 1);
+                      $fuera  = array_filter($zonas, fn($z) => (int)$z['es_managua'] === 0);
+                      foreach (['Dentro de Managua' => $dentro, 'Fuera de Managua' => $fuera] as $grupo => $lista):
+                          if (!$lista) { continue; } ?>
+                      <optgroup label="<?= e($grupo) ?>">
+                        <?php foreach ($lista as $z): ?>
+                          <option value="<?= (int)$z['id'] ?>"
+                                  data-costo="<?= e(number_format((float)$z['costo'], 2, '.', '')) ?>"
+                                  data-ayuda="<?= e((string)$z['descripcion']) ?>"
+                                  data-nombre="<?= e((string)$z['nombre']) ?>"
+                                  <?= (int)$datos['zona_envio_id'] === (int)$z['id'] ? ' selected' : '' ?>>
+                            <?= e((string)$z['nombre']) ?>
+                            — <?= (float)$z['costo'] > 0 ? e(dinero($z['costo'])) : 'sin costo' ?>
+                          </option>
+                        <?php endforeach; ?>
+                      </optgroup>
+                    <?php endforeach; ?>
+                  </select>
+                  <p class="ayuda" id="ayudaZona">
+                    <?= e((string)($zonaElegida['descripcion'] ?? 'El costo del envío depende de la zona.')) ?></p>
+                  <?php if (isset($errores['zona_envio_id'])): ?>
+                    <p class="error-campo"><?= e($errores['zona_envio_id']) ?></p>
+                  <?php endif; ?>
+                </div>
+              <?php else: ?>
+                <div class="campo<?= isset($errores['entrega_ciudad']) ? ' con-error' : '' ?>">
+                  <label for="entrega_ciudad">Ciudad *</label>
+                  <input type="text" id="entrega_ciudad" name="entrega_ciudad"
+                         value="<?= e($datos['entrega_ciudad']) ?>">
+                  <?php if (isset($errores['entrega_ciudad'])): ?>
+                    <p class="error-campo"><?= e($errores['entrega_ciudad']) ?></p>
+                  <?php endif; ?>
+                </div>
+              <?php endif; ?>
               <div class="campo">
                 <label for="entrega_referencia">Punto de referencia</label>
                 <input type="text" id="entrega_referencia" name="entrega_referencia"
                        value="<?= e($datos['entrega_referencia']) ?>" placeholder="Portón negro, frente a…">
               </div>
             </div>
+
+            <?php if ($pedirMapa): ?>
+              <div class="campo<?= isset($errores['entrega_mapa_url']) ? ' con-error' : '' ?>">
+                <label for="entrega_mapa_url">Ubicación en el mapa <span style="font-weight:400;text-transform:none;letter-spacing:0;">(opcional, pero ayuda mucho)</span></label>
+                <input type="text" id="entrega_mapa_url" name="entrega_mapa_url" maxlength="500"
+                       value="<?= e($datos['entrega_mapa_url']) ?>"
+                       placeholder="https://maps.app.goo.gl/…  o  12.1364, -86.2514">
+                <p class="ayuda">
+                  Abre Google Maps o Waze, mantén pulsado el punto de entrega y usa
+                  <strong>Compartir</strong>; pega aquí el enlace. También sirven las coordenadas.
+                  Es lo que abre el repartidor desde su teléfono para llegar sin llamarte.
+                </p>
+                <?php if (isset($errores['entrega_mapa_url'])): ?>
+                  <p class="error-campo"><?= e($errores['entrega_mapa_url']) ?></p>
+                <?php endif; ?>
+              </div>
+            <?php endif; ?>
+
+            <?php if (Auth::autenticado()): ?>
+              <div class="campo-casilla">
+                <input type="checkbox" id="guardar_direccion" name="guardar_direccion" value="1"
+                       <?= casilla('guardar_direccion') ? 'checked' : '' ?>
+                       onchange="document.getElementById('campoEtiqueta').hidden = !this.checked">
+                <label for="guardar_direccion">Guardar esta dirección para mis próximos pedidos</label>
+              </div>
+              <div class="campo" id="campoEtiqueta" <?= casilla('guardar_direccion') ? '' : 'hidden' ?>>
+                <label for="etiqueta_direccion">¿Cómo la llamamos?</label>
+                <input type="text" id="etiqueta_direccion" name="etiqueta_direccion" maxlength="60"
+                       value="<?= e(texto('etiqueta_direccion', 60)) ?>" placeholder="Casa, Oficina, Casa de mamá…">
+              </div>
+            <?php endif; ?>
           </div>
 
           <div class="campo-fila">
@@ -449,15 +590,23 @@ require __DIR__ . '/includes/vistas/cabecera.php';
             </div>
           <?php endforeach; ?>
 
-          <div class="resumen-totales" style="margin-top:16px;">
+          <div class="resumen-totales" style="margin-top:16px;"
+               data-resumen
+               data-subtotal="<?= e(number_format($detalle['subtotal'], 2, '.', '')) ?>"
+               data-moneda="<?= e(Ajustes::texto('moneda_local', 'C$')) ?>"
+               data-umbral="<?= e(number_format((float)Ajustes::numero('envio_gratis_desde', 0), 2, '.', '')) ?>">
             <div><span>Subtotal</span><span><?= e(dinero($detalle['subtotal'])) ?></span></div>
-            <div><span>Envío</span>
-              <?= $detalle['envio'] > 0
-                    ? '<span>' . e(dinero($detalle['envio'])) . '</span>'
-                    : '<span class="gratis">Gratis</span>' ?>
+            <div><span>Envío <small id="envioZona" style="color:var(--tenue);"><?php
+                    echo $zonaElegida ? e((string)$zonaElegida['nombre']) : ''; ?></small></span>
+              <span id="envioImporte" class="<?= $detalle['envio'] > 0 ? '' : 'gratis' ?>"><?=
+                $detalle['envio'] > 0 ? e(dinero($detalle['envio'])) : 'Gratis' ?></span>
             </div>
-            <div class="total"><span>Total</span><span><?= e(dinero($detalle['total'])) ?></span></div>
+            <div class="total"><span>Total</span>
+              <span id="totalImporte"><?= e(dinero($detalle['total'])) ?></span></div>
           </div>
+          <p class="ayuda" style="margin-top:8px;">
+            El total definitivo lo confirma el servidor al registrar el pedido.
+          </p>
 
           <button type="submit" class="btn btn-primary btn-block" style="margin-top:20px;">
             <i class="fa-solid fa-check" aria-hidden="true"></i> Confirmar pedido

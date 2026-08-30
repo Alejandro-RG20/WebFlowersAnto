@@ -284,6 +284,22 @@ h1, h2, h3, h4, .logo-text, .hero-title { font-family: 'Playfair Display', serif
 .map-link { text-decoration: none; display: block; border-radius: 20px; overflow: hidden; box-shadow: var(--shadow); }
 .map-wrapper { position: relative; }
 .map-wrapper iframe { display: block; }
+
+/* La dirección escrita, debajo del mapa: no todo el mundo lee un mapa. */
+.map-direccion {
+  margin-top: 14px;
+  padding: 16px 18px;
+  /* La sección ya es rosa: la tarjeta va en blanco para que se despegue. */
+  background: #fff;
+  border-radius: 14px;
+  box-shadow: var(--shadow);
+  font-size: .92rem;
+  line-height: 1.6;
+}
+.map-direccion p { display: flex; gap: 10px; align-items: flex-start; margin: 0 0 8px; }
+.map-direccion p:last-of-type { margin-bottom: 0; }
+.map-direccion i { color: var(--rose-mid, #C98A9B); margin-top: 3px; flex-shrink: 0; }
+.map-direccion a { color: inherit; text-decoration: underline; }
 .map-overlay {
   position: absolute; bottom: 0; left: 0; right: 0;
   background: rgba(255,255,255,0.9); padding: 12px;

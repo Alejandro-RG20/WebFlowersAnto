@@ -14,13 +14,105 @@ $seccion = 'configuracion';
 Rbac::exigirPanel();
 Rbac::exigir('configuracion.ver');
 
-$pestana = opcion('t', ['marca', 'portada', 'contacto', 'pedidos', 'banco', 'desarrollador'], 'marca', $_GET);
+$pestana = opcion('t', ['marca', 'portada', 'contacto', 'pedidos', 'envio', 'avisos', 'banco', 'desarrollador'], 'marca', $_GET);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     exigirToken(false, 'admin/configuracion.php');
     Rbac::exigir('configuracion.editar');
 
-    $accion = opcion('accion', ['guardar', 'cuenta_guardar', 'cuenta_eliminar'], 'guardar');
+    $accion = opcion('accion', ['guardar', 'cuenta_guardar', 'cuenta_eliminar',
+                                'zona_guardar', 'zona_eliminar', 'mensajes_guardar'], 'guardar');
+
+    // --- Zonas de envío -------------------------------------------------
+    if ($accion === 'zona_eliminar') {
+        $zonaId = identificador('zona_id');
+
+        // Los pedidos guardan el nombre de la zona en su propia columna, así
+        // que borrarla no borra el historial: solo deja de ofrecerse.
+        $pdo->prepare("DELETE FROM zonas_envio WHERE id = ?")->execute([$zonaId]);
+        Auditoria::registrar($pdo, 'eliminar', 'sistema', [
+            'recurso_tipo' => 'zona_envio', 'recurso_id' => (string)$zonaId,
+            'descripcion'  => 'Zona de envío eliminada.',
+        ]);
+        flash('exito', 'Zona eliminada.');
+        redirigir('admin/configuracion.php?t=envio');
+    }
+
+    if ($accion === 'zona_guardar') {
+        $zonaId = identificador('zona_id');
+        $nombre = texto('zona_nombre', 100);
+
+        if ($nombre === '') {
+            flash('error', 'La zona necesita un nombre.');
+            redirigir('admin/configuracion.php?t=envio');
+        }
+
+        $datos = [
+            $nombre,
+            texto('zona_descripcion', 255),
+            decimal('zona_costo'),
+            casilla('zona_es_managua'),
+            entero('zona_orden', 0, 999, 0),
+            casilla('zona_activo'),
+        ];
+
+        try {
+            if ($zonaId > 0) {
+                $datos[] = $zonaId;
+                $pdo->prepare(
+                    "UPDATE zonas_envio SET nombre = ?, descripcion = ?, costo = ?,
+                            es_managua = ?, orden = ?, activo = ? WHERE id = ?"
+                )->execute($datos);
+            } else {
+                $pdo->prepare(
+                    "INSERT INTO zonas_envio (nombre, descripcion, costo, es_managua, orden, activo)
+                     VALUES (?,?,?,?,?,?)"
+                )->execute($datos);
+                $zonaId = (int)$pdo->lastInsertId();
+            }
+        } catch (PDOException $ex) {
+            // El nombre es único: dos zonas iguales confundirían al cliente.
+            flash('error', 'Ya existe una zona con ese nombre.');
+            redirigir('admin/configuracion.php?t=envio');
+        }
+
+        Auditoria::registrar($pdo, 'editar', 'sistema', [
+            'recurso_tipo' => 'zona_envio', 'recurso_id' => (string)$zonaId,
+            'descripcion'  => 'Zona de envío guardada: ' . $nombre,
+        ]);
+        flash('exito', 'Zona guardada.');
+        redirigir('admin/configuracion.php?t=envio');
+    }
+
+    // --- Textos de los correos de estado --------------------------------
+    if ($accion === 'mensajes_guardar') {
+        $up = $pdo->prepare(
+            "UPDATE estados_pedido SET mensaje_correo = ?, avisar_cliente = ? WHERE id = ?"
+        );
+        $mensajes = (array)($_POST['mensaje'] ?? []);
+        $avisos   = (array)($_POST['avisar'] ?? []);
+        $tocados  = 0;
+
+        foreach ($mensajes as $id => $texto) {
+            $id = (int)$id;
+            if ($id <= 0) {
+                continue;
+            }
+            $up->execute([
+                mb_substr(trim((string)$texto), 0, 1000),
+                isset($avisos[$id]) ? 1 : 0,
+                $id,
+            ]);
+            $tocados++;
+        }
+
+        Auditoria::registrar($pdo, 'editar', 'sistema', [
+            'recurso_tipo' => 'estados_pedido', 'recurso_id' => 'correos',
+            'descripcion'  => 'Textos de los avisos por correo actualizados (' . $tocados . ' estados).',
+        ]);
+        flash('exito', 'Mensajes de los correos guardados.');
+        redirigir('admin/configuracion.php?t=avisos');
+    }
 
     // --- Cuentas bancarias ---------------------------------------------
     if ($accion === 'cuenta_eliminar') {
@@ -127,10 +219,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'permitir_invitado'      => casilla('permitir_invitado'),
             'permitir_retiro'        => casilla('permitir_retiro'),
             'pago_efectivo_activo'   => casilla('pago_efectivo_activo'),
-            'costo_envio'            => decimal('costo_envio'),
-            'envio_gratis_desde'     => decimal('envio_gratis_desde'),
-            'ciudades_entrega'       => texto('ciudades_entrega', 500),
             'franjas_entrega'        => texto('franjas_entrega', 300),
+        ],
+        'envio' => [
+            'costo_envio'        => decimal('costo_envio'),
+            'envio_gratis_desde' => decimal('envio_gratis_desde'),
+            'pedir_mapa_url'     => casilla('pedir_mapa_url'),
+        ],
+        'avisos' => [
+            'email_avisos'   => correoValido('email_avisos'),
+            'avisar_pedidos' => casilla('avisar_pedidos'),
+            'avisar_pagos'   => casilla('avisar_pagos'),
         ],
         'banco' => [
             'instrucciones_pago' => textoLargo('instrucciones_pago', 1500),
@@ -163,6 +262,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $c       = Ajustes::todos();
 $cuentas = $pdo->query("SELECT * FROM cuentas_bancarias ORDER BY orden, id")->fetchAll();
+
+// Zonas de envío y textos de los correos: solo se leen en sus pestañas.
+$zonas = $pestana === 'envio'
+    ? $pdo->query("SELECT * FROM zonas_envio ORDER BY es_managua DESC, orden, nombre")->fetchAll()
+    : [];
+$estadosCorreo = $pestana === 'avisos'
+    ? $pdo->query("SELECT * FROM estados_pedido WHERE tipo = 'pedido' ORDER BY orden, id")->fetchAll()
+    : [];
 $editable = Rbac::puede('configuracion.editar');
 
 $tituloPanel    = 'Configuración';
@@ -199,7 +306,9 @@ function campoImagen(string $nombre, string $etiqueta, string $valor, string $ay
       'marca'         => 'Marca y colores',
       'portada'       => 'Portada y nosotros',
       'contacto'      => 'Contacto y redes',
-      'pedidos'       => 'Pedidos y envío',
+      'pedidos'       => 'Pedidos',
+      'envio'         => 'Envío y zonas',
+      'avisos'        => 'Avisos por correo',
       'banco'         => 'Transferencias',
       'desarrollador' => 'Créditos',
   ] as $clave => $nombre): ?>
@@ -479,28 +588,9 @@ function campoImagen(string $nombre, string $etiqueta, string $valor, string $ay
     </section>
 
     <section class="panel">
-      <div class="panel-cabecera"><div><h2>Envío</h2></div></div>
+      <div class="panel-cabecera"><div><h2>Entrega</h2>
+        <p>Los precios y las zonas viven en la pestaña <strong>Envío y zonas</strong>.</p></div></div>
       <div class="panel-cuerpo">
-        <div class="rejilla-campos dos">
-          <div class="campo">
-            <label for="costo_envio">Costo de envío</label>
-            <input type="number" id="costo_envio" name="costo_envio" step="0.01" min="0"
-                   value="<?= e(number_format((float)($c['costo_envio'] ?? 0), 2, '.', '')) ?>">
-            <p class="ayuda">0 = envío siempre gratis.</p>
-          </div>
-          <div class="campo">
-            <label for="envio_gratis_desde">Envío gratis a partir de</label>
-            <input type="number" id="envio_gratis_desde" name="envio_gratis_desde" step="0.01" min="0"
-                   value="<?= e(number_format((float)($c['envio_gratis_desde'] ?? 0), 2, '.', '')) ?>">
-            <p class="ayuda">0 = nunca hay envío gratis por importe.</p>
-          </div>
-        </div>
-        <div class="campo">
-          <label for="ciudades_entrega">Ciudades a las que entregas</label>
-          <input type="text" id="ciudades_entrega" name="ciudades_entrega" maxlength="500"
-                 value="<?= e((string)($c['ciudades_entrega'] ?? '')) ?>">
-          <p class="ayuda">Separadas por comas. Salen como opciones en el checkout.</p>
-        </div>
         <div class="campo">
           <label for="franjas_entrega">Franjas horarias</label>
           <input type="text" id="franjas_entrega" name="franjas_entrega" maxlength="300"
@@ -514,6 +604,234 @@ function campoImagen(string $nombre, string $etiqueta, string $valor, string $ay
       <button type="submit" class="boton boton-principal">
         <i class="fa-solid fa-floppy-disk" aria-hidden="true"></i> Guardar</button>
     <?php endif; ?>
+  </form>
+
+<?php elseif ($pestana === 'envio'): ?>
+  <div class="caja-aviso">
+    <i class="fa-solid fa-truck-fast" aria-hidden="true"></i>
+    <span>Cada zona lleva su propio precio. El cliente elige la suya en el checkout y el
+      cobro se vuelve a leer aquí antes de registrar el pedido, así que el precio que ve
+      es siempre el que tú pusiste.</span>
+  </div>
+
+  <section class="panel">
+    <div class="panel-cabecera">
+      <div><h2>Zonas de entrega</h2><p><?= count($zonas) ?> registradas</p></div>
+      <?php if ($editable): ?>
+        <button type="button" class="boton boton-principal boton-mini" data-abrir-modal="modalZona"
+                data-campo-zona_id="0" data-campo-zona_nombre="" data-campo-zona_descripcion=""
+                data-campo-zona_costo="<?= e(number_format((float)($c['costo_envio'] ?? 0), 2, '.', '')) ?>"
+                data-campo-zona_es_managua="1" data-campo-zona_orden="0" data-campo-zona_activo="1">
+          <i class="fa-solid fa-plus" aria-hidden="true"></i> Añadir zona</button>
+      <?php endif; ?>
+    </div>
+
+    <?php if (!$zonas): ?>
+      <div class="vacio">
+        <i class="fa-solid fa-map-location-dot" aria-hidden="true"></i>
+        <h3>Todavía no hay zonas</h3>
+        <p>Sin zonas, todos los envíos cobran el costo general de abajo.
+           Crea al menos una para Managua y otra para fuera.</p>
+      </div>
+    <?php else: ?>
+      <div class="tabla-envoltura">
+        <table class="tabla">
+          <thead><tr><th>Zona</th><th>Ámbito</th><th>Costo</th><th>Orden</th><th>Estado</th><th></th></tr></thead>
+          <tbody>
+            <?php foreach ($zonas as $z): ?>
+              <tr>
+                <td class="celda-principal">
+                  <?= e((string)$z['nombre']) ?>
+                  <?php if ((string)$z['descripcion'] !== ''): ?>
+                    <br><span class="celda-sub"><?= e((string)$z['descripcion']) ?></span>
+                  <?php endif; ?>
+                </td>
+                <td><?= (int)$z['es_managua'] ? 'Dentro de Managua' : 'Fuera de Managua' ?></td>
+                <td><?= (float)$z['costo'] > 0 ? e(dinero($z['costo'])) : 'Sin costo' ?></td>
+                <td><?= (int)$z['orden'] ?></td>
+                <td><span class="estado-suave <?= (int)$z['activo'] ? 'si' : 'no' ?>">
+                  <?= (int)$z['activo'] ? 'Visible' : 'Oculta' ?></span></td>
+                <td class="acciones">
+                  <?php if ($editable): ?>
+                    <div style="display:inline-flex; gap:5px;">
+                      <button type="button" class="boton-icono" data-abrir-modal="modalZona"
+                              data-campo-zona_id="<?= (int)$z['id'] ?>"
+                              data-campo-zona_nombre="<?= e((string)$z['nombre']) ?>"
+                              data-campo-zona_descripcion="<?= e((string)$z['descripcion']) ?>"
+                              data-campo-zona_costo="<?= e(number_format((float)$z['costo'], 2, '.', '')) ?>"
+                              data-campo-zona_es_managua="<?= (int)$z['es_managua'] ?>"
+                              data-campo-zona_orden="<?= (int)$z['orden'] ?>"
+                              data-campo-zona_activo="<?= (int)$z['activo'] ?>"
+                              aria-label="Editar zona"><i class="fa-solid fa-pen" aria-hidden="true"></i></button>
+                      <form method="post" action="<?= e(url('admin/configuracion.php')) ?>"
+                            data-confirmar="¿Eliminar la zona «<?= e((string)$z['nombre']) ?>»? Los pedidos ya hechos conservan su zona.">
+                        <?= campoToken() ?>
+                        <input type="hidden" name="accion" value="zona_eliminar">
+                        <input type="hidden" name="zona_id" value="<?= (int)$z['id'] ?>">
+                        <button type="submit" class="boton-icono peligro" aria-label="Eliminar zona">
+                          <i class="fa-solid fa-trash-can" aria-hidden="true"></i></button>
+                      </form>
+                    </div>
+                  <?php endif; ?>
+                </td>
+              </tr>
+            <?php endforeach; ?>
+          </tbody>
+        </table>
+      </div>
+    <?php endif; ?>
+  </section>
+
+  <form method="post" action="<?= e(url('admin/configuracion.php')) ?>">
+    <?= campoToken() ?>
+    <input type="hidden" name="grupo" value="envio">
+    <section class="panel">
+      <div class="panel-cabecera"><div><h2>Reglas generales</h2></div></div>
+      <div class="panel-cuerpo">
+        <div class="rejilla-campos dos">
+          <div class="campo">
+            <label for="costo_envio">Costo de envío por defecto</label>
+            <input type="number" id="costo_envio" name="costo_envio" step="0.01" min="0"
+                   value="<?= e(number_format((float)($c['costo_envio'] ?? 0), 2, '.', '')) ?>">
+            <p class="ayuda">Se usa solo cuando no hay ninguna zona configurada.</p>
+          </div>
+          <div class="campo">
+            <label for="envio_gratis_desde">Envío gratis a partir de</label>
+            <input type="number" id="envio_gratis_desde" name="envio_gratis_desde" step="0.01" min="0"
+                   value="<?= e(number_format((float)($c['envio_gratis_desde'] ?? 0), 2, '.', '')) ?>">
+            <p class="ayuda">Vale para todas las zonas. 0 = nunca hay envío gratis por importe.</p>
+          </div>
+        </div>
+        <div class="interruptor">
+          <input type="checkbox" id="pedir_mapa_url" name="pedir_mapa_url" value="1"
+                 <?= (int)($c['pedir_mapa_url'] ?? 1) ? 'checked' : '' ?>>
+          <label for="pedir_mapa_url">Pedir enlace de ubicación en el checkout
+            <small>El cliente pega su punto de Google Maps o Waze; el repartidor lo abre desde el panel.</small></label>
+        </div>
+        <?php if ($editable): ?>
+          <button type="submit" class="boton boton-principal">
+            <i class="fa-solid fa-floppy-disk" aria-hidden="true"></i> Guardar</button>
+        <?php endif; ?>
+      </div>
+    </section>
+  </form>
+
+  <?php if ($editable): ?>
+    <dialog class="modal" id="modalZona">
+      <form method="post" action="<?= e(url('admin/configuracion.php')) ?>">
+        <?= campoToken() ?>
+        <input type="hidden" name="accion" value="zona_guardar">
+        <input type="hidden" name="zona_id" value="0">
+        <div class="modal-cabecera"><h2>Zona de entrega</h2></div>
+        <div class="modal-cuerpo">
+          <div class="campo">
+            <label for="zn_nombre">Nombre *</label>
+            <input type="text" id="zn_nombre" name="zona_nombre" required maxlength="100"
+                   placeholder="Managua — centro">
+            <p class="ayuda">Es lo que ve el cliente en la lista del checkout.</p>
+          </div>
+          <div class="campo">
+            <label for="zn_descripcion">Barrios o referencia</label>
+            <input type="text" id="zn_descripcion" name="zona_descripcion" maxlength="255"
+                   placeholder="Bolonia, Centroamérica, Altamira…">
+            <p class="ayuda">Aparece como ayuda debajo de la lista para que el cliente acierte con su zona.</p>
+          </div>
+          <div class="rejilla-campos dos">
+            <div class="campo">
+              <label for="zn_costo">Costo del envío</label>
+              <input type="number" id="zn_costo" name="zona_costo" step="0.01" min="0" value="0.00">
+            </div>
+            <div class="campo">
+              <label for="zn_orden">Orden</label>
+              <input type="number" id="zn_orden" name="zona_orden" min="0" max="999" value="0">
+            </div>
+          </div>
+          <div class="interruptor">
+            <input type="checkbox" id="zn_managua" name="zona_es_managua" value="1" checked>
+            <label for="zn_managua">Está dentro de Managua
+              <small>Solo agrupa la lista del checkout en «Dentro» y «Fuera de Managua».</small></label>
+          </div>
+          <div class="interruptor">
+            <input type="checkbox" id="zn_activo" name="zona_activo" value="1" checked>
+            <label for="zn_activo">Ofrecer esta zona a los clientes</label>
+          </div>
+        </div>
+        <div class="modal-pie">
+          <button type="button" class="boton boton-claro" data-cerrar-modal>Cancelar</button>
+          <button type="submit" class="boton boton-principal">Guardar zona</button>
+        </div>
+      </form>
+    </dialog>
+  <?php endif; ?>
+
+<?php elseif ($pestana === 'avisos'): ?>
+  <form method="post" action="<?= e(url('admin/configuracion.php')) ?>">
+    <?= campoToken() ?>
+    <input type="hidden" name="grupo" value="avisos">
+    <section class="panel">
+      <div class="panel-cabecera"><div><h2>Avisos al equipo</h2>
+        <p>Correos que recibe la tienda, no el cliente.</p></div></div>
+      <div class="panel-cuerpo">
+        <div class="campo">
+          <label for="email_avisos">Correo que recibe los avisos</label>
+          <input type="email" id="email_avisos" name="email_avisos" maxlength="150"
+                 value="<?= e((string)($c['email_avisos'] ?? '')) ?>">
+          <p class="ayuda">Si lo dejas vacío se usa el correo de contacto
+            (<?= e((string)($c['email_contacto'] ?? 'sin definir')) ?>).</p>
+        </div>
+        <div class="interruptor">
+          <input type="checkbox" id="avisar_pedidos" name="avisar_pedidos" value="1"
+                 <?= (int)($c['avisar_pedidos'] ?? 1) ? 'checked' : '' ?>>
+          <label for="avisar_pedidos">Avisarme cuando entra un pedido nuevo
+            <small>Llega con el cliente, la dirección, el enlace del mapa y el detalle.</small></label>
+        </div>
+        <div class="interruptor">
+          <input type="checkbox" id="avisar_pagos" name="avisar_pagos" value="1"
+                 <?= (int)($c['avisar_pagos'] ?? 1) ? 'checked' : '' ?>>
+          <label for="avisar_pagos">Avisarme cuando suben un comprobante
+            <small>Es el momento en que alguien del equipo tiene que verificarlo a mano.</small></label>
+        </div>
+        <?php if ($editable): ?>
+          <button type="submit" class="boton boton-principal">
+            <i class="fa-solid fa-floppy-disk" aria-hidden="true"></i> Guardar</button>
+        <?php endif; ?>
+      </div>
+    </section>
+  </form>
+
+  <form method="post" action="<?= e(url('admin/configuracion.php')) ?>">
+    <?= campoToken() ?>
+    <input type="hidden" name="accion" value="mensajes_guardar">
+    <section class="panel">
+      <div class="panel-cabecera"><div><h2>Correo de cada estado</h2>
+        <p>Lo que lee el cliente cada vez que su pedido cambia de estado.</p></div></div>
+      <div class="panel-cuerpo">
+        <div class="caja-aviso">
+          <i class="fa-solid fa-envelope-open-text" aria-hidden="true"></i>
+          <span>Al correo se le añade solo el número del pedido y, si escribes una nota
+            al cambiar el estado, esa nota. Escribe aquí el texto fijo.</span>
+        </div>
+
+        <?php foreach ($estadosCorreo as $es): ?>
+          <div class="campo" style="border-left:3px solid <?= e((string)$es['color']) ?>; padding-left:14px;">
+            <label for="msg_<?= (int)$es['id'] ?>"><?= e((string)$es['nombre']) ?></label>
+            <textarea id="msg_<?= (int)$es['id'] ?>" name="mensaje[<?= (int)$es['id'] ?>]"
+                      maxlength="1000" style="min-height:72px;"
+                      placeholder="<?= e((string)$es['descripcion']) ?>"><?= e((string)($es['mensaje_correo'] ?? '')) ?></textarea>
+            <div class="interruptor" style="margin-top:8px;">
+              <input type="checkbox" id="avisar_<?= (int)$es['id'] ?>" name="avisar[<?= (int)$es['id'] ?>]" value="1"
+                     <?= (int)($es['avisar_cliente'] ?? 1) ? 'checked' : '' ?>>
+              <label for="avisar_<?= (int)$es['id'] ?>">Enviar correo al llegar a este estado</label>
+            </div>
+          </div>
+        <?php endforeach; ?>
+
+        <?php if ($editable): ?>
+          <button type="submit" class="boton boton-principal">
+            <i class="fa-solid fa-floppy-disk" aria-hidden="true"></i> Guardar mensajes</button>
+        <?php endif; ?>
+      </div>
+    </section>
   </form>
 
 <?php elseif ($pestana === 'banco'): ?>

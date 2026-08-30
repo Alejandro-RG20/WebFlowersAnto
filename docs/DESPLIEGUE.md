@@ -333,8 +333,15 @@ Desde *Panel → Configuración*:
 2. **Contacto** — WhatsApp (solo dígitos con código de país: `50588887777`),
    teléfono, correo, dirección, horario, redes
 3. **Transferencias** — **borra la cuenta bancaria de ejemplo** y pon las reales
-4. **Pedidos** — costo de envío, ciudades, franjas horarias
-5. **Créditos** — nombre, logo, descripción y enlace de ANDRODEV
+4. **Pedidos** — formas de pedir, invitados, retiro, franjas horarias
+5. **Envío y zonas** — **el precio de cada zona**. La migración deja creadas las
+   ciudades que ya tenías más unas zonas de ejemplo de Managua, todas con el
+   costo de envío que hubiera: ponles el precio real, borra las que no uses y
+   añade las que falten. Aquí también se activa el enlace de ubicación del
+   checkout y el umbral de envío gratis.
+6. **Avisos por correo** — el correo donde quieres recibir los pedidos nuevos y
+   los comprobantes, y el texto que lee el cliente en cada estado
+7. **Créditos** — nombre, logo, descripción y enlace de ANDRODEV
 
 Y desde *Panel → Productos*, sube los arreglos reales.
 
@@ -348,6 +355,8 @@ molestan pero conviene quitarlos.
 - [ ] `instalar.php` ya no deja crear cuentas (dice que está instalado)
 - [ ] Entras al panel con tu cuenta
 - [ ] Un pedido de prueba llega hasta «Pago en revisión»
+- [ ] El envío cambia de precio al elegir otra zona en el checkout
+- [ ] Te llega el correo de «Pedido nuevo» al buzón del equipo
 - [ ] El comprobante se sube y se ve desde el panel
 - [ ] Aprobar y rechazar funcionan
 - [ ] Los correos llegan (o sabes que no van y es a propósito)

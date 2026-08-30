@@ -121,10 +121,14 @@ final class Carrito
     /**
      * Contenido detallado con los precios frescos de la base.
      *
+     * El envío depende de la zona de entrega, así que se pasa como parámetro:
+     * el carrito por sí solo no sabe a dónde va el pedido. Sin zona se usa el
+     * costo general, que es como funcionaba antes de que existieran las zonas.
+     *
      * @return array{items: array, subtotal: float, envio: float, total: float,
      *               unidades: int, avisos: string[]}
      */
-    public static function detalle(PDO $pdo): array
+    public static function detalle(PDO $pdo, ?array $zona = null, string $tipoEntrega = 'domicilio'): array
     {
         $lineas = self::lineas();
         if (!$lineas) {
@@ -182,7 +186,7 @@ final class Carrito
             self::sincronizar($pdo);
         }
 
-        $envio = self::costoEnvio($subtotal);
+        $envio = Envios::costo($zona, $subtotal, $tipoEntrega);
 
         return [
             'items'    => $items,
@@ -194,15 +198,14 @@ final class Carrito
         ];
     }
 
-    /** Costo de envío según la configuración (con umbral de envío gratis). */
+    /**
+     * Costo de envío sin zona concreta. Se conserva para el carrito, donde
+     * todavía no se sabe a dónde va el pedido: ahí solo se muestra el costo
+     * general a modo de referencia.
+     */
     public static function costoEnvio(float $subtotal): float
     {
-        $costo  = (float)Ajustes::numero('costo_envio', 0);
-        $umbral = (float)Ajustes::numero('envio_gratis_desde', 0);
-        if ($costo <= 0 || ($umbral > 0 && $subtotal >= $umbral)) {
-            return 0.0;
-        }
-        return round($costo, 2);
+        return Envios::costo(null, $subtotal);
     }
 
     // -----------------------------------------------------------------

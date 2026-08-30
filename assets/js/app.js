@@ -508,4 +508,104 @@
     }
   }
   sincronizarFavoritosLocales();
+
+  // -------------------------------------------------------------------
+  // Checkout: el envío cambia según la zona, y las direcciones guardadas
+  // rellenan el formulario de una vez.
+  //
+  // Todo esto es presentación: el servidor vuelve a leer el precio de la
+  // zona en la base antes de registrar el pedido, así que nada de lo que
+  // se toque aquí puede abaratar un envío.
+  // -------------------------------------------------------------------
+  (function checkoutEnvio() {
+    const resumen = $('[data-resumen]');
+    const selZona = $('#zona_envio_id');
+    if (!resumen) { return; }
+
+    const moneda   = resumen.dataset.moneda || 'C$';
+    const subtotal = parseFloat(resumen.dataset.subtotal || '0') || 0;
+    const umbral   = parseFloat(resumen.dataset.umbral || '0') || 0;
+    const elZona   = $('#envioZona');
+    const elEnvio  = $('#envioImporte');
+    const elTotal  = $('#totalImporte');
+    const elAyuda  = $('#ayudaZona');
+
+    function importe(valor) {
+      return moneda + valor.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    }
+
+    function tipoEntrega() {
+      const marcado = $('input[name="entrega_tipo"]:checked') || $('input[name="entrega_tipo"]');
+      return marcado ? marcado.value : 'domicilio';
+    }
+
+    function repintar() {
+      const retiro = tipoEntrega() === 'retiro';
+      const opcion = selZona ? selZona.options[selZona.selectedIndex] : null;
+
+      let envio  = 0;
+      let nombre = '';
+      if (!retiro && opcion) {
+        envio  = parseFloat(opcion.dataset.costo || '0') || 0;
+        // El nombre viene en su propio atributo: varias zonas lo llevan con
+        // guion largo dentro («Managua — zona sur») y partir el texto lo cortaba.
+        nombre = opcion.dataset.nombre || opcion.textContent.trim();
+      }
+
+      // El envío gratis por monto lo decide el mismo umbral que usa el servidor.
+      const gratisPorMonto = !retiro && umbral > 0 && subtotal >= umbral;
+      if (gratisPorMonto) { envio = 0; }
+
+      if (elZona) {
+        elZona.textContent = retiro ? 'retiro en tienda'
+                           : (gratisPorMonto && nombre ? nombre + ' · gratis por tu compra' : nombre);
+      }
+      if (elEnvio) {
+        elEnvio.textContent = envio > 0 ? importe(envio) : 'Gratis';
+        elEnvio.classList.toggle('gratis', envio === 0);
+      }
+      if (elTotal) { elTotal.textContent = importe(subtotal + envio); }
+      if (elAyuda && opcion && opcion.dataset.ayuda !== undefined) {
+        elAyuda.textContent = opcion.dataset.ayuda || 'El costo del envío depende de la zona.';
+      }
+    }
+
+    if (selZona) { selZona.addEventListener('change', repintar); }
+    $$('input[name="entrega_tipo"]').forEach((r) => r.addEventListener('change', repintar));
+    repintar();
+
+    // Direcciones guardadas: un clic rellena dirección, referencia, zona y mapa.
+    $$('[data-direccion]').forEach((chip) => {
+      chip.addEventListener('click', () => {
+        let datos;
+        try { datos = JSON.parse(chip.dataset.direccion); } catch (e) { return; }
+
+        const domicilio = $('input[name="entrega_tipo"][value="domicilio"]');
+        if (domicilio && !domicilio.checked) {
+          domicilio.checked = true;
+          const bloque = $('#bloqueDomicilio');
+          if (bloque) { bloque.hidden = false; }
+        }
+
+        const poner = (id, valor) => {
+          const campo = $('#' + id);
+          if (campo && valor) { campo.value = valor; }
+        };
+        poner('entrega_direccion', datos.direccion);
+        poner('entrega_referencia', datos.referencia);
+        poner('entrega_mapa_url', datos.mapa);
+        poner('entrega_nombre', datos.nombre);
+        poner('entrega_telefono', datos.telefono);
+
+        if (selZona && datos.zona) {
+          const opcion = selZona.querySelector('option[value="' + String(parseInt(datos.zona, 10)) + '"]');
+          if (opcion) { selZona.value = opcion.value; }
+        }
+
+        $$('[data-direccion]').forEach((c) => c.classList.toggle('activo', c === chip));
+        repintar();
+        aviso('Dirección cargada. Revísala antes de confirmar.');
+      });
+    });
+  })();
 })();
