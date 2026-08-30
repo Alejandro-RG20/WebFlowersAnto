@@ -104,9 +104,9 @@ $devUrl    = Ajustes::texto('dev_url');
   <i class="fa-brands fa-whatsapp" aria-hidden="true"></i>
 </a>
 
-<script src="<?= e(url('assets/js/app.js')) ?>" defer></script>
+<script src="<?= e(url_recurso('assets/js/app.js')) ?>" defer></script>
 <?php if (!empty($jsExtra)): foreach ((array)$jsExtra as $script): ?>
-<script src="<?= e(url($script)) ?>" defer></script>
+<script src="<?= e(url_recurso($script)) ?>" defer></script>
 <?php endforeach; ?>
 <?php endif; ?>
 </body>

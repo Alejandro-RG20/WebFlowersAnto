@@ -361,3 +361,12 @@ inexistente: los tres rechazados. Un empleado de catálogo recibe 403 en la
 página, en el despacho y en el alta enviada a mano, y las tres denegaciones
 quedan en la auditoría. Los correos revisados con marca clara y oscura, con
 logo PNG y con SVG.
+
+**Versión en el CSS y el JS.** Al probar la corrección anterior salió otro
+problema, más callado: las hojas de estilo y los scripts se enlazaban sin
+ninguna versión, así que al reemplazar los archivos en el hosting el navegador
+seguía sirviendo los que ya tenía en caché. La web se comportaba como antes
+—con los errores incluidos— y no había forma de saber que lo que se estaba
+viendo era la versión vieja. Ahora cada enlace lleva detrás la fecha de
+modificación del archivo (`app.js?v=1788052669`), que cambia sola al subir una
+versión nueva y obliga al navegador a descargarla.

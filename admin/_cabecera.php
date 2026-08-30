@@ -61,7 +61,7 @@ if (Rbac::puede('pedidos.ver')) {
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
-<link rel="stylesheet" href="<?= e(url('assets/css/admin.css')) ?>">
+<link rel="stylesheet" href="<?= e(url_recurso('assets/css/admin.css')) ?>">
 <link rel="icon" href="<?= e(url_imagen(Ajustes::texto('favicon_url', 'images/placeholders/logo.svg'))) ?>">
 </head>
 <body data-base="<?= e(url()) ?>" data-csrf="<?= e(generarToken()) ?>">

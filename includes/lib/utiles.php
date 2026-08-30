@@ -20,6 +20,23 @@ function json_para_html(mixed $valor): string
     );
 }
 
+/**
+ * URL de un archivo estático con su versión pegada detrás.
+ *
+ * El número es la fecha de modificación del archivo, así que cambia solo al
+ * subir una versión nueva del sitio. Sin esto, el navegador se queda con el
+ * CSS y el JS que ya tenía en caché: al actualizar los archivos en el hosting
+ * la web sigue comportándose como antes —con los errores incluidos— y no hay
+ * forma de saber que lo que se está viendo es viejo.
+ */
+function url_recurso(string $ruta): string
+{
+    $ruta    = ltrim(trim($ruta), '/');
+    $version = @filemtime(RAIZ . '/' . $ruta);
+
+    return url($ruta) . ($version ? '?v=' . $version : '');
+}
+
 /** Construye una URL absoluta dentro del sitio a partir de una ruta relativa. */
 function url(string $ruta = ''): string
 {

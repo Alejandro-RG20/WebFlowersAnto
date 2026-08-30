@@ -362,6 +362,11 @@ molestan pero conviene quitarlos.
 - [ ] Te llega el correo de «Pedido nuevo» al buzón del equipo
 - [ ] El correo de prueba llega con el logo y los colores de la floristería
 - [ ] Desde un pedido puedes mandarle la entrega a un repartidor por WhatsApp
+
+Si actualizas una instalación que ya existía y algo se sigue viendo como antes,
+recarga con **Ctrl + F5** una vez. A partir de esta versión el CSS y el JS
+llevan su propia versión en la URL y el navegador los renueva solo, pero la
+página que ya tenías cargada puede seguir en memoria.
 - [ ] El comprobante se sube y se ve desde el panel
 - [ ] Aprobar y rechazar funcionan
 - [ ] Los correos llegan (o sabes que no van y es a propósito)

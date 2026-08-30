@@ -65,10 +65,10 @@ $waGeneral = enlace_whatsapp(
      si el script principal no llega a cargarse. */
   document.documentElement.classList.add('js');
 </script>
-<link rel="stylesheet" href="<?= e(url('assets/css/estilos.css')) ?>">
-<link rel="stylesheet" href="<?= e(url('assets/css/app.css')) ?>">
+<link rel="stylesheet" href="<?= e(url_recurso('assets/css/estilos.css')) ?>">
+<link rel="stylesheet" href="<?= e(url_recurso('assets/css/app.css')) ?>">
 <?php if (!empty($cssExtra)): foreach ((array)$cssExtra as $hoja): ?>
-<link rel="stylesheet" href="<?= e(url($hoja)) ?>">
+<link rel="stylesheet" href="<?= e(url_recurso($hoja)) ?>">
 <?php endforeach; endif; ?>
 <link rel="icon" href="<?= e(url_imagen(Ajustes::texto('favicon_url', 'images/placeholders/logo.svg'))) ?>">
 <style>
