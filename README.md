@@ -208,6 +208,9 @@ Desde el panel: *Base de datos → Aplicar migraciones* (requiere el permiso
 │   ├── seed.php            Datos de ejemplo
 │   └── migraciones/        001…009
 │
+├── docs/
+│   ├── DESPLIEGUE.md       Guía de instalación en XAMPP e InfinityFree
+│   └── manuales/           Manuales en Word (uso y mantenimiento)
 ├── images/                 Imágenes del proyecto y placeholders
 ├── uploads/                Fotos subidas desde el panel (públicas)
 └── storage/                Fuera del alcance del navegador
@@ -683,6 +686,22 @@ No hay proceso de build: los archivos se sirven tal cual.
   `Content-Security-Policy` en las páginas públicas
 - Los números de cuenta bancaria no están en el código: viven en la base de
   datos y solo se muestran al cliente en la página de su pedido
+
+---
+
+## Manuales
+
+En `docs/manuales/` hay dos documentos de Word, pensados para dos personas
+distintas:
+
+| Documento | Para quién | Qué cubre |
+|-----------|-----------|-----------|
+| `Manual-de-uso-Flowers-Anto.docx` | El personal de la tienda | La web vista por el cliente y todo el panel, con capturas de cada pantalla |
+| `Manual-de-mantenimiento-Flowers-Anto.docx` | El administrador de sistemas | Arquitectura, base de datos, migraciones, respaldos, correo, seguridad y rutinas |
+
+Los dos llevan la marca de ANDRODEV. El logo está en
+`images/androdev-logo.png` y se puede sustituir por el definitivo; también se
+sube desde *Configuración → Créditos* para que aparezca en el pie de la web.
 
 ---
 
