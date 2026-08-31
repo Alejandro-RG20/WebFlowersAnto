@@ -69,7 +69,8 @@ require __DIR__ . '/includes/vistas/cabecera.php';
   <header class="pagina-cabecera">
     <h1>Tu carrito</h1>
     <?php if ($detalle['items']): ?>
-      <p><?= (int)$detalle['unidades'] ?> <?= $detalle['unidades'] === 1 ? 'arreglo' : 'arreglos' ?> listos para pedir.</p>
+      <p><?= (int)$detalle['unidades'] ?>
+         <?= (int)$detalle['unidades'] === 1 ? 'arreglo listo' : 'arreglos listos' ?> para pedir.</p>
     <?php endif; ?>
   </header>
 

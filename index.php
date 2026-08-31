@@ -39,7 +39,10 @@ $datosHero = [
     'hero' => array_map(fn(array $p) => [
         'nombre'           => $p['nombre'],
         'descripcion'      => recortar((string)($p['resumen'] ?: $p['descripcion']), 130),
-        'imagen'           => url_imagen($p['portada'] ?? $p['imagen']),
+        // El PNG recortado es solo del carrusel; si no hay, va la portada.
+        'imagen'           => url_imagen(($p['imagen_hero'] ?? '') !== ''
+                                          ? $p['imagen_hero']
+                                          : ($p['portada'] ?? $p['imagen'])),
         'enlace'           => url('producto.php?p=' . rawurlencode((string)$p['slug'])),
         'precio'           => (float)$p['precio'],
         'precio_usd'       => (float)$p['precio_usd'],

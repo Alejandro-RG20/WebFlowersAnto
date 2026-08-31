@@ -15,6 +15,16 @@ declare(strict_types=1);
 
 final class Archivos
 {
+    /**
+     * Lado máximo de las fotos del catálogo, en píxeles.
+     *
+     * Las fotos salen del teléfono a 3000–4000 px. Servidas tal cual, una
+     * sola pantalla del catálogo puede pesar decenas de MB, que con datos
+     * móviles es una tienda que no carga. 1600 px sobra para verlas a pantalla
+     * completa en cualquier teléfono.
+     */
+    private const LADO_MAX = 1600;
+
     private const IMAGENES = [
         IMAGETYPE_JPEG => ['jpg',  'image/jpeg'],
         IMAGETYPE_PNG  => ['png',  'image/png'],
@@ -66,7 +76,124 @@ final class Archivos
         }
         @chmod($dir . '/' . $nombre, 0644);
 
-        return ['ok' => true, 'ruta' => 'uploads/' . $nombre, 'ancho' => $info[0], 'alto' => $info[1]];
+        [$ancho, $alto] = self::optimizar($dir . '/' . $nombre, $info[2], $info[0], $info[1]);
+
+        return ['ok' => true, 'ruta' => 'uploads/' . $nombre, 'ancho' => $ancho, 'alto' => $alto];
+    }
+
+    /**
+     * Reduce la foto si viene enorme y la endereza si el teléfono la giró.
+     *
+     * Al recodificar se pierden de paso los metadatos EXIF, que en una foto
+     * hecha con el móvil incluyen las coordenadas del sitio donde se tomó:
+     * publicar la dirección de la floristería en cada foto no hace falta.
+     *
+     * Si algo falla se conserva el archivo tal cual llegó. Vale más una foto
+     * pesada que una subida perdida.
+     *
+     * @return array{0:int,1:int} ancho y alto finales
+     */
+    private static function optimizar(string $ruta, int $tipo, int $ancho, int $alto): array
+    {
+        if (!function_exists('imagecreatetruecolor') || $ancho < 1 || $alto < 1) {
+            return [$ancho, $alto];
+        }
+
+        // Una imagen enorme puede agotar la memoria de PHP: si no cabe con
+        // holgura, se deja como está en vez de tumbar la petición.
+        $limite = self::limiteMemoria();
+        if ($limite > 0 && ($ancho * $alto * 4 * 2.2) > ($limite - memory_get_usage(true))) {
+            return [$ancho, $alto];
+        }
+
+        $giro = self::giroExif($ruta, $tipo);
+        $escala = min(1.0, self::LADO_MAX / max($ancho, $alto));
+        if ($escala >= 1.0 && $giro === 0) {
+            return [$ancho, $alto];   // ya está bien: no se toca
+        }
+
+        $origen = match ($tipo) {
+            IMAGETYPE_JPEG => @imagecreatefromjpeg($ruta),
+            IMAGETYPE_PNG  => @imagecreatefrompng($ruta),
+            IMAGETYPE_GIF  => @imagecreatefromgif($ruta),
+            IMAGETYPE_WEBP => function_exists('imagecreatefromwebp') ? @imagecreatefromwebp($ruta) : false,
+            default        => false,
+        };
+        if (!$origen) {
+            return [$ancho, $alto];
+        }
+
+        $nuevoAncho = max(1, (int)round($ancho * $escala));
+        $nuevoAlto  = max(1, (int)round($alto  * $escala));
+
+        $destino = imagecreatetruecolor($nuevoAncho, $nuevoAlto);
+        // PNG, GIF y WEBP pueden traer transparencia: la foto recortada del
+        // carrusel depende de que se conserve.
+        if ($tipo !== IMAGETYPE_JPEG) {
+            imagealphablending($destino, false);
+            imagesavealpha($destino, true);
+            imagefill($destino, 0, 0, imagecolorallocatealpha($destino, 0, 0, 0, 127));
+        }
+        imagecopyresampled($destino, $origen, 0, 0, 0, 0, $nuevoAncho, $nuevoAlto, $ancho, $alto);
+
+        if ($giro !== 0 && function_exists('imagerotate')) {
+            $girada = @imagerotate($destino, $giro, 0);
+            if ($girada) {
+                if ($tipo !== IMAGETYPE_JPEG) { imagesavealpha($girada, true); }
+                imagedestroy($destino);
+                $destino = $girada;
+                $nuevoAncho = imagesx($destino);
+                $nuevoAlto  = imagesy($destino);
+            }
+        }
+
+        $ok = match ($tipo) {
+            IMAGETYPE_JPEG => imagejpeg($destino, $ruta, 82),
+            IMAGETYPE_PNG  => imagepng($destino, $ruta, 6),
+            IMAGETYPE_GIF  => imagegif($destino, $ruta),
+            IMAGETYPE_WEBP => function_exists('imagewebp') && imagewebp($destino, $ruta, 82),
+            default        => false,
+        };
+        imagedestroy($origen);
+        imagedestroy($destino);
+
+        if (!$ok) {
+            error_log('Flowers Anto — no se pudo reescribir la imagen ' . basename($ruta));
+            return [$ancho, $alto];
+        }
+        @chmod($ruta, 0644);
+        return [$nuevoAncho, $nuevoAlto];
+    }
+
+    /** Grados que hay que girar según el EXIF del teléfono. */
+    private static function giroExif(string $ruta, int $tipo): int
+    {
+        if ($tipo !== IMAGETYPE_JPEG || !function_exists('exif_read_data')) {
+            return 0;
+        }
+        $exif = @exif_read_data($ruta);
+        return match ((int)($exif['Orientation'] ?? 0)) {
+            3       => 180,
+            6       => -90,
+            8       => 90,
+            default => 0,
+        };
+    }
+
+    /** memory_limit en bytes; 0 si es ilimitado. */
+    private static function limiteMemoria(): int
+    {
+        $v = trim((string)ini_get('memory_limit'));
+        if ($v === '' || $v === '-1') {
+            return 0;
+        }
+        $n = (int)$v;
+        return match (strtolower(substr($v, -1))) {
+            'g'     => $n * 1073741824,
+            'm'     => $n * 1048576,
+            'k'     => $n * 1024,
+            default => $n,
+        };
     }
 
     /**

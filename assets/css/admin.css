@@ -439,3 +439,47 @@ dialog.modal .modal-pie {
   .contenido-panel { margin: 0; padding: 0; }
   .panel { box-shadow: none; border-color: #ddd; break-inside: avoid; }
 }
+
+/* -------------------------------------------------------------------
+   Selector visual de productos (temporadas)
+
+   Sustituye al <select multiple>, que solo mostraba nombres y obligaba a
+   usar Ctrl/Cmd. Aquí cada producto se ve con su foto, su categoría y su
+   precio, y se marca con un clic.
+   ------------------------------------------------------------------- */
+.selector-productos { border: 1px solid var(--linea, #E3DAD6); border-radius: 12px; padding: 10px; background: #fff; }
+.selector-barra { display: flex; gap: 10px; align-items: center; margin-bottom: 10px; }
+.selector-buscar { flex: 1; min-width: 0; }
+.selector-cuenta { font-size: .82rem; font-weight: 600; color: var(--tinta-suave, #6B565B); white-space: nowrap; }
+.selector-cuenta.lleno { color: #B4472F; }
+
+.selector-rejilla { display: grid; gap: 8px; grid-template-columns: repeat(auto-fill, minmax(216px, 1fr));
+  max-height: 280px; overflow-y: auto; padding-right: 4px; }
+
+/* Las tarjetas van dentro de <label>, que en el panel va en mayúsculas. */
+.selector-item, .selector-item * { text-transform: none; letter-spacing: 0; }
+.selector-item { position: relative; display: flex; gap: 10px; align-items: center; cursor: pointer;
+  border: 1.5px solid var(--linea, #E3DAD6); border-radius: 10px; padding: 7px 9px; background: #fff;
+  transition: border-color .15s, background-color .15s; }
+.selector-item:hover { border-color: var(--rosa, #F8B0C2); }
+.selector-item input { position: absolute; opacity: 0; width: 0; height: 0; }
+.selector-item img { width: 46px; height: 46px; object-fit: cover; border-radius: 8px; flex: none; background: #F7F1EE; }
+.selector-datos { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.selector-nombre { font-weight: 600; font-size: .87rem; line-height: 1.2;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.selector-meta { font-size: .76rem; color: var(--tinta-suave, #6B565B);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.selector-marca { position: absolute; top: 6px; right: 6px; width: 19px; height: 19px; border-radius: 50%;
+  background: var(--rosa, #F8B0C2); opacity: 0; transform: scale(.6);
+  transition: opacity .15s, transform .15s; }
+/* El tilde va dibujado en CSS: así no depende de que cargue Font Awesome. */
+.selector-marca::after { content: ''; position: absolute; left: 6px; top: 4px; width: 5px; height: 9px;
+  border: solid #fff; border-width: 0 2px 2px 0; transform: rotate(45deg); }
+.selector-item:has(input:checked) { border-color: var(--rosa, #F8B0C2); background: #FDF3F6; }
+.selector-item:has(input:checked) .selector-marca { opacity: 1; transform: scale(1); }
+.selector-item input:focus-visible ~ .selector-marca,
+.selector-item:focus-within { outline: 2px solid var(--rosa, #F8B0C2); outline-offset: 2px; }
+/* Al llegar al tope, lo no elegido se atenúa en vez de fallar al guardar. */
+.selector-item.tope-alcanzado { opacity: .45; cursor: not-allowed; }
+.selector-vacio { margin: 10px 2px 2px; font-size: .84rem; color: var(--tinta-suave, #6B565B); }

@@ -123,6 +123,7 @@
         setTimeout(() => boton.classList.remove('latido'), 500);
       }
       pintarContador('favCount', r.total);
+      espejarFavoritos(r.ids);
       aviso(r.favorito ? 'Guardado en favoritos' : 'Quitado de favoritos', 'exito');
 
       // En la página de favoritos, la tarjeta desaparece al quitarla.
@@ -666,30 +667,57 @@
   // Los favoritos del visitante viajan con él hasta que abre una cuenta
   // -------------------------------------------------------------------
   const CLAVE_FAVS = 'flowersanto:favs';
+
+  // localStorage es una copia de seguridad por si caduca la sesión de PHP,
+  // no una segunda fuente de verdad. Por eso se reescribe entera con lo que
+  // diga el servidor: antes sólo se le añadían ids y nunca se le quitaban,
+  // así que lo que el visitante borraba volvía en la siguiente página.
+  function espejarFavoritos(ids) {
+    if (!Array.isArray(ids)) { return; }
+    try {
+      localStorage.setItem(CLAVE_FAVS, JSON.stringify(ids.map(Number).filter(esId)));
+    } catch (e) { /* almacenamiento lleno o bloqueado */ }
+  }
+
+  // Una cadena vacía se parte en [''] y Number('') es 0: hay que exigir id real.
+  const esId = (n) => Number.isInteger(n) && n > 0;
+
+  function listaDelCuerpo() {
+    return (document.body.dataset.favoritos || '').split(',').map(Number).filter(esId);
+  }
+
   function sincronizarFavoritosLocales() {
-    if (document.body.dataset.autenticado === '1') {
+    const cuerpo = document.body;
+    if (cuerpo.dataset.autenticado === '1') {
+      // Con cuenta abierta manda la base de datos; la copia local sobra.
       try { localStorage.removeItem(CLAVE_FAVS); } catch (e) { /* modo privado */ }
+      return;
+    }
+    if (cuerpo.dataset.favsSembrados === '1') {
+      espejarFavoritos(listaDelCuerpo());
       return;
     }
     let guardados = [];
     try { guardados = JSON.parse(localStorage.getItem(CLAVE_FAVS) || '[]'); } catch (e) { guardados = []; }
-    const enPagina = $$('[data-favorito].active').map((b) => parseInt(b.dataset.favorito, 10));
-    const pendientes = guardados.filter((id) => Number.isInteger(id));
-
-    if (pendientes.length && document.body.dataset.favsSincronizados !== '1') {
-      pedir('favoritos.php', { accion: 'fusionar', ids: pendientes.join(',') })
-        .then((r) => {
-          document.body.dataset.favsSincronizados = '1';
-          pintarContador('favCount', r.total);
-        })
-        .catch(() => { /* si falla, se reintenta en la siguiente página */ });
+    guardados = guardados.map(Number).filter(esId);
+    if (!guardados.length) {
+      espejarFavoritos(listaDelCuerpo());
+      return;
     }
-    if (enPagina.length) {
-      try {
-        const union = Array.from(new Set(pendientes.concat(enPagina)));
-        localStorage.setItem(CLAVE_FAVS, JSON.stringify(union));
-      } catch (e) { /* almacenamiento lleno o bloqueado */ }
-    }
+    // Sesión nueva con copia en el navegador: se restaura una sola vez.
+    pedir('favoritos.php', { accion: 'fusionar', ids: guardados.join(',') })
+      .then((r) => {
+        cuerpo.dataset.favsSembrados = '1';
+        pintarContador('favCount', r.total);
+        espejarFavoritos(r.ids);
+        // La lista de favoritos se pinta en el servidor, así que si acabamos
+        // de restaurarla hay que volver a pedirla para que se vea. En la
+        // siguiente carga la sesión ya está sembrada y esto no se repite.
+        if (r.total && cuerpo.classList.contains('pagina-favoritos') && !$('[data-favorito]')) {
+          window.location.reload();
+        }
+      })
+      .catch(() => { /* si falla, se reintenta en la siguiente página */ });
   }
   sincronizarFavoritosLocales();
 

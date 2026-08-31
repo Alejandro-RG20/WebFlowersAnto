@@ -12,7 +12,7 @@ final class Catalogo
 {
     /** Columnas públicas. Se listan una a una para no exponer nada de más. */
     private const COLS = 'p.id, p.nombre, p.slug, p.descripcion, p.resumen, p.precio, p.precio_usd,
-                          p.imagen, p.categoria_id, p.flores, p.color_acento, p.destacado,
+                          p.imagen, p.imagen_hero, p.categoria_id, p.flores, p.color_acento, p.destacado,
                           p.orden_hero, p.orden, p.disponible, p.stock, p.controla_stock, p.created_at';
 
     /** Un producto por su slug (o por id, para los enlaces antiguos). */

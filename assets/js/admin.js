@@ -73,6 +73,15 @@
       ev.preventDefault();
       const modal = document.getElementById(disparador.dataset.abrirModal);
       if (!modal) { return; }
+      // «Nuevo» tiene que partir en blanco: si no, hereda lo del último editado.
+      if (disparador.hasAttribute('data-modal-nuevo')) {
+        const formulario = modal.querySelector('form');
+        if (formulario) {
+          formulario.reset();
+          $$('input[type=hidden][name="id"]', formulario).forEach((c) => { c.value = '0'; });
+          $$('[data-multi] input[type=checkbox]', formulario).forEach((c) => { c.checked = false; });
+        }
+      }
       // Los data-campo-* rellenan el formulario del modal antes de mostrarlo.
       Object.keys(disparador.dataset).forEach((clave) => {
         if (!clave.startsWith('campo')) { return; }
@@ -80,7 +89,13 @@
         const destino = modal.querySelector('[name="' + nombre + '"], [data-destino="' + nombre + '"]');
         if (!destino) { return; }
         const valor = disparador.dataset[clave];
-        if (destino.type === 'checkbox') {
+        if (destino.hasAttribute('data-multi')) {
+          // Contenedor de casillas: el valor es una lista de ids separada por comas.
+          const elegidos = String(valor).split(',').filter(Boolean);
+          $$('input[type=checkbox]', destino).forEach((c) => {
+            c.checked = elegidos.indexOf(c.value) !== -1;
+          });
+        } else if (destino.type === 'checkbox') {
           destino.checked = valor === '1' || valor === 'true';
         } else if ('value' in destino && destino.tagName !== 'SPAN') {
           destino.value = valor;
@@ -88,11 +103,59 @@
           destino.textContent = valor;
         }
       });
+      $$('[data-multi][data-tope]', modal).forEach((sel) => {
+        if (typeof sel.repintarSeleccion === 'function') { sel.repintarSeleccion(); }
+      });
       modal.showModal();
       const primero = modal.querySelector('input:not([type=hidden]), textarea, select');
       primero && primero.focus();
     });
   });
+  // -------------------------------------------------------------------
+  // Selector visual de productos: buscar, contar y respetar el tope
+  // -------------------------------------------------------------------
+  $$('[data-multi][data-tope]').forEach((selector) => {
+    const casillas = $$('input[type=checkbox]', selector);
+    const cuenta   = $('.selector-cuenta', selector);
+    const buscar   = $('.selector-buscar', selector);
+    const vacio    = $('.selector-vacio', selector);
+
+    function repintar() {
+      const tope     = parseInt(selector.dataset.tope, 10) || 0;
+      const marcadas = casillas.filter((c) => c.checked).length;
+      if (cuenta) {
+        cuenta.textContent = marcadas + ' de ' + tope;
+        cuenta.classList.toggle('lleno', marcadas >= tope);
+      }
+      // Con el tope alcanzado se atenúa lo no elegido, en lugar de dejar
+      // marcar de más y que el servidor recorte en silencio al guardar.
+      casillas.forEach((c) => {
+        const bloquear = !c.checked && marcadas >= tope;
+        c.disabled = bloquear;
+        c.closest('.selector-item').classList.toggle('tope-alcanzado', bloquear);
+      });
+    }
+    casillas.forEach((c) => c.addEventListener('change', repintar));
+
+    if (buscar) {
+      buscar.addEventListener('input', () => {
+        const q = buscar.value.trim().toLowerCase();
+        let visibles = 0;
+        $$('.selector-item', selector).forEach((item) => {
+          const coincide = !q || item.dataset.buscar.indexOf(q) !== -1;
+          item.hidden = !coincide;
+          if (coincide) { visibles++; }
+        });
+        if (vacio) { vacio.hidden = visibles > 0; }
+      });
+    }
+    // Al abrir el modal las casillas cambian por código, no por el usuario.
+    const modal = selector.closest('dialog');
+    if (modal) { modal.addEventListener('close', repintar); }
+    selector.repintarSeleccion = repintar;
+    repintar();
+  });
+
   $$('[data-cerrar-modal]').forEach((boton) => {
     boton.addEventListener('click', (ev) => {
       ev.preventDefault();
@@ -124,15 +187,22 @@
     const entrada    = $('input[type=file]', galeria);
     const zona       = $('.soltar-imagen', galeria);
     const campoNombre = galeria.dataset.galeria;
+    // data-maximo="1" convierte la galería en una ranura única (foto del carrusel).
+    const maximo = parseInt(galeria.dataset.maximo, 10) || 0;
 
     function pintar() {
-      $$('.casilla-imagen', contenedor).forEach((casilla, i) => {
+      const casillas = $$('.casilla-imagen', contenedor);
+      casillas.forEach((casilla, i) => {
         const marca = $('.portada', casilla);
         if (marca) { marca.hidden = i !== 0; }
       });
+      // Con la ranura llena no tiene sentido seguir ofreciendo el recuadro.
+      if (maximo) { zona.hidden = casillas.length >= maximo; }
     }
 
     function agregar(ruta) {
+      // En una ranura única, la foto nueva sustituye a la anterior.
+      if (maximo === 1) { $$('.casilla-imagen', contenedor).forEach((c) => c.remove()); }
       const casilla = document.createElement('div');
       casilla.className = 'casilla-imagen';
       casilla.innerHTML =
@@ -157,7 +227,7 @@
     });
 
     async function procesar(archivos) {
-      for (const archivo of Array.from(archivos).slice(0, 8)) {
+      for (const archivo of Array.from(archivos).slice(0, maximo || 8)) {
         try {
           zona.classList.add('encima');
           agregar(await subirImagen(archivo));

@@ -12,19 +12,60 @@ declare(strict_types=1);
 
 final class Favoritos
 {
-    private const CLAVE = 'favoritos';
+    private const CLAVE    = 'favoritos';
+    private const SEMBRADO = 'favoritos_sembrados';
+
+    /**
+     * ¿Ya se restauró en esta sesión la copia que guarda el navegador?
+     *
+     * Mientras no esté sembrada, la lista de localStorage puede repoblar la
+     * sesión. Una vez sembrada, manda el servidor: si no, cada carga de
+     * página devolvería a la vida lo que el visitante acaba de quitar.
+     */
+    public static function sembrado(): bool
+    {
+        return !empty($_SESSION[self::SEMBRADO]);
+    }
+
+    /** Escribe la lista del visitante y da la siembra por hecha. */
+    private static function guardarVisita(array $ids): void
+    {
+        $_SESSION[self::CLAVE]    = array_values(array_unique(array_map('intval', $ids)));
+        $_SESSION[self::SEMBRADO] = true;
+        self::olvidar();
+    }
+
+    /**
+     * Caché de la petición en curso.
+     *
+     * La cabecera pinta el contador y la página vuelve a pedir la lista para
+     * marcar los corazones, así que sin esto una misma carga repetía la
+     * consulta. Cualquier escritura la descarta.
+     *
+     * @var int[]|null
+     */
+    private static ?array $cache = null;
+
+    /** Descarta la caché: la lista acaba de cambiar. */
+    private static function olvidar(): void
+    {
+        self::$cache = null;
+    }
 
     /** @return int[] */
     public static function ids(PDO $pdo): array
     {
+        if (self::$cache !== null) {
+            return self::$cache;
+        }
         $usuarioId = Auth::id();
         if ($usuarioId) {
             $st = $pdo->prepare("SELECT producto_id FROM favoritos WHERE usuario_id = ? ORDER BY created_at DESC");
             $st->execute([$usuarioId]);
-            return array_map('intval', $st->fetchAll(PDO::FETCH_COLUMN));
+            return self::$cache = array_map('intval', $st->fetchAll(PDO::FETCH_COLUMN));
         }
         $lista = $_SESSION[self::CLAVE] ?? [];
-        return is_array($lista) ? array_map('intval', $lista) : [];
+        return self::$cache = (is_array($lista) ? array_map('intval', $lista) : []);
     }
 
     public static function contiene(PDO $pdo, int $productoId): bool
@@ -53,10 +94,12 @@ final class Favoritos
             if ($existe->fetchColumn()) {
                 $pdo->prepare("DELETE FROM favoritos WHERE usuario_id = ? AND producto_id = ?")
                     ->execute([$usuarioId, $productoId]);
+                self::olvidar();
                 return false;
             }
             $pdo->prepare("INSERT IGNORE INTO favoritos (usuario_id, producto_id) VALUES (?, ?)")
                 ->execute([$usuarioId, $productoId]);
+            self::olvidar();
             return true;
         }
 
@@ -64,14 +107,14 @@ final class Favoritos
         $pos   = array_search($productoId, $lista, true);
         if ($pos !== false) {
             unset($lista[$pos]);
-            $_SESSION[self::CLAVE] = array_values($lista);
+            self::guardarVisita($lista);
             return false;
         }
         if (count($lista) >= 100) {
             array_pop($lista);
         }
         array_unshift($lista, $productoId);
-        $_SESSION[self::CLAVE] = array_values($lista);
+        self::guardarVisita($lista);
         return true;
     }
 
@@ -81,10 +124,10 @@ final class Favoritos
         if ($usuarioId) {
             $pdo->prepare("DELETE FROM favoritos WHERE usuario_id = ? AND producto_id = ?")
                 ->execute([$usuarioId, $productoId]);
+            self::olvidar();
             return;
         }
-        $lista = array_values(array_diff(self::ids($pdo), [$productoId]));
-        $_SESSION[self::CLAVE] = $lista;
+        self::guardarVisita(array_diff(self::ids($pdo), [$productoId]));
     }
 
     /** Productos favoritos completos, listos para pintar. */
@@ -109,6 +152,8 @@ final class Favoritos
     {
         $deVisita = $_SESSION[self::CLAVE] ?? [];
         unset($_SESSION[self::CLAVE]);
+        $_SESSION[self::SEMBRADO] = true;
+        self::olvidar();
         if (!is_array($deVisita) || !$deVisita) {
             return;
         }
@@ -122,16 +167,26 @@ final class Favoritos
         }
     }
 
-    /** Fusiona una lista enviada desde localStorage (visitantes que se registran). */
+    /**
+     * Restaura la copia que el navegador guarda en localStorage.
+     *
+     * Corre como mucho una vez por sesión. Sin ese candado, el navegador
+     * reenviaba su lista en cada carga y volvía a insertar justo lo que el
+     * visitante acababa de borrar: los favoritos resucitaban solos.
+     */
     public static function fusionarLista(PDO $pdo, array $ids): void
     {
-        $usuarioId = Auth::id();
-        $ids = array_slice(array_filter(array_map('intval', $ids)), 0, 100);
-        if (!$ids) {
+        if (self::sembrado()) {
             return;
         }
+        $usuarioId = Auth::id();
+        $ids = array_slice(array_filter(array_map('intval', $ids)), 0, 100);
         if (!$usuarioId) {
-            $_SESSION[self::CLAVE] = array_values(array_unique(array_merge($ids, self::ids($pdo))));
+            self::guardarVisita(array_merge($ids, self::ids($pdo)));
+            return;
+        }
+        $_SESSION[self::SEMBRADO] = true;
+        if (!$ids) {
             return;
         }
         $ins = $pdo->prepare("INSERT IGNORE INTO favoritos (usuario_id, producto_id) VALUES (?, ?)");
@@ -141,5 +196,6 @@ final class Favoritos
             } catch (PDOException) {
             }
         }
+        self::olvidar();
     }
 }

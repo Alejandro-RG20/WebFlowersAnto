@@ -30,6 +30,7 @@ $producto = [
     'precio' => 0, 'precio_usd' => 0, 'categoria_id' => (int)$categorias[0]['id'],
     'flores' => '', 'color_acento' => '#EFD9DE', 'destacado' => 0, 'orden_hero' => 0,
     'orden' => 0, 'disponible' => 1, 'activo' => 1, 'stock' => 0, 'controla_stock' => 0,
+    'imagen_hero' => '',
 ];
 $imagenes = [];
 
@@ -80,6 +81,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     $imagenes = array_slice($imagenes, 0, 12);
 
+    // Foto exclusiva del carrusel (PNG recortado). Es opcional: vacía, el
+    // carrusel sigue usando la portada normal.
+    $heroBruta = (array)($_POST['imagen_hero'] ?? []);
+    $producto['imagen_hero'] = $heroBruta
+        ? rutaImagen('__tmp', '', ['__tmp' => (string)reset($heroBruta)])
+        : '';
+
     if (mb_strlen($producto['nombre']) < 3) {
         $errores['nombre'] = 'El nombre necesita al menos 3 caracteres.';
     }
@@ -125,6 +133,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $producto['destacado'], $producto['orden_hero'], $producto['orden'],
                 $producto['disponible'], $producto['activo'],
                 $producto['controla_stock'], $producto['stock'],
+                $producto['imagen_hero'],
             ];
 
             if ($esNuevo) {
@@ -132,8 +141,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     "INSERT INTO productos
                         (nombre, slug, descripcion, resumen, precio, precio_usd, imagen, categoria_id,
                          flores, color_acento, destacado, orden_hero, orden, disponible, activo,
-                         controla_stock, stock)
-                     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
+                         controla_stock, stock, imagen_hero)
+                     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
                 )->execute($campos);
                 $id = (int)$pdo->lastInsertId();
             } else {
@@ -142,7 +151,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     "UPDATE productos SET nombre = ?, slug = ?, descripcion = ?, resumen = ?,
                             precio = ?, precio_usd = ?, imagen = ?, categoria_id = ?, flores = ?,
                             color_acento = ?, destacado = ?, orden_hero = ?, orden = ?,
-                            disponible = ?, activo = ?, controla_stock = ?, stock = ?
+                            disponible = ?, activo = ?, controla_stock = ?, stock = ?,
+                            imagen_hero = ?
                       WHERE id = ?"
                 )->execute($campos);
             }
@@ -283,6 +293,39 @@ require __DIR__ . '/_cabecera.php';
             <p class="ayuda" style="margin-top:10px;">
               Máximo <?= (int)(MAX_UPLOAD_BYTES / 1048576) ?> MB por foto. Se validan por su contenido,
               no por la extensión del nombre.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-cabecera"><div>
+          <h2>Foto para el carrusel</h2>
+          <p>Opcional. Un PNG con el arreglo recortado luce mejor en la portada.</p>
+        </div></div>
+        <div class="panel-cuerpo">
+          <div data-galeria="imagen_hero" data-maximo="1">
+            <div class="rejilla-imagenes">
+              <?php if (($producto['imagen_hero'] ?? '') !== ''): ?>
+                <div class="casilla-imagen">
+                  <img src="<?= e(url_imagen((string)$producto['imagen_hero'])) ?>" alt="">
+                  <button type="button" class="quitar" aria-label="Quitar la foto del carrusel">
+                    <i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
+                  <input type="hidden" name="imagen_hero[]" value="<?= e((string)$producto['imagen_hero']) ?>">
+                </div>
+              <?php endif; ?>
+              <label class="soltar-imagen">
+                <span>
+                  <i class="fa-solid fa-wand-magic-sparkles" aria-hidden="true"></i>
+                  Subir PNG recortado<br><small>Fondo transparente</small>
+                </span>
+                <input type="file" accept="image/png,image/webp">
+              </label>
+            </div>
+            <p class="ayuda" style="margin-top:10px;">
+              Solo se usa en el carrusel de la portada. En el catálogo y en la ficha
+              del producto se sigue viendo la portada normal. Si la dejas vacía, el
+              carrusel también usa la portada.
             </p>
           </div>
         </div>

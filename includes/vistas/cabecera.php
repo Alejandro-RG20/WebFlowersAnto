@@ -40,7 +40,8 @@ if ($temaTemporada) {
 }
 
 $unidadesCarrito = Carrito::unidades();
-$totalFavoritos  = Favoritos::total($pdo);
+$favoritosGlobal = Favoritos::ids($pdo);
+$totalFavoritos  = count($favoritosGlobal);
 $mensajeFlash    = flash();
 
 $waGeneral = enlace_whatsapp(
@@ -101,6 +102,9 @@ $waGeneral = enlace_whatsapp(
 <?php endif; ?>
 </head>
 <body class="<?= e($cuerpoClase) ?>" data-base="<?= e(url()) ?>" data-csrf="<?= e(generarToken()) ?>"
+      data-autenticado="<?= Auth::autenticado() ? '1' : '0' ?>"
+      data-favoritos="<?= e(implode(',', $favoritosGlobal)) ?>"
+      data-favs-sembrados="<?= Favoritos::sembrado() ? '1' : '0' ?>"
 <?php if ($temaTemporada && $temaTemporada['estilo']): ?>
       data-temporada="<?= e($temaTemporada['estilo_id']) ?>"
       data-temporada-formas="<?= e(implode(',', $temaTemporada['estilo']['formas'])) ?>"

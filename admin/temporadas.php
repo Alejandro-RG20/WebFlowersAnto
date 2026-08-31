@@ -114,7 +114,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $temporadas = $pdo->query("SELECT * FROM temporadas ORDER BY prioridad DESC, id DESC")->fetchAll();
-$productos  = $pdo->query("SELECT id, nombre FROM productos WHERE activo = 1 ORDER BY nombre")->fetchAll();
+$productos  = $pdo->query(
+    "SELECT p.id, p.nombre, p.imagen, p.precio, c.nombre AS categoria
+       FROM productos p
+       LEFT JOIN categorias c ON c.id = p.categoria_id
+      WHERE p.activo = 1
+      ORDER BY p.nombre"
+)->fetchAll();
+
+/** Tope de productos por campaña; el guardado corta ahí y la interfaz avisa. */
+const TOPE_PRODUCTOS = 12;
 
 $asociados = [];
 foreach ($pdo->query("SELECT temporada_id, producto_id FROM temporada_productos ORDER BY orden")->fetchAll() as $fila) {
@@ -125,7 +134,7 @@ $vigente = Catalogo::temporadaActiva($pdo);
 
 $tituloPanel      = 'Temporadas';
 $subtituloPanel   = 'Campañas con fecha, como San Valentín o el Día de las Madres';
-$accionesCabecera = '<button type="button" class="boton boton-principal" data-abrir-modal="modalTemporada">'
+$accionesCabecera = '<button type="button" class="boton boton-principal" data-abrir-modal="modalTemporada" data-modal-nuevo>'
                   . '<i class="fa-solid fa-plus" aria-hidden="true"></i> Nueva temporada</button>';
 
 require __DIR__ . '/_cabecera.php';
@@ -204,6 +213,7 @@ require __DIR__ . '/_cabecera.php';
                           data-campo-fecha_fin="<?= e((string)$t['fecha_fin']) ?>"
                           data-campo-prioridad="<?= (int)$t['prioridad'] ?>"
                           data-campo-activo="<?= (int)$t['activo'] ?>"
+                          data-campo-productos="<?= e(implode(',', $productosDe)) ?>"
                           aria-label="Editar <?= e((string)$t['titulo']) ?>">
                     <i class="fa-solid fa-pen" aria-hidden="true"></i></button>
 
@@ -303,13 +313,37 @@ require __DIR__ . '/_cabecera.php';
         </div>
       </div>
       <div class="campo">
-        <label for="t_productos">Productos de la campaña</label>
-        <select id="t_productos" name="productos[]" multiple size="7">
-          <?php foreach ($productos as $p): ?>
-            <option value="<?= (int)$p['id'] ?>"><?= e((string)$p['nombre']) ?></option>
-          <?php endforeach; ?>
-        </select>
-        <p class="ayuda">Ctrl/Cmd para elegir varios. Se muestran en la portada y en la sección de temporada.</p>
+        <label>Productos de la campaña</label>
+        <div class="selector-productos" data-destino="productos" data-multi
+             data-tope="<?= TOPE_PRODUCTOS ?>">
+          <div class="selector-barra">
+            <input type="search" class="selector-buscar" placeholder="Buscar por nombre o categoría…"
+                   aria-label="Buscar productos">
+            <span class="selector-cuenta" aria-live="polite">0 de <?= TOPE_PRODUCTOS ?></span>
+          </div>
+          <?php if (!$productos): ?>
+            <p class="ayuda">Todavía no hay productos activos que enlazar.</p>
+          <?php else: ?>
+            <div class="selector-rejilla">
+              <?php foreach ($productos as $p): ?>
+                <label class="selector-item"
+                       data-buscar="<?= e(mb_strtolower($p['nombre'] . ' ' . (string)$p['categoria'])) ?>">
+                  <input type="checkbox" name="productos[]" value="<?= (int)$p['id'] ?>">
+                  <span class="selector-marca" aria-hidden="true"></span>
+                  <img src="<?= e(url_imagen($p['imagen'])) ?>" alt="" loading="lazy" decoding="async" width="64" height="64">
+                  <span class="selector-datos">
+                    <span class="selector-nombre"><?= e((string)$p['nombre']) ?></span>
+                    <span class="selector-meta"><?= e((string)($p['categoria'] ?? 'Sin categoría')) ?>
+                      · <?= e(dinero($p['precio'])) ?></span>
+                  </span>
+                </label>
+              <?php endforeach; ?>
+            </div>
+            <p class="selector-vacio" hidden>Ningún producto coincide con esa búsqueda.</p>
+          <?php endif; ?>
+        </div>
+        <p class="ayuda">Se muestran en la portada y en la sección de temporada.
+          Máximo <?= TOPE_PRODUCTOS ?>.</p>
       </div>
       <div class="interruptor">
         <input type="checkbox" id="t_activo" name="activo" value="1" checked>
