@@ -483,3 +483,23 @@ dialog.modal .modal-pie {
 /* Al llegar al tope, lo no elegido se atenúa en vez de fallar al guardar. */
 .selector-item.tope-alcanzado { opacity: .45; cursor: not-allowed; }
 .selector-vacio { margin: 10px 2px 2px; font-size: .84rem; color: var(--tinta-suave, #6B565B); }
+
+/* -------------------------------------------------------------------
+   Mantenimiento: cada fila dice qué se borra y cuánto ocupa, para que
+   nadie pulse a ciegas.
+   ------------------------------------------------------------------- */
+.fila-mantenimiento { display: flex; gap: 12px; align-items: flex-start; cursor: pointer;
+  border: 1px solid var(--linea, #E3DAD6); border-radius: 10px; padding: 12px 14px;
+  margin-bottom: 8px; background: #fff; transition: border-color .15s, background-color .15s; }
+.fila-mantenimiento, .fila-mantenimiento * { text-transform: none; letter-spacing: 0; }
+.fila-mantenimiento:hover { border-color: var(--rosa, #F8B0C2); }
+.fila-mantenimiento input { margin-top: 3px; flex: none; accent-color: var(--rosa, #F8B0C2); }
+.fm-texto { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.fm-titulo { font-weight: 600; font-size: .89rem; }
+.fm-ayuda { font-size: .78rem; color: var(--p-tenue, #8A7A7E); line-height: 1.4; }
+.fm-cifra { flex: none; text-align: right; font-weight: 700; font-size: .84rem; white-space: nowrap; }
+.fm-cifra small { display: block; font-weight: 400; color: var(--p-tenue, #8A7A7E); }
+/* Sin nada que borrar la fila se apaga: no hay botón que pulsar en falso. */
+.fila-mantenimiento.vacia { opacity: .5; cursor: default; }
+.fila-mantenimiento.sensible { border-color: #E7C9A9; background: #FFFBF5; }
+.fila-mantenimiento.sensible:hover { border-color: #D9A96F; }

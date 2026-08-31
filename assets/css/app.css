@@ -714,3 +714,51 @@ a.creditos-dev:hover { background: rgba(255,255,255,.13); border-color: rgba(255
   }
   .js .aparece { opacity: 1; transform: none; }
 }
+
+/* -------------------------------------------------------------------
+   Aviso de cookies
+
+   Va abajo y no bloquea la página: quien quiera seguir mirando puede.
+   Sube por encima del botón flotante de WhatsApp para no taparlo.
+   ------------------------------------------------------------------- */
+.aviso-cookies { position: fixed; left: 12px; right: 12px; bottom: 12px; z-index: 90;
+  display: flex; justify-content: center; pointer-events: none; }
+.aviso-cookies[hidden] { display: none; }
+.ac-caja { pointer-events: auto; width: min(100%, 680px);
+  background: #fff; border: 1px solid var(--linea, #EADFDA); border-radius: 16px;
+  box-shadow: 0 18px 44px rgba(59, 43, 47, .18);
+  padding: 16px 18px; display: flex; gap: 16px; align-items: center; flex-wrap: wrap;
+  animation: ac-entrar .35s cubic-bezier(.4, 0, .2, 1) both; }
+@keyframes ac-entrar { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .ac-caja { animation: none; } }
+
+.ac-texto { flex: 1 1 300px; min-width: 0; }
+.ac-titulo { font-weight: 700; margin: 0 0 3px; font-size: .97rem; }
+.ac-texto p { margin: 0; font-size: .83rem; line-height: 1.5; color: var(--tinta-suave, #6B565B); }
+.ac-botones { display: flex; gap: 9px; flex: 0 0 auto; }
+.ac-botones .btn { white-space: nowrap; font-size: .87rem; padding: 10px 18px; }
+/* El texto blanco sobre el rosa de marca queda en 1,75:1, por debajo del
+   mínimo legible. Aquí importa —es la decisión sobre sus datos— así que este
+   botón usa la tinta oscura sobre el mismo rosa: sube a 8:1 sin salirse de
+   la paleta. El resto de botones del sitio se quedan como están. */
+.ac-botones .btn-primary { color: var(--tinta, #2C2124); }
+
+/* En móvil los botones ocupan el ancho: son el objetivo táctil principal. */
+@media (max-width: 560px) {
+  .ac-caja { padding: 14px; }
+  .ac-botones { width: 100%; }
+  .ac-botones .btn { flex: 1; }
+}
+/* El botón flotante de WhatsApp se aparta mientras el aviso está visible.
+   Va con :has() porque en el HTML el botón está antes que el aviso, y no hay
+   selector de hermano hacia atrás. */
+body:has(.aviso-cookies:not([hidden])) .whatsapp-float { bottom: 132px; }
+@media (max-width: 560px) {
+  body:has(.aviso-cookies:not([hidden])) .whatsapp-float { bottom: 216px; }
+}
+
+/* Enlace discreto del pie para volver a decidir sobre las cookies. */
+.enlace-cookies { background: none; border: 0; padding: 0; margin-left: 10px;
+  font: inherit; color: inherit; opacity: .75; cursor: pointer;
+  text-decoration: underline; text-underline-offset: 3px; }
+.enlace-cookies:hover { opacity: 1; }

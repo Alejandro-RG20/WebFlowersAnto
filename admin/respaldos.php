@@ -10,6 +10,7 @@
 declare(strict_types=1);
 require_once __DIR__ . '/../includes/bootstrap.php';
 require_once __DIR__ . '/../includes/lib/respaldos.php';
+require_once __DIR__ . '/../includes/lib/mantenimiento.php';
 
 $seccion = 'respaldos';
 Rbac::exigirPanel();
@@ -17,7 +18,7 @@ Rbac::exigir('respaldos.ver');
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     exigirToken(false, 'admin/respaldos.php');
-    $accion = opcion('accion', ['crear', 'subir', 'restaurar', 'eliminar'], '');
+    $accion = opcion('accion', ['crear', 'subir', 'restaurar', 'eliminar', 'limpiar'], '');
     $id     = identificador('id');
 
     $respaldo = null;
@@ -70,6 +71,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             break;
 
+        case 'limpiar':
+            Rbac::exigir('sistema.mantenimiento');
+            $tareas = array_map('strval', (array)($_POST['tareas'] ?? []));
+            if (!$tareas) {
+                flash('alerta', 'No marcaste nada que limpiar.');
+                break;
+            }
+            $hecho  = Mantenimiento::limpiar($pdo, $tareas);
+            Mantenimiento::olvidarAnalisis();
+            $piezas = 0;
+            $bytes  = 0;
+            foreach ($hecho as $t) {
+                $piezas += $t['cantidad'];
+                $bytes  += $t['bytes'];
+            }
+            Auditoria::registrar($pdo, 'limpiar', 'sistema', [
+                'recurso_tipo' => 'mantenimiento',
+                'descripcion'  => 'Limpieza de mantenimiento: ' . $piezas . ' elementos ('
+                                . implode(', ', $tareas) . ')',
+            ]);
+            flash($piezas ? 'exito' : 'info', $piezas
+                ? 'Limpieza terminada: ' . $piezas . ' elementos y ' . tamano_legible($bytes) . ' liberados.'
+                : 'No había nada que limpiar. Todo estaba en orden.');
+            break;
+
         default:
             flash('error', 'Acción no reconocida.');
     }
@@ -89,6 +115,19 @@ foreach ($respaldos as $r) {
 
 $puedeRestaurar = Rbac::puede('respaldos.restaurar');
 $puedeCrear     = Rbac::puede('respaldos.crear');
+$puedeLimpiar   = Rbac::puede('sistema.mantenimiento');
+
+// Recuento en seco: la pantalla enseña lo que se borraría antes de borrarlo.
+$analisis = $puedeLimpiar
+    ? Mantenimiento::analizarCacheado($pdo, crudo('recalcular') !== '')
+    : [];
+$tareasInfo = Mantenimiento::tareas();
+$totalSobrante = 0;
+$bytesSobrante = 0;
+foreach ($analisis as $t) {
+    $totalSobrante += $t['cantidad'];
+    $bytesSobrante += $t['bytes'];
+}
 
 $tituloPanel    = 'Respaldos';
 $subtituloPanel = count($respaldos) . ' copias guardadas · ' . tamano_legible($espacio) . ' en disco';
@@ -234,6 +273,76 @@ require __DIR__ . '/_cabecera.php';
             </div>
             <button type="submit" class="boton boton-claro" style="width:100%;">
               <i class="fa-solid fa-upload" aria-hidden="true"></i> Subir y validar</button>
+          </form>
+        </div>
+      </section>
+    <?php endif; ?>
+
+    <?php if ($puedeLimpiar): ?>
+      <section class="panel" id="mantenimiento">
+        <div class="panel-cabecera"><div>
+          <h2>Mantenimiento</h2>
+          <p>Libera espacio borrando lo que ya no usa nadie.
+             <?= $totalSobrante
+                 ? 'Ahora mismo sobran ' . (int)$totalSobrante . ' elementos ('
+                   . e(tamano_legible($bytesSobrante)) . ').'
+                 : 'Ahora mismo no sobra nada.' ?>
+             <a href="<?= e(url('admin/respaldos.php?recalcular=1')) ?>#mantenimiento"
+                style="white-space:nowrap;">Actualizar cifras</a></p>
+        </div></div>
+        <div class="panel-cuerpo">
+          <div class="caja-aviso info" style="margin-bottom:14px;">
+            <i class="fa-solid fa-circle-info" aria-hidden="true"></i>
+            <span>Las cifras de abajo son reales y no borran nada al calcularse. Se
+              recuerdan unos minutos para que la página abra rápido; si acabas de cambiar
+              algo, pulsa «Actualizar cifras». Solo se elimina lo que marques y pulses.</span>
+          </div>
+
+          <form method="post" action="<?= e(url('admin/respaldos.php')) ?>"
+                data-confirmar="¿Eliminar de forma definitiva lo que has marcado?">
+            <?= campoToken() ?>
+            <input type="hidden" name="accion" value="limpiar">
+
+            <p class="etiqueta" style="margin-bottom:8px;">Sobrantes técnicos</p>
+            <?php foreach (Mantenimiento::SEGURAS as $clave):
+                    $t = $tareasInfo[$clave]; $n = $analisis[$clave]['cantidad'] ?? 0; ?>
+              <label class="fila-mantenimiento<?= $n ? '' : ' vacia' ?>">
+                <input type="checkbox" name="tareas[]" value="<?= e($clave) ?>"
+                       <?= $n ? 'checked' : 'disabled' ?>>
+                <span class="fm-texto">
+                  <span class="fm-titulo"><?= e($t['titulo']) ?></span>
+                  <span class="fm-ayuda"><?= e($t['ayuda']) ?></span>
+                </span>
+                <span class="fm-cifra"><?= (int)$n ?> <?= e($t['unidad']) ?>
+                  <?php if (!empty($analisis[$clave]['bytes'])): ?>
+                    <small><?= e(tamano_legible((int)$analisis[$clave]['bytes'])) ?></small>
+                  <?php endif; ?>
+                </span>
+              </label>
+            <?php endforeach; ?>
+
+            <p class="etiqueta" style="margin:18px 0 8px;">Información del negocio
+              <small style="text-transform:none; letter-spacing:0; font-weight:400;">
+                — esto no es caché. Va desmarcado a propósito.</small></p>
+            <?php foreach (Mantenimiento::SENSIBLES as $clave):
+                    $t = $tareasInfo[$clave]; $n = $analisis[$clave]['cantidad'] ?? 0; ?>
+              <label class="fila-mantenimiento sensible<?= $n ? '' : ' vacia' ?>">
+                <input type="checkbox" name="tareas[]" value="<?= e($clave) ?>" <?= $n ? '' : 'disabled' ?>>
+                <span class="fm-texto">
+                  <span class="fm-titulo"><?= e($t['titulo']) ?></span>
+                  <span class="fm-ayuda"><?= e($t['ayuda']) ?></span>
+                </span>
+                <span class="fm-cifra"><?= (int)$n ?> <?= e($t['unidad']) ?></span>
+              </label>
+            <?php endforeach; ?>
+
+            <button type="submit" class="boton boton-principal" style="width:100%; margin-top:16px;"
+                    <?= $totalSobrante ? '' : 'disabled' ?>>
+              <i class="fa-solid fa-broom" aria-hidden="true"></i> Limpiar lo marcado</button>
+            <p class="ayuda" style="margin-top:10px;">
+              Nunca se tocan las fotos en uso, los comprobantes de pedidos vivos ni los
+              archivos subidos en las últimas 24 horas. La limpieza queda registrada en la auditoría.
+            </p>
           </form>
         </div>
       </section>

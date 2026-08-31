@@ -666,14 +666,65 @@
   // -------------------------------------------------------------------
   // Los favoritos del visitante viajan con él hasta que abre una cuenta
   // -------------------------------------------------------------------
+  // -------------------------------------------------------------------
+  // Consentimiento de cookies
+  //
+  // La decisión manda de verdad: sin permiso no se escribe la copia de
+  // favoritos del navegador, y si ya existía se borra. La cookie de sesión no
+  // entra aquí porque sin ella no hay carrito ni acceso.
+  // -------------------------------------------------------------------
   const CLAVE_FAVS = 'flowersanto:favs';
+  const aviso_cookies = $('#avisoCookies');
+
+  function decisionCookies() {
+    const c = document.cookie.match(/(?:^|;\s*)fa_cookies=([^;]+)/);
+    return c ? decodeURIComponent(c[1]) : '';
+  }
+  /** Solo lo opcional necesita permiso; mientras no decida, no se guarda. */
+  function puedeGuardarOpcional() {
+    return decisionCookies() === 'aceptado';
+  }
+  function anotarDecision(valor) {
+    const anio = 60 * 60 * 24 * 365;
+    const seguro = location.protocol === 'https:' ? '; Secure' : '';
+    document.cookie = 'fa_cookies=' + valor + '; Max-Age=' + anio
+                    + '; Path=/; SameSite=Lax' + seguro;
+    if (valor !== 'aceptado') {
+      try { localStorage.removeItem(CLAVE_FAVS); } catch (e) { /* modo privado */ }
+    }
+    if (aviso_cookies) {
+      aviso_cookies.dataset.decision = valor;
+      aviso_cookies.hidden = true;
+    }
+  }
+
+  if (aviso_cookies) {
+    $$('[data-cookies]', aviso_cookies).forEach((boton) => {
+      boton.addEventListener('click', () => {
+        anotarDecision(boton.dataset.cookies);
+        aviso(boton.dataset.cookies === 'aceptado'
+          ? 'Listo, guardaremos tus favoritos en este navegador.'
+          : 'De acuerdo, solo usaremos lo imprescindible.', 'exito');
+      });
+    });
+  }
+  // Enlace del pie para cambiar de opinión más tarde.
+  $$('[data-abrir-cookies]').forEach((enlace) => {
+    enlace.addEventListener('click', (ev) => {
+      ev.preventDefault();
+      if (!aviso_cookies) { return; }
+      aviso_cookies.hidden = false;
+      const primero = $('[data-cookies]', aviso_cookies);
+      primero && primero.focus();
+    });
+  });
 
   // localStorage es una copia de seguridad por si caduca la sesión de PHP,
   // no una segunda fuente de verdad. Por eso se reescribe entera con lo que
   // diga el servidor: antes sólo se le añadían ids y nunca se le quitaban,
   // así que lo que el visitante borraba volvía en la siguiente página.
   function espejarFavoritos(ids) {
-    if (!Array.isArray(ids)) { return; }
+    if (!Array.isArray(ids) || !puedeGuardarOpcional()) { return; }
     try {
       localStorage.setItem(CLAVE_FAVS, JSON.stringify(ids.map(Number).filter(esId)));
     } catch (e) { /* almacenamiento lleno o bloqueado */ }
@@ -698,7 +749,9 @@
       return;
     }
     let guardados = [];
-    try { guardados = JSON.parse(localStorage.getItem(CLAVE_FAVS) || '[]'); } catch (e) { guardados = []; }
+    if (puedeGuardarOpcional()) {
+      try { guardados = JSON.parse(localStorage.getItem(CLAVE_FAVS) || '[]'); } catch (e) { guardados = []; }
+    }
     guardados = guardados.map(Number).filter(esId);
     if (!guardados.length) {
       espejarFavoritos(listaDelCuerpo());

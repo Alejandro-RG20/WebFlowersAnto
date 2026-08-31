@@ -69,7 +69,8 @@ $devUrl    = Ajustes::texto('dev_url');
     </div>
 
     <div class="footer-bottom">
-      <p>© <?= date('Y') ?> <?= e($tienda) ?>. Todos los derechos reservados.</p>
+      <p>© <?= date('Y') ?> <?= e($tienda) ?>. Todos los derechos reservados.
+        <button type="button" class="enlace-cookies" data-abrir-cookies>Cookies</button></p>
 
       <?php if ($devActivo): ?>
         <?php
@@ -110,6 +111,8 @@ $devUrl    = Ajustes::texto('dev_url');
      style="position:absolute"><defs><?= Temporadas::sprite($temaTemporada['estilo']) ?></defs></svg>
 <script src="<?= e(url_recurso('assets/js/temporada.js')) ?>" defer></script>
 <?php endif; ?>
+
+<?php require __DIR__ . '/cookies.php'; ?>
 
 <script src="<?= e(url_recurso('assets/js/app.js')) ?>" defer></script>
 <?php if (!empty($jsExtra)): foreach ((array)$jsExtra as $script): ?>
