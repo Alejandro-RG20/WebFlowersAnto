@@ -626,7 +626,25 @@ a { color: inherit; }
   transition: background var(--transicion), transform var(--transicion), border-color var(--transicion);
 }
 a.creditos-dev:hover { background: rgba(255,255,255,.13); border-color: rgba(255,255,255,.22); transform: translateY(-1px); }
-.creditos-dev img { width: 34px; height: 34px; border-radius: 50%; object-fit: cover; flex-shrink: 0; }
+/* El logo se ve entero.
+   Antes iba recortado en un círculo de 34x34 con object-fit:cover, y a un
+   logo apaisado eso le corta el nombre: solo sobrevivía el símbolo. Ahora se
+   fija la altura, el ancho es libre y `contain` respeta la proporción, así
+   que cabe igual de bien un logo cuadrado que uno alargado. */
+.creditos-dev img { height: 30px; width: auto; max-width: 200px;
+  object-fit: contain; border-radius: 0; flex-shrink: 0; display: block; }
+/* Con logo, la pastilla se ajusta a él: el nombre ya va dentro de la imagen. */
+.creditos-dev.con-logo { gap: 12px; padding: 8px 16px; }
+.creditos-dev.con-logo .creditos-dev-etiqueta { opacity: .55; }
+@media (max-width: 480px) {
+  .creditos-dev img { height: 26px; max-width: 150px; }
+}
+/* El botón flotante de WhatsApp vive fijo en la esquina inferior derecha y
+   en pantallas estrechas tapaba el final del logo. Se le da aire al pie para
+   que la última línea siempre quede por encima del botón. */
+@media (max-width: 620px) {
+  .footer { padding-bottom: 88px; }
+}
 .creditos-dev-inicial {
   width: 34px; height: 34px; border-radius: 50%; flex-shrink: 0; display: grid; place-items: center;
   background: var(--rose-pastel); color: var(--tinta); font-weight: 700; font-size: .95rem;

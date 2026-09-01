@@ -79,19 +79,22 @@ $devUrl    = Ajustes::texto('dev_url');
               ? ' href="' . e($devUrl) . '" target="_blank" rel="noopener noreferrer"'
               : '';
         ?>
-        <<?= $etiqueta ?> class="creditos-dev"<?= $atributos ?>>
-          <?php if (($logo = Ajustes::texto('dev_logo')) !== ''): ?>
-            <img src="<?= e(url_imagen($logo)) ?>" alt="" width="34" height="34" loading="lazy">
+        <?php $logo = Ajustes::texto('dev_logo'); ?>
+        <<?= $etiqueta ?> class="creditos-dev<?= $logo !== '' ? ' con-logo' : '' ?>"<?= $atributos ?>>
+          <span class="creditos-dev-etiqueta">Desarrollado por</span>
+          <?php if ($logo !== ''): ?>
+            <?php // El logo ya lleva el nombre dentro, así que se muestra entero
+                  // y no se repite el texto al lado. ?>
+            <img src="<?= e(url_imagen($logo)) ?>" alt="<?= e(Ajustes::texto('dev_nombre')) ?>" loading="lazy">
           <?php else: ?>
             <span class="creditos-dev-inicial" aria-hidden="true"><?= e(mb_substr(Ajustes::texto('dev_nombre'), 0, 1)) ?></span>
+            <span class="creditos-dev-texto">
+              <strong><?= e(Ajustes::texto('dev_nombre')) ?></strong>
+              <?php if (($descDev = Ajustes::texto('dev_descripcion')) !== ''): ?>
+                <small><?= e($descDev) ?></small>
+              <?php endif; ?>
+            </span>
           <?php endif; ?>
-          <span class="creditos-dev-texto">
-            <span class="creditos-dev-etiqueta">Desarrollado por</span>
-            <strong><?= e(Ajustes::texto('dev_nombre')) ?></strong>
-            <?php if (($descDev = Ajustes::texto('dev_descripcion')) !== ''): ?>
-              <small><?= e($descDev) ?></small>
-            <?php endif; ?>
-          </span>
           <?php if ($devUrl !== ''): ?>
             <i class="fa-solid fa-arrow-up-right-from-square" aria-hidden="true"></i>
           <?php endif; ?>

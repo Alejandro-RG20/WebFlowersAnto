@@ -1137,24 +1137,27 @@ function campoImagen(string $nombre, string $etiqueta, string $valor, string $ay
                  value="<?= e((string)($c['dev_descripcion'] ?? '')) ?>">
         </div>
         <?php campoImagen('dev_logo', 'Logo', (string)($c['dev_logo'] ?? ''),
-                          'Si no hay logo se muestra la inicial del nombre en un círculo.'); ?>
+                          'Se muestra entero, sin recortar, y sustituye al texto del nombre. '
+                        . 'El pie es oscuro, así que conviene subir la versión clara del logo, '
+                        . 'en PNG con fondo transparente. Sin logo se muestra la inicial del nombre.'); ?>
 
         <div style="margin-top:18px; padding:16px; background:#2C2124; border-radius:10px;">
           <p class="etiqueta" style="color:#9A8A8D;">Vista previa</p>
           <div style="display:inline-flex; align-items:center; gap:11px; padding:9px 15px; border-radius:30px;
                       background:rgba(255,255,255,.07); border:1px solid rgba(255,255,255,.11); color:#E0D3D5;">
+            <span style="font-size:.68rem;letter-spacing:.1em;text-transform:uppercase;opacity:.58;">Desarrollado por</span>
             <?php if (($logoDev = (string)($c['dev_logo'] ?? '')) !== ''): ?>
-              <img src="<?= e(url_imagen($logoDev)) ?>" alt="" style="width:34px;height:34px;border-radius:50%;object-fit:cover;">
+              <img src="<?= e(url_imagen($logoDev)) ?>" alt="<?= e((string)($c['dev_nombre'] ?? '')) ?>"
+                   style="height:30px;width:auto;max-width:200px;object-fit:contain;display:block;">
             <?php else: ?>
               <span style="width:34px;height:34px;border-radius:50%;background:var(--p-rosa);color:#2C2124;
                            display:grid;place-items:center;font-weight:700;">
                 <?= e(mb_substr((string)($c['dev_nombre'] ?? 'A'), 0, 1)) ?></span>
+              <span style="display:flex;flex-direction:column;line-height:1.3;text-align:left;">
+                <strong style="color:#fff;font-size:.93rem;"><?= e((string)($c['dev_nombre'] ?? '')) ?></strong>
+                <small style="opacity:.62;font-size:.74rem;"><?= e((string)($c['dev_descripcion'] ?? '')) ?></small>
+              </span>
             <?php endif; ?>
-            <span style="display:flex;flex-direction:column;line-height:1.3;text-align:left;">
-              <span style="font-size:.68rem;letter-spacing:.1em;text-transform:uppercase;opacity:.62;">Desarrollado por</span>
-              <strong style="color:#fff;font-size:.93rem;"><?= e((string)($c['dev_nombre'] ?? '')) ?></strong>
-              <small style="opacity:.62;font-size:.74rem;"><?= e((string)($c['dev_descripcion'] ?? '')) ?></small>
-            </span>
           </div>
         </div>
       </div>
