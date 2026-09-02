@@ -243,6 +243,83 @@ function recortar(string $texto, int $max = 140): string
     return rtrim($ultimo ? mb_substr($corte, 0, $ultimo) : $corte, ' ,.;:') . '…';
 }
 
+/**
+ * Convierte un valor de php.ini («8M», «512K», «1G») a bytes.
+ */
+function bytes_de_ini(string $valor): int
+{
+    $valor = trim($valor);
+    if ($valor === '' || $valor === '-1') {
+        return 0; // sin límite
+    }
+    $numero = (int)$valor;
+    return match (strtolower(substr($valor, -1))) {
+        'g'     => $numero * 1073741824,
+        'm'     => $numero * 1048576,
+        'k'     => $numero * 1024,
+        default => $numero,
+    };
+}
+
+/**
+ * Tamaño de subida que de verdad acepta este servidor.
+ *
+ * El tope de la aplicación no sirve de nada si PHP corta antes. En un hosting
+ * compartido `upload_max_filesize` suele ser mucho más bajo, y anunciar «64 MB»
+ * cuando el servidor rechaza a los 2 solo consigue que alguien pierda el rato
+ * intentándolo. Se anuncia el más pequeño de los tres.
+ */
+function limite_subida(int $topeAplicacion): int
+{
+    $limites = [$topeAplicacion];
+    foreach (['upload_max_filesize', 'post_max_size'] as $clave) {
+        $b = bytes_de_ini((string)ini_get($clave));
+        if ($b > 0) {
+            $limites[] = $b;
+        }
+    }
+    return min($limites);
+}
+
+/**
+ * ¿La referencia de imagen apunta a algo que existe?
+ *
+ * Las referencias «bd:» y las URL externas se dan por buenas: no son
+ * archivos de este disco. Una ruta local sí se comprueba, porque pintar un
+ * `<img>` roto en producción se ve peor que no pintar nada.
+ */
+function imagen_disponible(?string $ruta): bool
+{
+    $ruta = trim((string)$ruta);
+    if ($ruta === '') {
+        return false;
+    }
+    if (preg_match('#^(https?://|bd:)#i', $ruta)) {
+        return true;
+    }
+    return is_file(RAIZ . '/' . ltrim($ruta, '/'));
+}
+
+/**
+ * Singular o plural según la cantidad.
+ *
+ * Las pantallas del panel enseñan cifras que a veces valen 1: «1 imágenes»
+ * se lee mal en una web que sale al público. Se recibe el plural, que es la
+ * forma que ya estaba escrita, y se recorta cuando toca.
+ */
+function unidad_plural(int $cantidad, string $plural): string
+{
+    if ($cantidad === 1) {
+        return match ($plural) {
+            'imágenes' => 'imagen',
+            'archivos' => 'archivo',
+            'filas'    => 'fila',
+            default    => rtrim($plural, 's'),
+        };
+    }
+    return $plural;
+}
+
 /** Tamaño de archivo legible. */
 function tamano_legible(int $bytes): string
 {

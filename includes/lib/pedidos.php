@@ -149,6 +149,12 @@ final class Pedidos
             default         => self::PAGO_NO_APLICA,
         };
 
+        // Con PayPal el dinero ya entró, así que el pedido nace confirmado:
+        // es el mismo punto al que llega una transferencia cuando el equipo la
+        // verifica. Dejarlo en «pendiente» le diría al cliente que se espera su
+        // pago justo después de haberlo hecho.
+        $estadoInicial = $metodo === 'paypal' ? self::CONFIRMADO : self::PENDIENTE;
+
         $pdo->beginTransaction();
         try {
             $codigo = self::generarCodigo($pdo);
@@ -183,7 +189,7 @@ final class Pedidos
                 $datos['notas_cliente'] ?? '',
                 in_array($datos['canal'] ?? 'web', ['web', 'whatsapp', 'panel'], true) ? $datos['canal'] : 'web',
                 $metodo,
-                self::PENDIENTE,
+                $estadoInicial,
                 $estadoPago,
                 Ajustes::texto('moneda_local', 'C$'),
                 $detalle['subtotal'],
@@ -228,13 +234,20 @@ final class Pedidos
             }
 
             self::anotarHistorial(
-                $pdo, $pedidoId, 'pedido', '', self::PENDIENTE,
+                $pdo, $pedidoId, 'pedido', '', $estadoInicial,
                 'Pedido recibido desde ' . ($datos['canal'] === 'panel' ? 'el panel' : 'la web') . '.'
+                . ($metodo === 'paypal' ? ' Pago confirmado por PayPal.' : '')
                 . ($cupon ? ' Cupón ' . $cupon['codigo'] . ': −' . dinero($detalle['descuento']) . '.' : ''),
                 Auth::id(), Auth::autenticado() ? Auth::nombreCompleto() : 'Cliente'
             );
 
             if ($paypal !== null) {
+                self::anotarHistorial(
+                    $pdo, $pedidoId, 'pago', '', self::PAGO_APROBADO,
+                    'PayPal cobró el pedido y devolvió la captura ' . (string)$paypal['captura'] . '.',
+                    Auth::id(), Auth::autenticado() ? Auth::nombreCompleto() : 'Cliente'
+                );
+
                 // Los identificadores permiten conciliar el cobro con PayPal si
                 // algún día hay una reclamación.
                 $pdo->prepare(
@@ -245,6 +258,15 @@ final class Pedidos
                     (float)$paypal['importe'], $pedidoId,
                 ]);
                 unset($_SESSION['paypal_pagado'], $_SESSION['paypal_orden']);
+
+                // Cierra el rastro que dejó la captura: desde la auditoría se
+                // puede seguir un cobro de PayPal hasta el pedido que lo usó.
+                Auditoria::registrar($pdo, 'cobrar_asignado', 'paypal', [
+                    'recurso_tipo' => 'pedido',
+                    'recurso_id'   => (string)$pedidoId,
+                    'descripcion'  => 'El cobro de PayPal ' . (string)$paypal['captura']
+                                    . ' quedó asignado al pedido ' . $codigo . '.',
+                ]);
             }
 
             $pdo->commit();

@@ -58,6 +58,11 @@ if (Rbac::puede('pagos.revisar')) {
     ]);
 }
 
+// Los permisos ya están comprobados y la auditoría escrita: a partir de aquí
+// solo queda enviar bytes, y mantener el candado de la sesión abierta durante
+// la descarga bloquearía las demás peticiones de la misma persona.
+session_write_close();
+
 $extension = pathinfo((string)$comprobante['archivo'], PATHINFO_EXTENSION);
 Archivos::servir(
     DIR_COMPROBANTES . '/' . basename((string)$comprobante['archivo']),

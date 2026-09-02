@@ -345,13 +345,25 @@ require __DIR__ . '/_cabecera.php';
 /** Campo de imagen con vista previa y subida. */
 function campoImagen(string $nombre, string $etiqueta, string $valor, string $ayuda = ''): void
 {
+    // Una imagen guardada cuyo archivo ya no está en el hosting mostraba un
+    // icono roto y pedía un 404 en cada visita a la pantalla. Se enseña el
+    // aviso en su lugar, para que se sepa que hay que volver a subirla.
+    $falta = $valor !== '' && !imagen_disponible($valor);
+    $verPrevia = $valor !== '' && !$falta;
     ?>
     <div class="campo" data-imagen-simple>
       <label><?= e($etiqueta) ?></label>
       <input type="hidden" name="<?= e($nombre) ?>" value="<?= e($valor) ?>">
-      <img src="<?= e($valor !== '' ? url_imagen($valor) : '') ?>" alt=""
-           <?= $valor === '' ? 'hidden' : '' ?>
+      <?php // Sin `src` cuando no hay imagen: uno vacío hace que el navegador
+            // vuelva a pedir la propia página. ?>
+      <img<?= $verPrevia ? ' src="' . e(url_imagen($valor)) . '"' : '' ?> alt=""
+           <?= $verPrevia ? '' : 'hidden' ?>
            style="max-height:110px; width:auto; border-radius:9px; margin-bottom:9px; border:1px solid var(--p-linea);">
+      <?php if ($falta): ?>
+        <p class="ayuda" style="color:var(--p-alerta, #B4552F);">
+          El archivo guardado («<?= e($valor) ?>») ya no está en el servidor.
+          Sube la imagen otra vez para que vuelva a verse.</p>
+      <?php endif; ?>
       <input type="file" accept="image/jpeg,image/png,image/webp,image/svg+xml">
       <?php if ($ayuda !== ''): ?><p class="ayuda"><?= e($ayuda) ?></p><?php endif; ?>
     </div>
@@ -1213,7 +1225,7 @@ function campoImagen(string $nombre, string $etiqueta, string $valor, string $ay
           <div style="display:inline-flex; align-items:center; gap:11px; padding:9px 15px; border-radius:30px;
                       background:rgba(255,255,255,.07); border:1px solid rgba(255,255,255,.11); color:#E0D3D5;">
             <span style="font-size:.68rem;letter-spacing:.1em;text-transform:uppercase;opacity:.58;">Desarrollado por</span>
-            <?php if (($logoDev = (string)($c['dev_logo'] ?? '')) !== ''): ?>
+            <?php if (imagen_disponible($logoDev = (string)($c['dev_logo'] ?? ''))): ?>
               <img src="<?= e(url_imagen($logoDev)) ?>" alt="<?= e((string)($c['dev_nombre'] ?? '')) ?>"
                    style="height:30px;width:auto;max-width:200px;object-fit:contain;display:block;">
             <?php else: ?>

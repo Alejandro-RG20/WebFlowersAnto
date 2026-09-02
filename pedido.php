@@ -123,13 +123,36 @@ require __DIR__ . '/includes/vistas/cabecera.php';
       <div class="tarjeta">
         <div class="tarjeta-encabezado">
           <h2>Estado del pago</h2>
-          <p><?= e((string)$estadoPago['descripcion']) ?></p>
+          <?php
+            // La descripción guardada («La transferencia fue verificada»)
+            // sirve para los pedidos por banco. Con PayPal el cobro es
+            // automático y el cliente merece leer lo que de verdad pasó.
+            $descripcionPago = $pedido['metodo_pago'] === 'paypal'
+                             && $pedido['estado_pago'] === Pedidos::PAGO_APROBADO
+                ? 'PayPal confirmó el cobro en el momento de la compra.'
+                : (string)$estadoPago['descripcion'];
+          ?>
+          <p><?= e($descripcionPago) ?></p>
         </div>
 
         <?php if ($pedido['estado_pago'] === Pedidos::PAGO_APROBADO): ?>
           <div class="caja-aviso exito">
             <i class="fa-solid fa-circle-check" aria-hidden="true"></i>
-            <span>Verificamos tu transferencia. El pedido ya está en cola de preparación.</span>
+            <?php if ($pedido['metodo_pago'] === 'paypal'): ?>
+              <span>Pago recibido por PayPal. El pedido ya está en cola de preparación.
+                <?php if (($pedido['paypal_captura_id'] ?? '') !== ''): ?>
+                  <br><small>Comprobante de PayPal:
+                    <strong><?= e((string)$pedido['paypal_captura_id']) ?></strong>
+                    <?php if ((float)($pedido['total_usd'] ?? 0) > 0): ?>
+                      — <?= e(number_format((float)$pedido['total_usd'], 2)) ?>
+                      <?= e(strtoupper((string)Ajustes::texto('paypal_moneda', 'USD'))) ?>
+                    <?php endif; ?>
+                  </small>
+                <?php endif; ?>
+              </span>
+            <?php else: ?>
+              <span>Verificamos tu transferencia. El pedido ya está en cola de preparación.</span>
+            <?php endif; ?>
           </div>
         <?php elseif ($pedido['estado_pago'] === Pedidos::PAGO_RECHAZADO && $ultimoRechazo): ?>
           <div class="caja-aviso error">
@@ -148,8 +171,11 @@ require __DIR__ . '/includes/vistas/cabecera.php';
         <?php elseif ($pedido['metodo_pago'] !== 'transferencia'): ?>
           <div class="caja-aviso info">
             <i class="fa-solid fa-circle-info" aria-hidden="true"></i>
-            <span>Este pedido se paga <?= $pedido['metodo_pago'] === 'efectivo'
-                 ? 'en efectivo al recibirlo' : 'de forma coordinada por WhatsApp' ?>.</span>
+            <span>Este pedido se paga <?= match ((string)$pedido['metodo_pago']) {
+                 'efectivo' => 'en efectivo al recibirlo',
+                 'paypal'   => 'con PayPal',
+                 default    => 'de forma coordinada por WhatsApp',
+            } ?>.</span>
           </div>
         <?php endif; ?>
 

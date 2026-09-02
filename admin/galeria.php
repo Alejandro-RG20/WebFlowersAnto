@@ -198,7 +198,7 @@ require __DIR__ . '/_cabecera.php';
       <div class="campo" data-imagen-simple>
         <label>Imagen *</label>
         <input type="hidden" name="imagen" value="">
-        <img src="" alt="" hidden style="max-height:180px; border-radius:9px; margin-bottom:10px;">
+        <img alt="" hidden style="max-height:180px; border-radius:9px; margin-bottom:10px;">
         <input type="file" accept="image/jpeg,image/png,image/webp">
         <p class="ayuda">Se sube al elegirla. Después pulsa «Guardar».</p>
       </div>

@@ -16,6 +16,12 @@
 declare(strict_types=1);
 require_once __DIR__ . '/includes/bootstrap.php';
 
+// Estas fotos son públicas y aquí no se toca la sesión. Cerrarla libera el
+// candado del archivo de sesión: sin esto, las doce imágenes de una página de
+// catálogo se sirven una detrás de otra —cada petición espera a la anterior—
+// en vez de en paralelo.
+session_write_close();
+
 $id = identificador('id', $_GET);
 if ($id <= 0) {
     http_response_code(404);

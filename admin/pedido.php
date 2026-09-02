@@ -165,13 +165,41 @@ require __DIR__ . '/_cabecera.php';
       <div class="panel-cabecera">
         <div>
           <h2>Pago</h2>
-          <p><?= e((string)$estadoPago['descripcion']) ?></p>
+          <?php
+            // La descripción guardada habla de transferencias. Con PayPal el
+            // cobro lo confirma la pasarela sola, y el equipo necesita leer eso
+            // y no un texto que le haga buscar un comprobante que no existe.
+            $descripcionPago = $pedido['metodo_pago'] === 'paypal'
+                             && $pedido['estado_pago'] === Pedidos::PAGO_APROBADO
+                ? 'PayPal confirmó el cobro. No hay comprobante que revisar.'
+                : (string)$estadoPago['descripcion'];
+          ?>
+          <p><?= e($descripcionPago) ?></p>
         </div>
         <strong style="font-size:1.15rem;"><?= e((string)$pedido['moneda'] . number_format((float)$pedido['total'], 2)) ?></strong>
       </div>
 
       <div class="panel-cuerpo">
-        <?php if (!$pedido['comprobantes']): ?>
+        <?php if ($pedido['metodo_pago'] === 'paypal'): ?>
+          <div class="caja-aviso exito">
+            <i class="fa-solid fa-circle-check" aria-hidden="true"></i>
+            <span><strong>Cobrado con PayPal.</strong> El dinero entró antes de que se
+              registrara el pedido: no hay nada que aprobar aquí.</span>
+          </div>
+          <dl class="lista-datos" style="margin-top:14px;">
+            <div><dt>Orden de PayPal</dt>
+              <dd><?= e((string)($pedido['paypal_orden_id'] ?? '')) ?: '—' ?></dd></div>
+            <div><dt>Captura (comprobante)</dt>
+              <dd><?= e((string)($pedido['paypal_captura_id'] ?? '')) ?: '—' ?></dd></div>
+            <div><dt>Importe cobrado</dt>
+              <dd><?= (float)($pedido['total_usd'] ?? 0) > 0
+                    ? e(number_format((float)$pedido['total_usd'], 2) . ' '
+                        . strtoupper(Ajustes::texto('paypal_moneda', 'USD')))
+                    : '—' ?></dd></div>
+          </dl>
+          <p class="ayuda" style="margin-top:10px;">
+            Busca esos identificadores en tu panel de PayPal si algún día hay una reclamación.</p>
+        <?php elseif (!$pedido['comprobantes']): ?>
           <div class="vacio" style="padding:32px 16px;">
             <i class="fa-solid fa-file-circle-question" aria-hidden="true"></i>
             <h3>Todavía no hay comprobante</h3>

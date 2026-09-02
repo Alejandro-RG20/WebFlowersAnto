@@ -16,6 +16,15 @@ declare(strict_types=1);
 
 final class Respaldos
 {
+    /**
+     * Tope de una sola sentencia INSERT, en bytes.
+     *
+     * Con las imágenes dentro de la base, doscientas filas pueden pesar
+     * cientos de megas. Medio mega por sentencia entra de sobra en el
+     * `max_allowed_packet` de cualquier hosting compartido.
+     */
+    private const LOTE_BYTES = 524288;
+
     /** Tablas que se vuelcan. Se descubren solas para no olvidar ninguna. */
     private static function tablas(PDO $pdo): array
     {
@@ -25,6 +34,33 @@ final class Respaldos
     private static function nombreBase(): string
     {
         return Entorno::texto('DB_NAME', 'flowers_anto');
+    }
+
+    /**
+     * Columnas binarias de una tabla, para volcarlas en hexadecimal.
+     *
+     * Se pregunta al esquema en vez de mantener una lista: si mañana se
+     * añade otra columna con binarios, el respaldo la trata bien sin que
+     * nadie tenga que acordarse de tocar este archivo.
+     *
+     * @return array<string,true>
+     */
+    private static function columnasBinarias(PDO $pdo, string $tabla): array
+    {
+        try {
+            $st = $pdo->prepare(
+                "SELECT COLUMN_NAME
+                   FROM information_schema.COLUMNS
+                  WHERE TABLE_SCHEMA = DATABASE()
+                    AND TABLE_NAME = ?
+                    AND DATA_TYPE IN ('blob','tinyblob','mediumblob','longblob','binary','varbinary')"
+            );
+            $st->execute([$tabla]);
+            return array_fill_keys($st->fetchAll(PDO::FETCH_COLUMN), true);
+        } catch (PDOException $e) {
+            error_log('Flowers Anto — respaldo, columnas de ' . $tabla . ': ' . $e->getMessage());
+            return [];
+        }
     }
 
     /**
@@ -95,6 +131,9 @@ final class Respaldos
             '--user=' . Entorno::texto('DB_USER', 'root'),
             '--single-transaction', '--quick', '--default-character-set=utf8mb4',
             '--add-drop-table', '--skip-lock-tables',
+            // Las imágenes son LONGBLOB: en hexadecimal el volcado sigue
+            // siendo texto plano y la foto vuelve byte a byte.
+            '--hex-blob', '--max-allowed-packet=16M',
             self::nombreBase(),
         ];
 
@@ -163,23 +202,40 @@ final class Respaldos
                 fwrite($salida, "DROP TABLE IF EXISTS `$tabla`;\n");
                 fwrite($salida, $crear[1] . ";\n\n");
 
-                $filas = $pdo->query("SELECT * FROM `$tabla`");
-                $lote  = [];
+                $binarias = self::columnasBinarias($pdo, $tabla);
+                $filas    = $pdo->query("SELECT * FROM `$tabla`");
+                $lote     = [];
+                $pesoLote = 0;
                 $columnas = null;
 
                 while ($fila = $filas->fetch(PDO::FETCH_ASSOC)) {
                     $columnas ??= '`' . implode('`, `', array_keys($fila)) . '`';
-                    $valores = array_map(
-                        fn($v) => $v === null ? 'NULL' : $pdo->quote((string)$v),
-                        array_values($fila)
-                    );
-                    $lote[] = '(' . implode(',', $valores) . ')';
+                    $valores = [];
+                    foreach ($fila as $col => $v) {
+                        if ($v === null) {
+                            $valores[] = 'NULL';
+                        } elseif (isset($binarias[$col])) {
+                            // Las fotos viven dentro de la base. Un literal
+                            // hexadecimal no lleva comillas, ni saltos de
+                            // línea, ni bytes que puedan interpretarse como
+                            // texto: el archivo sigue siendo .sql legible y
+                            // phpMyAdmin lo importa sin estropear la imagen.
+                            $valores[] = (string)$v === '' ? "''" : '0x' . bin2hex((string)$v);
+                        } else {
+                            $valores[] = $pdo->quote((string)$v);
+                        }
+                    }
+                    $tupla     = '(' . implode(',', $valores) . ')';
+                    $lote[]    = $tupla;
+                    $pesoLote += strlen($tupla) + 2;
 
-                    // Se escribe cada 200 filas: sentencias manejables y
-                    // memoria acotada aunque la tabla tenga millones de filas.
-                    if (count($lote) >= 200) {
+                    // Se corta por filas y también por peso: una sola imagen
+                    // puede ocupar megas, y un INSERT gigante rebotaría contra
+                    // el `max_allowed_packet` del hosting al restaurar.
+                    if (count($lote) >= 200 || $pesoLote >= self::LOTE_BYTES) {
                         fwrite($salida, "INSERT INTO `$tabla` ($columnas) VALUES\n" . implode(",\n", $lote) . ";\n");
-                        $lote = [];
+                        $lote     = [];
+                        $pesoLote = 0;
                     }
                 }
                 if ($lote) {
@@ -400,6 +456,51 @@ final class Respaldos
      * pero cuya fila se perdió al restaurar. Si la fila ya existe, solo
      * actualiza su estado.
      */
+    /**
+     * Adopta los .sql que estén en la carpeta pero no en la tabla.
+     *
+     * Es la salida cuando un respaldo pesa más de lo que PHP acepta subir:
+     * se deja el archivo en `storage/respaldos/` por FTP y aparece en el
+     * panel como cualquier otro. Registrarlo no lo aplica —restaurar sigue
+     * pidiendo permiso y escribir RESTAURAR— y los que no son un volcado
+     * válido se ignoran en silencio.
+     *
+     * @return int cuántos se han incorporado
+     */
+    public static function adoptarSueltos(PDO $pdo): int
+    {
+        $archivos = @glob(DIR_RESPALDOS . '/*.sql') ?: [];
+        if (!$archivos) {
+            return 0;
+        }
+
+        try {
+            $conocidos = array_flip(
+                $pdo->query("SELECT archivo FROM respaldos")->fetchAll(PDO::FETCH_COLUMN)
+            );
+        } catch (PDOException $e) {
+            error_log('Flowers Anto — respaldos sueltos: ' . $e->getMessage());
+            return 0;
+        }
+
+        $nuevos = 0;
+        foreach ($archivos as $ruta) {
+            $nombre = basename($ruta);
+            if (isset($conocidos[$nombre])) {
+                continue;
+            }
+            if (!self::validar($ruta)['ok']) {
+                continue;
+            }
+            self::reregistrar(
+                $pdo, $nombre, 'subido',
+                'Encontrado en la carpeta storage/respaldos/ y añadido al listado.'
+            );
+            $nuevos++;
+        }
+        return $nuevos;
+    }
+
     private static function reregistrar(
         PDO $pdo, string $archivo, string $tipo, string $notas,
         string $estado = 'completo', string $nombre = ''

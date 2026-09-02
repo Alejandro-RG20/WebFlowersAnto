@@ -17,6 +17,19 @@ Rbac::exigirPanel();
 Rbac::exigir('respaldos.ver');
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    // Cuando el envío supera `post_max_size`, PHP descarta $_POST y $_FILES
+    // enteros: sin el token, la comprobación de abajo diría «sesión caducada»
+    // y el problema real —un respaldo más grande de lo que acepta el
+    // servidor— quedaría escondido. Desde que las fotos viven dentro de la
+    // base los respaldos pesan más, así que conviene decirlo con claridad.
+    if (!$_POST && (int)($_SERVER['CONTENT_LENGTH'] ?? 0) > 0) {
+        flash('error', 'El archivo es más grande de lo que acepta el servidor ('
+            . ini_get('post_max_size') . '). Sube el respaldo por FTP a storage/respaldos/ '
+            . 'o pide a tu hosting que suba ese límite.');
+        header('Location: ' . url('admin/respaldos.php'));
+        exit;
+    }
+
     exigirToken(false, 'admin/respaldos.php');
     $accion = opcion('accion', ['crear', 'subir', 'restaurar', 'eliminar', 'limpiar'], '');
     $id     = identificador('id');
@@ -92,7 +105,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 . implode(', ', $tareas) . ')',
             ]);
             flash($piezas ? 'exito' : 'info', $piezas
-                ? 'Limpieza terminada: ' . $piezas . ' elementos y ' . tamano_legible($bytes) . ' liberados.'
+                ? 'Limpieza terminada: ' . $piezas . ' ' . unidad_plural($piezas, 'elementos')
+                  . ' y ' . tamano_legible($bytes) . ' liberados.'
                 : 'No había nada que limpiar. Todo estaba en orden.');
             break;
 
@@ -101,6 +115,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     redirigir('admin/respaldos.php');
 }
+
+// Un respaldo demasiado grande para subirlo por el navegador se deja por FTP
+// en la carpeta. Se incorpora al listado aquí, para que exista la salida que
+// anuncia el formulario de subida.
+// El aviso va en la propia pantalla y no por `flash`: flash guarda un solo
+// mensaje, y esto se ejecuta en cada visita, así que taparía el «Base
+// restaurada» o el «Respaldo creado» que la persona acaba de provocar.
+$adoptados = Rbac::puede('respaldos.crear') ? Respaldos::adoptarSueltos($pdo) : 0;
 
 $respaldos = $pdo->query(
     "SELECT r.*, u.nombre AS autor_nombre, u.apellido AS autor_apellido
@@ -119,7 +141,7 @@ $puedeLimpiar   = Rbac::puede('sistema.mantenimiento');
 
 // Recuento en seco: la pantalla enseña lo que se borraría antes de borrarlo.
 $analisis = $puedeLimpiar
-    ? Mantenimiento::analizarCacheado($pdo, crudo('recalcular') !== '')
+    ? Mantenimiento::analizarCacheado($pdo, crudo('recalcular', $_GET) !== '')
     : [];
 $tareasInfo = Mantenimiento::tareas();
 $totalSobrante = 0;
@@ -134,6 +156,16 @@ $subtituloPanel = count($respaldos) . ' copias guardadas · ' . tamano_legible($
 
 require __DIR__ . '/_cabecera.php';
 ?>
+
+<?php if ($adoptados > 0): ?>
+  <div class="caja-aviso info">
+    <i class="fa-solid fa-folder-open" aria-hidden="true"></i>
+    <span><?= (int)$adoptados ?> <?= e(unidad_plural($adoptados, 'archivos')) ?>
+      de la carpeta <code>storage/respaldos/</code>
+      <?= $adoptados === 1 ? 'se añadió' : 'se añadieron' ?> al listado.
+      Todavía no se ha restaurado nada.</span>
+  </div>
+<?php endif; ?>
 
 <div class="caja-aviso info">
   <i class="fa-solid fa-shield-halved" aria-hidden="true"></i>
@@ -260,12 +292,24 @@ require __DIR__ . '/_cabecera.php';
           <form method="post" action="<?= e(url('admin/respaldos.php')) ?>" enctype="multipart/form-data" data-una-vez>
             <?= campoToken() ?>
             <input type="hidden" name="accion" value="subir">
-            <input type="hidden" name="MAX_FILE_SIZE" value="<?= MAX_RESPALDO_BYTES ?>">
+            <?php
+              // El tope real es el más bajo entre el de la aplicación y el que
+              // impone PHP en este hosting. Se anuncia ese, no el nuestro.
+              $topeSubida = limite_subida(MAX_RESPALDO_BYTES);
+              $mayorQueEsto = $topeSubida < MAX_RESPALDO_BYTES;
+            ?>
+            <input type="hidden" name="MAX_FILE_SIZE" value="<?= (int)$topeSubida ?>">
             <div class="campo">
               <label for="respaldo">Archivo .sql</label>
               <input type="file" id="respaldo" name="respaldo" accept=".sql,text/plain" required>
-              <p class="ayuda">Máximo <?= (int)(MAX_RESPALDO_BYTES / 1048576) ?> MB.
+              <p class="ayuda">Máximo <?= e(tamano_legible($topeSubida)) ?>.
                  Se revisa que sea un volcado válido y que no traiga sentencias fuera de lo normal.</p>
+              <?php if ($mayorQueEsto): ?>
+                <p class="ayuda">Ese tope lo pone el hosting, no la web. Desde que las fotos
+                   viven dentro de la base los respaldos pesan más y pueden pasarse:
+                   si el tuyo no entra, súbelo por FTP a <code>storage/respaldos/</code> y
+                   aparecerá aquí para restaurarlo.</p>
+              <?php endif; ?>
             </div>
             <div class="campo">
               <label for="notas_subida">Nota</label>
@@ -284,7 +328,8 @@ require __DIR__ . '/_cabecera.php';
           <h2>Mantenimiento</h2>
           <p>Libera espacio borrando lo que ya no usa nadie.
              <?= $totalSobrante
-                 ? 'Ahora mismo sobran ' . (int)$totalSobrante . ' elementos ('
+                 ? 'Ahora mismo sobran ' . (int)$totalSobrante . ' '
+                   . unidad_plural((int)$totalSobrante, 'elementos') . ' ('
                    . e(tamano_legible($bytesSobrante)) . ').'
                  : 'Ahora mismo no sobra nada.' ?>
              <a href="<?= e(url('admin/respaldos.php?recalcular=1')) ?>#mantenimiento"
@@ -313,7 +358,7 @@ require __DIR__ . '/_cabecera.php';
                   <span class="fm-titulo"><?= e($t['titulo']) ?></span>
                   <span class="fm-ayuda"><?= e($t['ayuda']) ?></span>
                 </span>
-                <span class="fm-cifra"><?= (int)$n ?> <?= e($t['unidad']) ?>
+                <span class="fm-cifra"><?= (int)$n ?> <?= e(unidad_plural((int)$n, $t['unidad'])) ?>
                   <?php if (!empty($analisis[$clave]['bytes'])): ?>
                     <small><?= e(tamano_legible((int)$analisis[$clave]['bytes'])) ?></small>
                   <?php endif; ?>
@@ -332,7 +377,7 @@ require __DIR__ . '/_cabecera.php';
                   <span class="fm-titulo"><?= e($t['titulo']) ?></span>
                   <span class="fm-ayuda"><?= e($t['ayuda']) ?></span>
                 </span>
-                <span class="fm-cifra"><?= (int)$n ?> <?= e($t['unidad']) ?></span>
+                <span class="fm-cifra"><?= (int)$n ?> <?= e(unidad_plural((int)$n, $t['unidad'])) ?></span>
               </label>
             <?php endforeach; ?>
 

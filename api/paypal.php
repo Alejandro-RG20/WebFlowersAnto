@@ -73,6 +73,17 @@ try {
         responderJson(['ok' => false, 'error' => $captura['error']]);
     }
 
+    // El cobro ya es real aunque el pedido todavía no exista. Si el navegador
+    // se cerrara justo aquí, esta línea es la única forma de encontrar el
+    // dinero después: queda en la auditoría con la orden y la captura.
+    Auditoria::registrar($pdo, 'cobrar', 'paypal', [
+        'recurso_tipo' => 'paypal',
+        'recurso_id'   => $captura['captura'],
+        'descripcion'  => 'PayPal capturó ' . number_format($captura['importe'], 2) . ' '
+                        . $captura['moneda'] . ' (orden ' . $orden . '). Falta registrar el pedido.',
+        'detalles'     => ['orden' => $orden, 'total_local' => $total],
+    ]);
+
     // El pago queda anotado en la sesión: lo recoge checkout.php al registrar
     // el pedido, que es el único sitio donde se escribe en `pedidos`.
     $_SESSION['paypal_pagado'] = [

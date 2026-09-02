@@ -149,7 +149,13 @@ final class Mantenimiento
             $tareas,
             array_merge(self::SEGURAS, self::SENSIBLES)
         ));
-        return self::ejecutar($pdo, $validas, true);
+        // El motor devuelve el mapa completo: las tareas no marcadas traen su
+        // recuento, no un borrado. Se recortan aquí para que quien llame sume
+        // solo lo que de verdad se ha liberado.
+        return array_intersect_key(
+            self::ejecutar($pdo, $validas, true),
+            array_flip($validas)
+        );
     }
 
     /**

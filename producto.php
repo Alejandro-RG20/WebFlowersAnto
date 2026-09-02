@@ -246,7 +246,9 @@ require __DIR__ . '/includes/vistas/cabecera.php';
 
 <div class="visor" id="visor" role="dialog" aria-modal="true" aria-label="Foto ampliada">
   <button type="button" class="visor-cerrar" aria-label="Cerrar">&times;</button>
-  <img src="" alt="">
+  <?php // Sin atributo `src`: uno vacío hace que el navegador vuelva a pedir
+        // la propia página en cada visita. La foto la pone el JS al abrir. ?>
+  <img alt="">
 </div>
 
 <?php require __DIR__ . '/includes/vistas/pie.php'; ?>

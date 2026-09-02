@@ -79,7 +79,14 @@ $devUrl    = Ajustes::texto('dev_url');
               ? ' href="' . e($devUrl) . '" target="_blank" rel="noopener noreferrer"'
               : '';
         ?>
-        <?php $logo = Ajustes::texto('dev_logo'); ?>
+        <?php
+          // Una ruta de archivo que ya no existe pintaría un icono roto en el
+          // pie de todas las páginas: sin logo se cae al crédito de texto.
+          $logo = Ajustes::texto('dev_logo');
+          if (!imagen_disponible($logo)) {
+              $logo = '';
+          }
+        ?>
         <<?= $etiqueta ?> class="creditos-dev<?= $logo !== '' ? ' con-logo' : '' ?>"<?= $atributos ?>>
           <span class="creditos-dev-etiqueta">Desarrollado por</span>
           <?php if ($logo !== ''): ?>
