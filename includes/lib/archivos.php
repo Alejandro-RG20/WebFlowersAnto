@@ -49,7 +49,13 @@ final class Archivos
     }
 
     /**
-     * Guarda una imagen del catálogo en uploads/.
+     * Guarda una imagen del catálogo dentro de la base de datos.
+     *
+     * El archivo se optimiza en un temporal —se reduce, se endereza y se le
+     * quitan los metadatos— y solo entonces se guarda el binario. Devuelve una
+     * referencia «bd:<id>», que es lo que se escribe en las columnas de
+     * imagen de siempre.
+     *
      * @return array{ok: bool, error?: string, ruta?: string, ancho?: int, alto?: int}
      */
     public static function guardarImagen(array $archivo): array
@@ -64,21 +70,79 @@ final class Archivos
             return ['ok' => false, 'error' => 'Ese archivo no es una imagen válida. Usa JPG, PNG, GIF o WEBP.'];
         }
 
-        $dir = RAIZ . '/uploads';
-        if (!self::prepararDirectorio($dir)) {
-            return ['ok' => false, 'error' => 'No se pudo preparar la carpeta de subidas.'];
-        }
-
-        $nombre = 'img_' . bin2hex(random_bytes(8)) . '.' . self::IMAGENES[$info[2]][0];
-        if (!move_uploaded_file($archivo['tmp_name'], $dir . '/' . $nombre)) {
-            error_log('Flowers Anto — no se pudo mover la subida a ' . $dir);
+        // Se trabaja sobre una copia en el temporal del sistema: así el
+        // redimensionado y el borrado de EXIF siguen funcionando igual que
+        // cuando el destino era el disco.
+        $tmp = tempnam(sys_get_temp_dir(), 'fa_img_');
+        if ($tmp === false || !move_uploaded_file($archivo['tmp_name'], $tmp)) {
+            error_log('Flowers Anto — no se pudo preparar la subida en el temporal');
             return ['ok' => false, 'error' => 'No se pudo guardar la imagen.'];
         }
-        @chmod($dir . '/' . $nombre, 0644);
 
-        [$ancho, $alto] = self::optimizar($dir . '/' . $nombre, $info[2], $info[0], $info[1]);
+        [$ancho, $alto] = self::optimizar($tmp, $info[2], $info[0], $info[1]);
 
-        return ['ok' => true, 'ruta' => 'uploads/' . $nombre, 'ancho' => $ancho, 'alto' => $alto];
+        $datos = @file_get_contents($tmp);
+        @unlink($tmp);
+        if ($datos === false || $datos === '') {
+            return ['ok' => false, 'error' => 'No se pudo leer la imagen subida.'];
+        }
+
+        $id = self::guardarBinario(
+            $datos,
+            self::IMAGENES[$info[2]][1],
+            self::IMAGENES[$info[2]][0],
+            self::nombreSeguro((string)($archivo['name'] ?? '')),
+            $ancho,
+            $alto
+        );
+        if ($id <= 0) {
+            return ['ok' => false, 'error' => 'No se pudo guardar la imagen en la base de datos.'];
+        }
+
+        return ['ok' => true, 'ruta' => 'bd:' . $id, 'ancho' => $ancho, 'alto' => $alto];
+    }
+
+    /**
+     * Inserta el binario y devuelve su id.
+     *
+     * `sha256` es único: si la misma imagen ya está guardada se reutiliza esa
+     * fila en vez de duplicar el binario. Con un catálogo donde se repiten
+     * fotos, eso es espacio de base que no se gasta.
+     */
+    private static function guardarBinario(
+        string $datos, string $mime, string $ext, string $nombre, int $ancho, int $alto
+    ): int {
+        global $pdo;
+        if (!$pdo instanceof PDO) {
+            return 0;
+        }
+        $sha = hash('sha256', $datos);
+        try {
+            $st = $pdo->prepare("SELECT id FROM archivos WHERE sha256 = ?");
+            $st->execute([$sha]);
+            if ($id = (int)$st->fetchColumn()) {
+                return $id;
+            }
+            $ins = $pdo->prepare(
+                "INSERT INTO archivos (nombre, mime, extension, tamano, ancho, alto, sha256, datos)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+            );
+            $ins->bindValue(1, mb_substr($nombre, 0, 150));
+            $ins->bindValue(2, $mime);
+            $ins->bindValue(3, $ext);
+            $ins->bindValue(4, strlen($datos), PDO::PARAM_INT);
+            $ins->bindValue(5, $ancho, PDO::PARAM_INT);
+            $ins->bindValue(6, $alto, PDO::PARAM_INT);
+            $ins->bindValue(7, $sha);
+            $ins->bindValue(8, $datos, PDO::PARAM_LOB);
+            $ins->execute();
+            return (int)$pdo->lastInsertId();
+        } catch (PDOException $e) {
+            // El motivo más probable en un hosting compartido es que el binario
+            // supere `max_allowed_packet`. Se registra para que se vea claro.
+            error_log('Flowers Anto — no se pudo guardar la imagen en la base: ' . $e->getMessage());
+            return 0;
+        }
     }
 
     /**

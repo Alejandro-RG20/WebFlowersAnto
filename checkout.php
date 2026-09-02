@@ -84,6 +84,7 @@ if (!$detalle['items']) {
 $permitirRetiro   = Ajustes::activo('permitir_retiro', true);
 $permitirInvitado = Ajustes::activo('permitir_invitado', true);
 $efectivoActivo   = Ajustes::activo('pago_efectivo_activo', true);
+$paypalActivo     = PayPal::activo();
 
 $errores = [];
 $datos = [
@@ -130,6 +131,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $metodosValidos = ['transferencia'];
     if ($efectivoActivo) {
         $metodosValidos[] = 'efectivo';
+    }
+    if ($paypalActivo) {
+        $metodosValidos[] = 'paypal';
     }
     $datos['metodo_pago'] = opcion('metodo_pago', $metodosValidos, 'transferencia');
     // Se le pasa el código tal cual lo tenía el cliente, valga o no: el pedido
@@ -271,6 +275,8 @@ $tienda            = Ajustes::texto('nombre_tienda', 'Flowers Anto');
 $tituloPagina      = 'Completar pedido — ' . $tienda;
 $descripcionPagina = 'Completa tus datos de entrega y elige cómo pagar.';
 $paginaActiva      = 'carrito';
+
+$jsExtra = $paypalActivo ? ['assets/js/paypal.js'] : [];
 
 require __DIR__ . '/includes/vistas/cabecera.php';
 ?>
@@ -594,7 +600,29 @@ require __DIR__ . '/includes/vistas/cabecera.php';
                   <small>Solo dentro de Managua. Confirmamos disponibilidad por WhatsApp antes de salir.</small></span>
               </label>
             <?php endif; ?>
+
+            <?php if ($paypalActivo): ?>
+              <label class="opcion-radio">
+                <input type="radio" name="metodo_pago" value="paypal"
+                       <?= $datos['metodo_pago'] === 'paypal' ? 'checked' : '' ?>>
+                <span><strong>PayPal o tarjeta</strong>
+                  <small>Pago inmediato desde cualquier país. Se cobra en
+                    <?= e(PayPal::moneda()) ?>; el importe exacto aparece en el botón.</small></span>
+              </label>
+            <?php endif; ?>
           </div>
+
+          <?php if ($paypalActivo): ?>
+            <?php // El botón lo dibuja PayPal. Solo se muestra con ese método elegido. ?>
+            <div id="zonaPaypal" class="zona-paypal" hidden
+                 data-client-id="<?= e(PayPal::clientId()) ?>"
+                 data-moneda="<?= e(PayPal::moneda()) ?>">
+              <p class="ayuda">Al pagar aquí el pedido queda confirmado al instante,
+                 sin subir comprobante.</p>
+              <div id="botonesPaypal"></div>
+              <p class="paypal-aviso" role="status" aria-live="polite"></p>
+            </div>
+          <?php endif; ?>
 
           <?php if ($cuentas): ?>
             <div style="margin-top:18px;">

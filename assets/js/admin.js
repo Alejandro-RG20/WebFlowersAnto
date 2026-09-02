@@ -14,6 +14,19 @@
   const $$ = (s, c) => Array.from((c || document).querySelectorAll(s));
   const ruta = (p) => (base.endsWith('/') ? base : base + '/') + p.replace(/^\//, '');
 
+  /**
+   * URL pública de una imagen guardada.
+   *
+   * El servidor devuelve «bd:47» cuando la foto vive dentro de la base. Sin
+   * traducirlo aquí, la vista previa apuntaba a «/bd:47» y salía rota.
+   */
+  function urlImagen(r) {
+    if (!r) { return ''; }
+    if (/^https?:\/\//i.test(r)) { return r; }
+    const m = /^bd:(\d+)$/.exec(r);
+    return ruta(m ? 'archivo.php?id=' + m[1] : r);
+  }
+
   function aviso(mensaje, tipo = 'exito') {
     const caja = $('#toastContainer');
     if (!caja) { window.alert(mensaje); return; }
@@ -210,13 +223,11 @@
         '<button type="button" class="quitar" aria-label="Quitar imagen"><i class="fa-solid fa-xmark"></i></button>' +
         '<span class="portada" hidden>Portada</span>' +
         '<input type="hidden" name="' + campoNombre + '[]">';
-      casilla.querySelector('img').src = ruta.startsWith('http') ? ruta : ruta_publica(ruta);
+      casilla.querySelector('img').src = urlImagen(ruta);
       casilla.querySelector('input').value = ruta;
       contenedor.insertBefore(casilla, zona);
       pintar();
     }
-
-    function ruta_publica(r) { return (base.endsWith('/') ? base : base + '/') + r.replace(/^\//, ''); }
 
     contenedor.addEventListener('click', (ev) => {
       const quitar = ev.target.closest('.quitar');
@@ -263,7 +274,7 @@
         const ruta = await subirImagen(archivo);
         oculto.value = ruta;
         if (vista) {
-          vista.src = (base.endsWith('/') ? base : base + '/') + ruta;
+          vista.src = urlImagen(ruta);
           vista.hidden = false;
         }
         aviso('Imagen actualizada. Recuerda guardar los cambios.');

@@ -38,8 +38,8 @@ final class Mantenimiento
 
     /** Tareas seguras: nada de esto es información del negocio. */
     public const SEGURAS = [
-        'uploads_huerfanas', 'comprobantes_huerfanos', 'logs_antiguos',
-        'rate_limits', 'tokens_caducados',
+        'imagenes_huerfanas', 'uploads_huerfanas', 'comprobantes_huerfanos',
+        'logs_antiguos', 'rate_limits', 'tokens_caducados',
     ];
 
     /** Tareas que sí borran datos: van aparte y desmarcadas. */
@@ -49,6 +49,13 @@ final class Mantenimiento
     public static function tareas(): array
     {
         return [
+            'imagenes_huerfanas' => [
+                'titulo' => 'Imágenes que ya no usa nadie',
+                'ayuda'  => 'Fotos guardadas en la base que ningún producto, categoría, '
+                          . 'temporada, pedido ni ajuste está usando. Son las que más espacio '
+                          . 'ocupan, porque el binario vive dentro de la base.',
+                'unidad' => 'imágenes',
+            ],
             'uploads_huerfanas' => [
                 'titulo' => 'Fotos que ya no usa nadie',
                 'ayuda'  => 'Imágenes de uploads/ que ningún producto, categoría, temporada, '
@@ -157,6 +164,7 @@ final class Mantenimiento
         }
         $hacer = fn(string $t) => $borrar && in_array($t, $tareas, true);
 
+        $r['imagenes_huerfanas']     = self::imagenesHuerfanas($pdo, $hacer('imagenes_huerfanas'));
         $r['uploads_huerfanas']      = self::archivosHuerfanos(
             $pdo, RAIZ . '/uploads', self::rutasEnUso($pdo), $hacer('uploads_huerfanas'));
         $r['comprobantes_huerfanos'] = self::archivosHuerfanos(
@@ -188,6 +196,61 @@ final class Mantenimiento
             error_log('Flowers Anto — mantenimiento: ' . $e->getMessage());
             return ['cantidad' => 0, 'bytes' => 0];
         }
+    }
+
+    /**
+     * Filas de `archivos` que ya no referencia nadie.
+     *
+     * Desde que las imágenes viven dentro de la base, un producto borrado deja
+     * su binario ocupando espacio. Se recorren las columnas de texto buscando
+     * referencias «bd:<id>», por el mismo motivo que en el caso de los
+     * archivos: una lista escrita a mano envejecería.
+     */
+    private static function imagenesHuerfanas(PDO $pdo, bool $borrar): array
+    {
+        $res = ['cantidad' => 0, 'bytes' => 0];
+        try {
+            $enUso = [];
+            foreach (self::columnasDeTexto($pdo) as [$tabla, $columna]) {
+                if ($tabla === 'archivos') {
+                    continue;
+                }
+                $sql = sprintf('SELECT DISTINCT `%s` FROM `%s` WHERE `%s` LIKE %s',
+                               $columna, $tabla, $columna, $pdo->quote('%bd:%'));
+                try {
+                    foreach ($pdo->query($sql)->fetchAll(PDO::FETCH_COLUMN) as $valor) {
+                        if (preg_match_all('#bd:(\d+)#', (string)$valor, $m)) {
+                            foreach ($m[1] as $id) {
+                                $enUso[(int)$id] = true;
+                            }
+                        }
+                    }
+                } catch (PDOException $e) {
+                    // Sin poder leer una columna no hay lista fiable: se aborta
+                    // antes que arriesgarse a borrar una imagen en uso.
+                    error_log('Flowers Anto — mantenimiento, columna ' . $tabla . '.' . $columna
+                              . ': ' . $e->getMessage());
+                    return $res;
+                }
+            }
+
+            $filas = $pdo->query("SELECT id, tamano FROM archivos")->fetchAll(PDO::FETCH_ASSOC);
+            $sobran = [];
+            foreach ($filas as $f) {
+                if (!isset($enUso[(int)$f['id']])) {
+                    $sobran[] = (int)$f['id'];
+                    $res['cantidad']++;
+                    $res['bytes'] += (int)$f['tamano'];
+                }
+            }
+            if ($borrar && $sobran) {
+                $pdo->exec('DELETE FROM archivos WHERE id IN (' . implode(',', $sobran) . ')');
+            }
+        } catch (PDOException $e) {
+            error_log('Flowers Anto — mantenimiento imágenes: ' . $e->getMessage());
+            return ['cantidad' => 0, 'bytes' => 0];
+        }
+        return $res;
     }
 
     /**

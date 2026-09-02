@@ -133,6 +133,11 @@ function rutaImagen(string $campo, string $def = '', ?array $fuente = null): str
     if (str_contains($v, '..') || preg_match('#^([a-z]+:)?//#i', $v)) {
         return $def;
     }
+    // Imagen guardada dentro de la base. Sin este caso el formulario del panel
+    // descartaría la referencia y borraría la foto al guardar.
+    if (preg_match('#^bd:[0-9]{1,10}$#', $v)) {
+        return $v;
+    }
     if (!preg_match('#^(images|uploads)/[A-Za-z0-9._/\x{00C0}-\x{024F}-]+$#u', $v)) {
         return $def;
     }

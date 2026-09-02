@@ -282,6 +282,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ],
         'banco' => [
             'instrucciones_pago' => textoLargo('instrucciones_pago', 1500),
+            'paypal_activo'      => casilla('paypal_activo'),
+            'paypal_modo'        => opcion('paypal_modo', ['sandbox', 'vivo'], 'sandbox'),
+            'paypal_client_id'   => texto('paypal_client_id', 120),
+            'paypal_moneda'      => strtoupper(texto('paypal_moneda', 3)) ?: 'USD',
+            'tasa_usd'           => decimal('tasa_usd'),
+            // El secreto solo se reemplaza si escriben uno nuevo: así al
+            // guardar cualquier otro ajuste no se borra sin querer.
+            'paypal_secreto'     => texto('paypal_secreto', 160) !== ''
+                                    ? texto('paypal_secreto', 160)
+                                    : (string)($antes['paypal_secreto'] ?? ''),
         ],
         'desarrollador' => [
             'dev_activo'      => casilla('dev_activo'),
@@ -1036,6 +1046,63 @@ function campoImagen(string $nombre, string $etiqueta, string $valor, string $ay
           <textarea id="instrucciones_pago" name="instrucciones_pago" maxlength="1500"
                     style="min-height:110px;"><?= e((string)($c['instrucciones_pago'] ?? '')) ?></textarea>
         </div>
+
+        <hr style="border:0;border-top:1px solid var(--linea,#E3DAD6);margin:22px 0;">
+        <h3 style="font-size:1.02rem;margin-bottom:4px;">PayPal y tarjeta</h3>
+        <p class="ayuda" style="margin-bottom:14px;">
+          PayPal no admite córdobas, así que el cobro se hace en la moneda de abajo:
+          se convierte el total del pedido con la tasa que pongas aquí. Las credenciales
+          se sacan de <strong>developer.paypal.com</strong> → Apps &amp; Credentials.
+        </p>
+
+        <div class="interruptor">
+          <input type="checkbox" id="paypal_activo" name="paypal_activo" value="1"
+                 <?= !empty($c['paypal_activo']) ? 'checked' : '' ?>>
+          <label for="paypal_activo">Aceptar pagos con PayPal
+            <small>Aparece como forma de pago solo si están puestas las credenciales.</small></label>
+        </div>
+
+        <div class="rejilla-campos dos">
+          <div class="campo">
+            <label for="paypal_modo">Modo</label>
+            <select id="paypal_modo" name="paypal_modo">
+              <option value="sandbox" <?= ($c['paypal_modo'] ?? 'sandbox') === 'sandbox' ? 'selected' : '' ?>>
+                Pruebas (sandbox)</option>
+              <option value="vivo" <?= ($c['paypal_modo'] ?? '') === 'vivo' ? 'selected' : '' ?>>
+                Cobros reales</option>
+            </select>
+            <p class="ayuda">Prueba en sandbox antes de pasar a cobros reales.</p>
+          </div>
+          <div class="campo">
+            <label for="paypal_moneda">Moneda de cobro</label>
+            <input type="text" id="paypal_moneda" name="paypal_moneda" maxlength="3"
+                   style="text-transform:uppercase;"
+                   value="<?= e((string)($c['paypal_moneda'] ?? 'USD')) ?>">
+            <p class="ayuda">Tres letras. USD es la opción segura.</p>
+          </div>
+        </div>
+
+        <div class="campo">
+          <label for="tasa_usd">Córdobas por <?= e((string)($c['paypal_moneda'] ?? 'USD')) ?></label>
+          <input type="number" id="tasa_usd" name="tasa_usd" step="0.0001" min="0"
+                 value="<?= e(number_format((float)($c['tasa_usd'] ?? 36.5), 4, '.', '')) ?>">
+          <p class="ayuda">Con esto se convierte el total. Mantenla al día: si está baja,
+             cobrarás de menos.</p>
+        </div>
+
+        <div class="campo">
+          <label for="paypal_client_id">Client ID</label>
+          <input type="text" id="paypal_client_id" name="paypal_client_id" maxlength="120"
+                 autocomplete="off" value="<?= e((string)($c['paypal_client_id'] ?? '')) ?>">
+        </div>
+        <div class="campo">
+          <label for="paypal_secreto">Secret</label>
+          <input type="password" id="paypal_secreto" name="paypal_secreto" maxlength="160"
+                 autocomplete="new-password"
+                 placeholder="<?= !empty($c['paypal_secreto']) ? 'Guardado — escribe uno nuevo solo si vas a cambiarlo' : '' ?>">
+          <p class="ayuda">No se vuelve a mostrar. Si lo dejas vacío se conserva el que ya está.</p>
+        </div>
+
         <?php if ($editable): ?>
           <button type="submit" class="boton boton-principal">
             <i class="fa-solid fa-floppy-disk" aria-hidden="true"></i> Guardar</button>

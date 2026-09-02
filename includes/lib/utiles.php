@@ -55,6 +55,11 @@ function url(string $ruta = ''): string
  */
 function url_absoluta(string $ruta = ''): string
 {
+    // Una imagen de la base se resuelve primero a su URL pública: los correos
+    // la piden desde fuera y necesitan la dirección completa.
+    if (preg_match('#^bd:(\d+)$#', trim($ruta), $m)) {
+        $ruta = 'archivo.php?id=' . (int)$m[1];
+    }
     // Deja la ruta con la base aplicada una sola vez, venga relativa
     // ('productos.php') o ya completa ('/webANTO/productos.php').
     $ruta = url_interna($ruta);
@@ -84,6 +89,12 @@ function url_imagen(?string $ruta, string $def = 'images/placeholders/logo.svg')
     }
     if (preg_match('#^https?://#i', $ruta)) {
         return $ruta;
+    }
+    // «bd:47» es una imagen guardada dentro de la base. Se resuelve aquí, que
+    // es por donde pasa todo lo que se pinta, para que el resto del código
+    // siga tratando el valor como una ruta cualquiera.
+    if (preg_match('#^bd:(\d+)$#', $ruta, $m)) {
+        return url('archivo.php?id=' . (int)$m[1]);
     }
     return url($ruta);
 }

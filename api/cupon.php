@@ -73,7 +73,12 @@ $revision = Cupones::revisar(
 
 if (!$revision['ok']) {
     unset($_SESSION['cupon']);
-    errorJson($revision['error'], 422);
+    // Un código equivocado o vencido es una respuesta de negocio, no un fallo
+    // de la petición: se devuelve 200 con ok=false. Con 422 el navegador lo
+    // pintaba de rojo en la consola cada vez que alguien se equivocaba al
+    // teclear, y parecía que la tienda estaba rota. El cliente sigue viendo
+    // el mismo mensaje: `pedir()` ya trata ok=false como error.
+    responderJson(['ok' => false, 'aplicado' => false, 'error' => $revision['error']]);
 }
 
 $_SESSION['cupon'] = (string)$revision['cupon']['codigo'];

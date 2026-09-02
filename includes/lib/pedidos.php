@@ -124,10 +124,30 @@ final class Pedidos
                     ' Revisa el resumen antes de confirmar.'];
         }
 
-        $metodo = in_array($datos['metodo_pago'] ?? '', ['transferencia', 'efectivo', 'whatsapp'], true)
+        $metodo = in_array($datos['metodo_pago'] ?? '', ['transferencia', 'efectivo', 'whatsapp', 'paypal'], true)
             ? $datos['metodo_pago'] : 'transferencia';
 
-        $estadoPago = $metodo === 'transferencia' ? self::PAGO_PENDIENTE : self::PAGO_NO_APLICA;
+        // Un pedido de PayPal solo se acepta con el cobro ya capturado y
+        // guardado en la sesión por api/paypal.php. Sin eso —o si el importe
+        // capturado no cuadra con el total de ahora mismo— se rechaza: es la
+        // línea que separa «pagó» de «dijo que pagó».
+        $paypal = null;
+        if ($metodo === 'paypal') {
+            $guardado = $_SESSION['paypal_pagado'] ?? null;
+            if (!is_array($guardado) || ($guardado['captura'] ?? '') === '') {
+                return ['ok' => false, 'error' => 'No encontramos el pago de PayPal. Vuelve a intentarlo.'];
+            }
+            if (abs((float)($guardado['total'] ?? 0) - (float)$detalle['total']) > 0.01) {
+                return ['ok' => false, 'error' => 'El total cambió después de pagar. Escríbenos por WhatsApp y lo resolvemos.'];
+            }
+            $paypal = $guardado;
+        }
+
+        $estadoPago = match ($metodo) {
+            'transferencia' => self::PAGO_PENDIENTE,
+            'paypal'        => self::PAGO_APROBADO,   // PayPal ya confirmó el cobro
+            default         => self::PAGO_NO_APLICA,
+        };
 
         $pdo->beginTransaction();
         try {
@@ -213,6 +233,19 @@ final class Pedidos
                 . ($cupon ? ' Cupón ' . $cupon['codigo'] . ': −' . dinero($detalle['descuento']) . '.' : ''),
                 Auth::id(), Auth::autenticado() ? Auth::nombreCompleto() : 'Cliente'
             );
+
+            if ($paypal !== null) {
+                // Los identificadores permiten conciliar el cobro con PayPal si
+                // algún día hay una reclamación.
+                $pdo->prepare(
+                    "UPDATE pedidos SET paypal_orden_id = ?, paypal_captura_id = ?, total_usd = ?
+                      WHERE id = ?"
+                )->execute([
+                    (string)$paypal['orden'], (string)$paypal['captura'],
+                    (float)$paypal['importe'], $pedidoId,
+                ]);
+                unset($_SESSION['paypal_pagado'], $_SESSION['paypal_orden']);
+            }
 
             $pdo->commit();
         } catch (Throwable $ex) {
