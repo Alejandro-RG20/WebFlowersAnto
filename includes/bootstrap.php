@@ -133,5 +133,6 @@ require_once __DIR__ . '/lib/pedidos.php';
 require_once __DIR__ . '/lib/repartidores.php';
 require_once __DIR__ . '/lib/archivos.php';
 require_once __DIR__ . '/lib/paypal.php';
+require_once __DIR__ . '/lib/checkout.php';
 
 Auth::iniciar($pdo);

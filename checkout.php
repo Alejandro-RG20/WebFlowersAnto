@@ -113,159 +113,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $errores[] = 'Recibimos varios intentos seguidos desde esta conexión. Espera unos minutos e inténtalo de nuevo.';
     }
 
-    $datos['cliente_nombre']     = texto('cliente_nombre', 120);
-    $datos['cliente_email']      = correoValido('cliente_email');
-    $datos['cliente_telefono']   = telefonoValido('cliente_telefono');
-    $datos['entrega_tipo']       = $permitirRetiro ? opcion('entrega_tipo', ['domicilio', 'retiro'], 'domicilio') : 'domicilio';
-    $datos['entrega_nombre']     = texto('entrega_nombre', 120);
-    $datos['entrega_telefono']   = telefonoValido('entrega_telefono');
-    $datos['entrega_direccion']  = texto('entrega_direccion', 255);
-    $datos['entrega_ciudad']     = texto('entrega_ciudad', 80);
-    $datos['entrega_referencia'] = texto('entrega_referencia', 255);
-    $datos['zona_envio_id']      = identificador('zona_envio_id');
-    $datos['entrega_fecha']      = fechaOpcional('entrega_fecha');
-    $datos['entrega_franja']     = texto('entrega_franja', 40);
-    $datos['dedicatoria']        = textoLargo('dedicatoria', 400);
-    $datos['notas_cliente']      = textoLargo('notas_cliente', 500);
-
-    $metodosValidos = ['transferencia'];
-    if ($efectivoActivo) {
-        $metodosValidos[] = 'efectivo';
-    }
-    if ($paypalActivo) {
-        $metodosValidos[] = 'paypal';
-    }
-    $datos['metodo_pago'] = opcion('metodo_pago', $metodosValidos, 'transferencia');
-    // Se le pasa el código tal cual lo tenía el cliente, valga o no: el pedido
-    // lo revalida y, si dejó de servir, devuelve el motivo para poder
-    // decírselo. Filtrarlo aquí dejaba al cliente sin descuento y sin
-    // explicación.
-    $datos['cupon']       = $codigoCupon;
-    $datos['canal']       = 'web';
-
-    // --- Validación ---------------------------------------------------
-    if (mb_strlen($datos['cliente_nombre']) < 3) {
-        $errores['cliente_nombre'] = 'Escribe tu nombre completo.';
-    }
-    if ($datos['cliente_email'] === '') {
-        $errores['cliente_email'] = 'Necesitamos un correo válido para enviarte la confirmación y el seguimiento.';
-    }
-    if ($datos['cliente_telefono'] === '') {
-        $errores['cliente_telefono'] = 'Escribe un teléfono de contacto de 8 dígitos o más.';
-    }
-    // El enlace de ubicación se comprueba siempre: si viene mal, se avisa en
-    // lugar de guardar una dirección que el repartidor no podrá abrir.
-    $revisionMapa = Envios::revisarEnlaceMapa(crudo('entrega_mapa_url'));
-    $datos['entrega_mapa_url'] = $revisionMapa['url'];
-    if (!$revisionMapa['ok']) {
-        $errores['entrega_mapa_url'] = $revisionMapa['error'];
-    }
-
-    if ($datos['entrega_tipo'] === 'domicilio') {
-        if (mb_strlen($datos['entrega_direccion']) < 10) {
-            $errores['entrega_direccion'] = 'Necesitamos una dirección con la referencia suficiente para llegar.';
-        }
-        if ($zonas && !$zonaElegida) {
-            $errores['zona_envio_id'] = 'Elige la zona de entrega: de ella depende el costo del envío.';
-        }
-        // La zona manda sobre lo que se escriba en el campo de ciudad.
-        if ($zonaElegida) {
-            $datos['entrega_ciudad'] = mb_substr((string)$zonaElegida['nombre'], 0, 80);
-        } elseif ($datos['entrega_ciudad'] === '') {
-            $errores['entrega_ciudad'] = 'Indica la ciudad de entrega.';
-        }
-    } else {
-        // En retiro no hay zona ni ubicación que valgan.
-        $datos['zona_envio_id']    = 0;
-        $datos['entrega_mapa_url'] = '';
-        $zonaElegida = null;
-    }
-
-    // Con la zona ya confirmada se recalcula el total que se va a cobrar.
-    $detalle = Carrito::detalle($pdo, $zonaElegida, $datos['entrega_tipo']);
-    if ($datos['entrega_fecha'] !== null && $datos['entrega_fecha'] < date('Y-m-d')) {
-        $errores['entrega_fecha'] = 'La fecha de entrega no puede ser anterior a hoy.';
-    }
-
-    // Quien recibe: si no se indica, es la misma persona que pide.
-    if ($datos['entrega_nombre'] === '') {
-        $datos['entrega_nombre'] = $datos['cliente_nombre'];
-    }
-    if ($datos['entrega_telefono'] === '') {
-        $datos['entrega_telefono'] = $datos['cliente_telefono'];
-    }
+    // Las reglas viven en Checkout::revisar(): el pago con PayPal necesita
+    // exactamente las mismas y comprobarlas antes de abrir la ventana de pago.
+    $revisado    = Checkout::revisar($pdo, $_POST);
+    $datos       = array_merge($datos, $revisado['datos']);
+    $errores     = array_merge($errores, $revisado['errores']);
+    $zonaElegida = $revisado['zona'];
+    $detalle     = $revisado['detalle'];
 
     // --- Crear cuenta durante el pedido, si se pidió ---------------------
-    $quiereCuenta = !Auth::autenticado() && casilla('crear_cuenta');
-    if ($quiereCuenta && !$errores) {
-        $password = crudo('password');
-        $problema = revisarPassword($password, crudo('password_confirmar'));
-        if ($problema !== '') {
-            $errores['password'] = $problema;
-        } else {
-            $yaExiste = $pdo->prepare("SELECT id FROM usuarios WHERE email = ?");
-            $yaExiste->execute([$datos['cliente_email']]);
-            if ($yaExiste->fetchColumn()) {
-                $errores['cliente_email'] = 'Ya hay una cuenta con ese correo. Inicia sesión para asociar el pedido.';
-            } else {
-                $partes   = preg_split('/\s+/u', $datos['cliente_nombre']) ?: [];
-                $nombre   = array_shift($partes) ?: $datos['cliente_nombre'];
-                $apellido = implode(' ', $partes);
-
-                $pdo->prepare(
-                    "INSERT INTO usuarios (email, nombre, apellido, telefono, password_hash, rol_id,
-                                           activo, nombre_completo, email_verificado_en)
-                     VALUES (?,?,?,?,?,?,1,?,NULL)"
-                )->execute([
-                    $datos['cliente_email'], mb_substr($nombre, 0, 60), mb_substr($apellido, 0, 60),
-                    $datos['cliente_telefono'], password_hash($password, PASSWORD_DEFAULT),
-                    Auth::rolId($pdo, 'cliente'), $datos['cliente_nombre'],
-                ]);
-                $nuevoId = (int)$pdo->lastInsertId();
-
-                $st = $pdo->prepare("SELECT * FROM usuarios WHERE id = ?");
-                $st->execute([$nuevoId]);
-                $nuevo = $st->fetch();
-
-                Auth::abrirSesion($nuevo);
-                Favoritos::fusionarAlEntrar($pdo, $nuevoId);
-                Auditoria::registrar($pdo, 'registro', 'usuarios', [
-                    'recurso_tipo' => 'usuario', 'recurso_id' => (string)$nuevoId,
-                    'descripcion'  => 'Cuenta creada durante el proceso de pedido.',
-                ]);
-            }
-        }
+    if (!$errores) {
+        $errores = array_merge($errores, Checkout::crearCuentaSiSePide($pdo, $datos, $_POST));
     }
 
     // --- Crear el pedido -------------------------------------------------
     if (!$errores) {
-        $resultado = Pedidos::crearDesdeCarrito($pdo, $datos);
+        $resultado = Checkout::registrar($pdo, $datos, $_POST);
         if ($resultado['ok']) {
-            $pedido = $resultado['pedido'];
-
-            // La dirección se guarda solo si hay cuenta y el cliente lo pidió.
-            if (Auth::autenticado() && casilla('guardar_direccion') && $datos['entrega_tipo'] === 'domicilio') {
-                Envios::guardarDireccion($pdo, (int)Auth::id(), [
-                    'etiqueta'      => texto('etiqueta_direccion', 60) ?: 'Mi dirección',
-                    'nombre_recibe' => $datos['entrega_nombre'],
-                    'telefono'      => $datos['entrega_telefono'],
-                    'direccion'     => $datos['entrega_direccion'],
-                    'referencia'    => $datos['entrega_referencia'],
-                    'mapa_url'      => $datos['entrega_mapa_url'],
-                    'zona_envio_id' => $datos['zona_envio_id'],
-                ]);
-            }
-            // El cupón ya se gastó o dejó de valer: el pedido se registra igual
-            // con su total correcto, pero el cliente tiene que enterarse aquí y
-            // no al abrir el correo.
-            unset($_SESSION['cupon']);
-            if (($resultado['aviso'] ?? '') !== '') {
-                flash('alerta', $resultado['aviso'] . ' Registramos tu pedido '
-                              . $pedido['codigo'] . ' sin ese descuento.');
-            } else {
-                flash('exito', 'Recibimos tu pedido ' . $pedido['codigo'] . '.');
-            }
-            redirigir(Pedidos::enlaceSeguimiento($pedido));
+            redirigir(Pedidos::enlaceSeguimiento($resultado['pedido']));
         }
         $errores[] = $resultado['error'];
     }
@@ -314,7 +179,7 @@ require __DIR__ . '/includes/vistas/cabecera.php';
     </div>
   <?php endif; ?>
 
-  <form method="post" action="<?= e(url('checkout.php')) ?>" novalidate data-una-vez>
+  <form method="post" action="<?= e(url('checkout.php')) ?>" novalidate data-una-vez data-checkout>
     <?= campoToken() ?>
     <div class="diseno-compra">
       <div>
@@ -614,11 +479,19 @@ require __DIR__ . '/includes/vistas/cabecera.php';
 
           <?php if ($paypalActivo): ?>
             <?php // El botón lo dibuja PayPal. Solo se muestra con ese método elegido. ?>
+            <?php $botones = PayPal::formasDePago(); ?>
             <div id="zonaPaypal" class="zona-paypal" hidden
                  data-client-id="<?= e(PayPal::clientId()) ?>"
-                 data-moneda="<?= e(PayPal::moneda()) ?>">
+                 data-moneda="<?= e(PayPal::moneda()) ?>"
+                 data-locale="es_ES"
+                 data-habilitar="<?= e($botones['habilitar']) ?>"
+                 data-deshabilitar="<?= e($botones['deshabilitar']) ?>">
               <p class="ayuda">Al pagar aquí el pedido queda confirmado al instante,
-                 sin subir comprobante.</p>
+                 sin subir comprobante. Se cobran
+                 <strong><?= e(number_format(PayPal::enMonedaDeCobro((float)$detalle['total']), 2)) ?>
+                 <?= e(PayPal::moneda()) ?></strong>
+                 (<?= e(dinero($detalle['total'])) ?> al cambio de
+                 <?= e(number_format(PayPal::tasa(), 2)) ?> por <?= e(PayPal::moneda()) ?>).</p>
               <div id="botonesPaypal"></div>
               <p class="paypal-aviso" role="status" aria-live="polite"></p>
             </div>

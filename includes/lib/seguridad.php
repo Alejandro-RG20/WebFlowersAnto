@@ -89,12 +89,39 @@ function limpiarLimite(PDO $pdo, string $clave): void
     $pdo->prepare("DELETE FROM rate_limits WHERE clave = ?")->execute([mb_substr($clave, 0, 190)]);
 }
 
-/** Cabecera Content-Security-Policy de las páginas públicas. */
+/**
+ * Cabecera Content-Security-Policy de las páginas públicas.
+ *
+ * La política es cerrada a propósito: solo se abre lo que hace falta y donde
+ * hace falta. Por eso los orígenes de PayPal se añaden únicamente si el cobro
+ * con PayPal está encendido: una tienda que solo cobra por transferencia no
+ * tiene por qué permitir scripts de fuera.
+ */
 function cabeceraCSP(): void
 {
     if (headers_sent()) {
         return;
     }
+
+    $script  = "'self' 'unsafe-inline'";
+    $marco   = "https://www.youtube.com https://www.youtube-nocookie.com "
+             . "https://maps.google.com https://www.google.com";
+    $conecta = "'self'";
+    $formulario = "'self' https://accounts.google.com";
+
+    // El botón de PayPal es un script suyo que abre una ventana suya y habla
+    // con sus servidores: sin estos orígenes el navegador lo bloquea y el
+    // cliente ve el hueco donde debería estar el botón.
+    if (class_exists('PayPal') && PayPal::activo()) {
+        $paypal  = "https://www.paypal.com https://www.paypalobjects.com "
+                 . "https://www.sandbox.paypal.com https://c.paypal.com";
+        $script .= ' ' . $paypal;
+        $marco  .= ' ' . $paypal . ' https://c.sandbox.paypal.com';
+        $conecta .= ' ' . $paypal . ' https://api-m.paypal.com '
+                  . 'https://api-m.sandbox.paypal.com https://c.sandbox.paypal.com';
+        $formulario .= ' https://www.paypal.com https://www.sandbox.paypal.com';
+    }
+
     header(
         "Content-Security-Policy: " .
         "default-src 'self'; " .
@@ -103,10 +130,10 @@ function cabeceraCSP(): void
         "img-src 'self' data: blob: https:; " .
         "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com; " .
         "font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com; " .
-        "script-src 'self' 'unsafe-inline'; " .
-        "frame-src https://www.youtube.com https://www.youtube-nocookie.com https://maps.google.com https://www.google.com; " .
-        "connect-src 'self'; " .
-        "form-action 'self' https://accounts.google.com; " .
+        "script-src $script; " .
+        "frame-src $marco; " .
+        "connect-src $conecta; " .
+        "form-action $formulario; " .
         "base-uri 'self'; " .
         "object-src 'none'"
     );

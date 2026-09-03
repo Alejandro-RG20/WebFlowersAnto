@@ -22,7 +22,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     $accion = opcion('accion', ['guardar', 'cuenta_guardar', 'cuenta_eliminar',
                                 'zona_guardar', 'zona_eliminar', 'mensajes_guardar',
-                                'correo_prueba'], 'guardar');
+                                'correo_prueba', 'paypal_probar'], 'guardar');
 
     // --- Correo de prueba -----------------------------------------------
     if ($accion === 'correo_prueba') {
@@ -292,6 +292,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'paypal_secreto'     => texto('paypal_secreto', 160) !== ''
                                     ? texto('paypal_secreto', 160)
                                     : (string)($antes['paypal_secreto'] ?? ''),
+            'paypal_tarjeta'     => casilla('paypal_tarjeta'),
+            'paypal_venmo'       => casilla('paypal_venmo'),
+            'paypal_cuotas'      => casilla('paypal_cuotas'),
+            'paypal_webhook_id'  => texto('paypal_webhook_id', 60),
         ],
         'desarrollador' => [
             'dev_activo'      => casilla('dev_activo'),
@@ -321,6 +325,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'descripcion'  => 'Configuración actualizada: ' . $grupo,
         'detalles'     => Auditoria::diferencias($antes, $campos, array_keys($campos)),
     ]);
+    // «Probar conexión» guarda igual que «Guardar» y además pregunta a PayPal:
+    // probar con lo que hay en pantalla, y no con lo guardado hace un rato, es
+    // lo que hace que la respuesta sirva de algo.
+    if ($accion === 'paypal_probar') {
+        $prueba = PayPal::probar();
+        flash($prueba['ok'] ? 'exito' : 'error',
+              ($prueba['ok'] ? 'Ajustes guardados. ' : 'Ajustes guardados, pero PayPal no respondió bien: ')
+              . $prueba['mensaje']);
+        redirigir('admin/configuracion.php?t=banco');
+    }
+
     flash('exito', 'Configuración guardada.');
     redirigir('admin/configuracion.php?t=' . $grupo);
 }
@@ -1115,9 +1130,54 @@ function campoImagen(string $nombre, string $etiqueta, string $valor, string $ay
           <p class="ayuda">No se vuelve a mostrar. Si lo dejas vacío se conserva el que ya está.</p>
         </div>
 
+        <p class="etiqueta" style="margin:20px 0 8px;">Qué puede usar el comprador</p>
+        <p class="ayuda" style="margin-bottom:10px;">
+          PayPal solo enseña las opciones que esa persona puede usar de verdad según su
+          país, así que activarlas no molesta a nadie: simplemente aparecen cuando sirven.
+        </p>
+        <div class="interruptor">
+          <input type="checkbox" id="paypal_tarjeta" name="paypal_tarjeta" value="1"
+                 <?= !empty($c['paypal_tarjeta']) ? 'checked' : '' ?>>
+          <label for="paypal_tarjeta">Tarjeta sin cuenta de PayPal
+            <small>Botón «Pagar con tarjeta». Es el que más usa quien no tiene PayPal.</small></label>
+        </div>
+        <div class="interruptor">
+          <input type="checkbox" id="paypal_venmo" name="paypal_venmo" value="1"
+                 <?= !empty($c['paypal_venmo']) ? 'checked' : '' ?>>
+          <label for="paypal_venmo">Venmo
+            <small>Solo aparece a compradores en Estados Unidos.</small></label>
+        </div>
+        <div class="interruptor">
+          <input type="checkbox" id="paypal_cuotas" name="paypal_cuotas" value="1"
+                 <?= !empty($c['paypal_cuotas']) ? 'checked' : '' ?>>
+          <label for="paypal_cuotas">Pagar en cuotas
+            <small>El comprador paga a plazos y tú cobras completo el mismo día.</small></label>
+        </div>
+
+        <div class="campo" style="margin-top:18px;">
+          <label for="paypal_webhook_id">Webhook ID <small style="font-weight:400;">(opcional)</small></label>
+          <input type="text" id="paypal_webhook_id" name="paypal_webhook_id" maxlength="60"
+                 autocomplete="off" value="<?= e((string)($c['paypal_webhook_id'] ?? '')) ?>">
+          <p class="ayuda">
+            Sirve para enterarse de reembolsos y reclamaciones sin entrar a PayPal.
+            En <strong>developer.paypal.com → tu aplicación → Webhooks</strong>, añade esta
+            dirección y copia aquí el identificador que te dé:<br>
+            <code style="user-select:all;"><?= e(url_absoluta('api/paypal-webhook.php')) ?></code><br>
+            Eventos a marcar: <em>Payment capture completed, denied, refunded, reversed</em>.
+          </p>
+        </div>
+
         <?php if ($editable): ?>
-          <button type="submit" class="boton boton-principal">
-            <i class="fa-solid fa-floppy-disk" aria-hidden="true"></i> Guardar</button>
+          <div style="display:flex; gap:10px; flex-wrap:wrap;">
+            <button type="submit" class="boton boton-principal">
+              <i class="fa-solid fa-floppy-disk" aria-hidden="true"></i> Guardar</button>
+            <button type="submit" name="accion" value="paypal_probar" class="boton boton-claro"
+                    formnovalidate>
+              <i class="fa-solid fa-plug-circle-check" aria-hidden="true"></i> Probar conexión</button>
+          </div>
+          <p class="ayuda" style="margin-top:8px;">
+            «Probar conexión» guarda lo escrito y pregunta a PayPal si las credenciales
+            sirven. Hazlo antes de poner el modo en cobros reales.</p>
         <?php endif; ?>
       </div>
     </section>
