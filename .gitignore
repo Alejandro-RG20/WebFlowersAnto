@@ -19,6 +19,9 @@ storage/respaldos/*
 !storage/respaldos/.gitkeep
 storage/logs/*
 !storage/logs/.gitkeep
+# Copias reducidas de las fotos: se regeneran solas, no se versionan.
+storage/cache/img/*
+!storage/cache/img/.gitkeep
 
 # --- Respaldos sueltos ------------------------------------------------
 *.sql.bak

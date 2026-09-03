@@ -38,7 +38,7 @@ final class Mantenimiento
 
     /** Tareas seguras: nada de esto es información del negocio. */
     public const SEGURAS = [
-        'imagenes_huerfanas', 'uploads_huerfanas', 'comprobantes_huerfanos',
+        'cache_imagenes', 'imagenes_huerfanas', 'uploads_huerfanas', 'comprobantes_huerfanos',
         'logs_antiguos', 'rate_limits', 'tokens_caducados',
     ];
 
@@ -49,6 +49,13 @@ final class Mantenimiento
     public static function tareas(): array
     {
         return [
+            'cache_imagenes' => [
+                'titulo' => 'Copias reducidas de las fotos',
+                'ayuda'  => 'Versiones pequeñas que se generan solas para los teléfonos y se '
+                          . 'guardan en storage/cache/. Borrarlas no pierde nada: se vuelven a '
+                          . 'crear la primera vez que alguien abra esa foto.',
+                'unidad' => 'archivos',
+            ],
             'imagenes_huerfanas' => [
                 'titulo' => 'Imágenes que ya no usa nadie',
                 'ayuda'  => 'Fotos guardadas en la base que ningún producto, categoría, '
@@ -170,6 +177,7 @@ final class Mantenimiento
         }
         $hacer = fn(string $t) => $borrar && in_array($t, $tareas, true);
 
+        $r['cache_imagenes']         = self::cacheImagenes($hacer('cache_imagenes'));
         $r['imagenes_huerfanas']     = self::imagenesHuerfanas($pdo, $hacer('imagenes_huerfanas'));
         $r['uploads_huerfanas']      = self::archivosHuerfanos(
             $pdo, RAIZ . '/uploads', self::rutasEnUso($pdo), $hacer('uploads_huerfanas'));
@@ -187,6 +195,28 @@ final class Mantenimiento
             "FROM auditoria WHERE created_at < (NOW() - INTERVAL 12 MONTH)");
 
         return $r;
+    }
+
+    /**
+     * Copias reducidas de las fotos.
+     *
+     * Es caché puro: se regenera sola. Se puede borrar entera sin pensarlo, y
+     * por eso no lleva periodo de gracia como las subidas.
+     */
+    private static function cacheImagenes(bool $borrar): array
+    {
+        $res = ['cantidad' => 0, 'bytes' => 0];
+        foreach (@glob(RAIZ . '/storage/cache/img/*') ?: [] as $ruta) {
+            if (!is_file($ruta)) {
+                continue;
+            }
+            $res['cantidad']++;
+            $res['bytes'] += (int)filesize($ruta);
+            if ($borrar) {
+                @unlink($ruta);
+            }
+        }
+        return $res;
     }
 
     /** Cuenta o borra filas con el mismo WHERE, para que no puedan discrepar. */

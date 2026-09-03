@@ -55,16 +55,31 @@ function rolDe(indice) {
 
 /* ------------------------------------------------------------- pintado */
 function pintarEscenario() {
-  escenario.innerHTML = piezas.map((p, i) => `
-    <div class="hero-pieza" data-rol="${rolDe(i)}" data-indice="${i}">
-      ${p.enlace ? `<a href="${esc(p.enlace)}" tabindex="-1" aria-hidden="true">` : ''}
-      <img src="${esc(p.imagen)}" alt="${esc(p.nombre)}" draggable="false"
-           ${i === 0 ? 'fetchpriority="high"' : 'loading="lazy"'}>
-      ${p.enlace ? '</a>' : ''}
-    </div>`).join('');
+  // El servidor ya dejó las piezas en el HTML para que la foto principal
+  // empiece a bajar con la página. Volver a escribir innerHTML aquí tiraría
+  // esas imágenes y las pediría otra vez, que es justo lo que se quiere
+  // evitar: la primera vez solo se colocan los roles.
+  const yaEstaban = escenario.dataset.servidor === '1'
+                 && escenario.children.length === piezas.length;
+  delete escenario.dataset.servidor;
+
+  if (yaEstaban) {
+    // Las piezas ya están: solo se colocan los roles.
+    escenario.querySelectorAll('.hero-pieza').forEach((el, i) => {
+      el.dataset.rol = rolDe(i);
+    });
+  } else {
+    escenario.innerHTML = piezas.map((p, i) => `
+      <div class="hero-pieza" data-rol="${rolDe(i)}" data-indice="${i}">
+        ${p.enlace ? `<a href="${esc(p.enlace)}" tabindex="-1" aria-hidden="true">` : ''}
+        <img src="${esc(p.imagen)}" alt="${esc(p.nombre)}" draggable="false" decoding="async"
+             ${i === 0 ? 'fetchpriority="high"' : 'loading="lazy"'}>
+        ${p.enlace ? '</a>' : ''}
+      </div>`).join('');
+  }
 
   puntos.innerHTML = piezas.map((p, i) => `
-    <button type="button" data-indice="${i}" aria-current="${i === activo}"
+    <button type="button" data-indice="${i}" aria-pressed="${i === activo}"
             aria-label="Ver ${esc(p.nombre)}"></button>`).join('');
 }
 
@@ -73,7 +88,7 @@ function actualizarRoles() {
     el.dataset.rol = rolDe(+el.dataset.indice);
   });
   puntos.querySelectorAll('button').forEach((b, i) => {
-    b.setAttribute('aria-current', String(i === activo));
+    b.setAttribute('aria-pressed', String(i === activo));
   });
 }
 
@@ -95,10 +110,38 @@ function pintarPanel() {
     <span class="precio cambia">${p.precio > 0 ? dineroLocal(p.precio) + ' ' + usd : ''}</span>`;
 }
 
+/**
+ * Tinta que se lee sobre ese fondo.
+ *
+ * El color del carrusel lo elige la floristería producto a producto y suele
+ * ser un pastel claro. Con la letra fija en blanco, el nombre del arreglo —el
+ * texto más grande de la portada— quedaba en 1.26:1: prácticamente invisible.
+ * Se decide aquí con la luminancia relativa, la misma fórmula que usa el
+ * servidor para el tema de temporada.
+ */
+function tintaSobre(hex) {
+  const h = String(hex || '').replace('#', '');
+  const v = h.length === 3
+    ? [h[0] + h[0], h[1] + h[1], h[2] + h[2]]
+    : [h.slice(0, 2), h.slice(2, 4), h.slice(4, 6)];
+  const c = v.map(x => {
+    const n = parseInt(x, 16) / 255;
+    return Number.isNaN(n) ? 1 : (n <= 0.03928 ? n / 12.92 : Math.pow((n + 0.055) / 1.055, 2.4));
+  });
+  const luz = 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+  return luz > 0.42 ? '#2C2124' : '#FFFFFF';
+}
+
 function aplicarFondo() {
   const p = piezas[activo];
   const color = (p && p.color_acento) || config.hero_color_fondo || '#EFD9DE';
   seccion.style.setProperty('--hero-fondo', color);
+  const tinta = tintaSobre(color);
+  seccion.style.setProperty('--hero-tinta', tinta);
+  // La sombra existe para despegar la letra blanca de una foto clara; con
+  // tinta oscura sobre pastel solo ensucia.
+  seccion.style.setProperty('--hero-sombra',
+    tinta === '#FFFFFF' ? '0 2px 18px rgba(40,24,30,.28)' : 'none');
 }
 
 /* ------------------------------------------------------------- navegación */

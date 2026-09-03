@@ -76,6 +76,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $tituloPagina      = 'Iniciar sesión — ' . Ajustes::texto('nombre_tienda', 'Flowers Anto');
 $descripcionPagina = 'Entra a tu cuenta para ver tus pedidos y tus favoritos.';
 
+// La sesión se cerró sola por inactividad: se dice, en vez de dejar a la
+// persona preguntándose por qué la echaron.
+if (!empty($_SESSION['aviso_caducada'])) {
+    unset($_SESSION['aviso_caducada']);
+    flash('info', 'Cerramos tu sesión por seguridad tras varias horas sin actividad. '
+                . 'Vuelve a entrar y sigues donde estabas.');
+}
+
 require __DIR__ . '/../includes/vistas/cabecera.php';
 ?>
 

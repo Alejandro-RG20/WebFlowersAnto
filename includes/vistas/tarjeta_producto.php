@@ -17,7 +17,12 @@ $portada    = $p['portada'] ?? $p['imagen'];
 ?>
 <article class="tarjeta-producto<?= $disponible ? '' : ' agotado' ?>" data-producto="<?= (int)$p['id'] ?>">
   <a class="tarjeta-imagen" href="<?= e($enlace) ?>" aria-label="<?= e((string)$p['nombre']) ?>">
-    <img src="<?= e(url_imagen($portada)) ?>" alt="<?= e((string)$p['nombre']) ?>" loading="lazy" decoding="async">
+    <?php // `srcset`: el teléfono se baja la versión de 320 px, no la de 1600. ?>
+    <img src="<?= e(url_imagen($portada)) ?>" alt="<?= e((string)$p['nombre']) ?>"
+         <?php if (($ss = imagen_srcset($portada)) !== ''): ?>
+           srcset="<?= e($ss) ?>" sizes="(max-width: 640px) 46vw, (max-width: 1024px) 30vw, 320px"
+         <?php endif; ?>
+         width="600" height="700" loading="lazy" decoding="async">
     <?php if ((int)$p['destacado'] === 1 && $disponible): ?>
       <span class="etiqueta etiqueta-destacado">Destacado</span>
     <?php endif; ?>

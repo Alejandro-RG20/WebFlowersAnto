@@ -23,7 +23,8 @@ function solicitudValida(PDO $pdo, string $token): ?array
         "SELECT pr.*, u.email, u.nombre
            FROM password_resets pr
            JOIN usuarios u ON u.id = pr.usuario_id
-          WHERE pr.token_hash = ? AND pr.usado_en IS NULL AND pr.expira_en > NOW()
+          WHERE pr.token_hash = ? AND pr.tipo = 'password'
+            AND pr.usado_en IS NULL AND pr.expira_en > NOW()
             AND u.activo = 1
           LIMIT 1"
     );

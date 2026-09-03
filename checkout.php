@@ -592,6 +592,9 @@ require __DIR__ . '/includes/vistas/cabecera.php';
           <p style="font-size:.83rem; color:var(--tenue); margin-top:12px; line-height:1.6;">
             Al confirmar registramos el pedido y te mostramos los datos bancarios.
             Nada se cobra automáticamente: el pago lo verifica una persona del equipo.
+            Al hacer el pedido aceptas los
+            <a href="<?= e(url('legal.php?doc=terminos')) ?>" target="_blank" rel="noopener">términos y condiciones</a>
+            y la <a href="<?= e(url('legal.php?doc=privacidad')) ?>" target="_blank" rel="noopener">política de privacidad</a>.
           </p>
 
           <p style="text-align:center; margin-top:14px;">

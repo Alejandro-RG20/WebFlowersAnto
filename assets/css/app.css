@@ -11,7 +11,11 @@
   --papel:        #FFFFFF;
   --tinta:        #2C2124;
   --suave:        #6B5B5E;
-  --tenue:        #9A8A8D;
+  /* Antes #9A8A8D, que daba 3.15:1 sobre el crema del sitio: suficiente para
+     un icono, no para texto. Se usa en notas, ayudas y etiquetas pequeñas —
+     texto que la gente lee— así que sube a 4.68:1 sin dejar de ser el tono
+     apagado que separa lo secundario de lo principal. */
+  --tenue:        #7D6D71;
   --exito:        #2F6B44;
   --exito-fondo:  #E9F3EC;
   --alerta:       #93313A;
@@ -192,7 +196,9 @@ a { color: inherit; }
 @keyframes latido { 0%,100% { transform: scale(1); } 40% { transform: scale(1.3); } }
 
 .tarjeta-cuerpo { padding: 13px 14px 15px; display: flex; flex-direction: column; gap: 5px; flex: 1; }
-.tarjeta-categoria { font-size: .7rem; letter-spacing: .09em; text-transform: uppercase; color: var(--tenue); font-weight: 600; }
+/* --tenue da 3.28:1 sobre el fondo claro: vale para adornos, no para texto.
+   Esta etiqueta dice a qué categoría pertenece el arreglo, así que se lee. */
+.tarjeta-categoria { font-size: .7rem; letter-spacing: .09em; text-transform: uppercase; color: var(--suave); font-weight: 600; }
 .tarjeta-titulo { font-family: 'Playfair Display', serif; font-size: 1.06rem; line-height: 1.25; color: var(--tinta); }
 .tarjeta-titulo a { text-decoration: none; }
 .tarjeta-titulo a:hover { color: var(--rose-mid); }
@@ -650,9 +656,10 @@ a.creditos-dev:hover { background: rgba(255,255,255,.13); border-color: rgba(255
   background: var(--rose-pastel); color: var(--tinta); font-weight: 700; font-size: .95rem;
 }
 .creditos-dev-texto { display: flex; flex-direction: column; line-height: 1.3; text-align: left; }
-.creditos-dev-etiqueta { font-size: .68rem; letter-spacing: .1em; text-transform: uppercase; opacity: .62; }
+/* La opacidad baja dejaba estos textos en 1.45:1 sobre el pie oscuro. */
+.creditos-dev-etiqueta { font-size: .68rem; letter-spacing: .1em; text-transform: uppercase; opacity: .85; }
 .creditos-dev strong { color: #fff; font-size: .93rem; }
-.creditos-dev small { opacity: .62; font-size: .74rem; }
+.creditos-dev small { opacity: .85; font-size: .74rem; }
 .creditos-dev > i { opacity: .5; font-size: .74rem; }
 .footer-bottom { display: flex; justify-content: space-between; align-items: center; gap: 18px; flex-wrap: wrap; }
 
@@ -780,3 +787,52 @@ body:has(.aviso-cookies:not([hidden])) .whatsapp-float { bottom: 132px; }
   font: inherit; color: inherit; opacity: .75; cursor: pointer;
   text-decoration: underline; text-underline-offset: 3px; }
 .enlace-cookies:hover { opacity: 1; }
+
+/* =====================================================================
+   Páginas legales (privacidad, términos, devoluciones)
+   Texto largo para leer: una columna estrecha y mucho aire entre líneas.
+   ===================================================================== */
+.contenido-legal { padding: 26px 0 60px; }
+
+.legal-pestanas {
+  display: flex; flex-wrap: wrap; gap: 8px;
+  margin: 18px 0 26px;
+}
+.legal-pestana {
+  padding: 9px 16px; border-radius: 30px; text-decoration: none;
+  font-size: .88rem; font-weight: 500;
+  color: var(--tinta); background: rgba(0, 0, 0, .05);
+  border: 1px solid transparent; transition: background .2s, border-color .2s;
+}
+.legal-pestana:hover { background: rgba(0, 0, 0, .07); }
+.legal-pestana.actual {
+  background: var(--rose-light); border-color: var(--rose-pastel); font-weight: 600;
+}
+.legal-pestana:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
+
+.legal-texto { max-width: 68ch; line-height: 1.75; }
+.legal-texto h1 { margin-bottom: 4px; }
+.legal-texto h2 {
+  margin: 34px 0 10px; font-size: 1.16rem; line-height: 1.35;
+  padding-bottom: 6px; border-bottom: 1px solid rgba(0, 0, 0, .08);
+}
+.legal-texto p, .legal-texto li { color: var(--text); }
+.legal-texto ul { margin: 12px 0 12px 20px; }
+.legal-texto li { margin-bottom: 9px; }
+.legal-texto a { color: inherit; text-decoration: underline; text-underline-offset: 3px; }
+.legal-fecha { font-size: .84rem; opacity: .7; margin-bottom: 22px; }
+.legal-texto hr { border: 0; border-top: 1px solid rgba(0, 0, 0, .1); margin: 34px 0 18px; }
+.legal-contacto { font-size: .93rem; }
+
+/* Los enlaces legales del pie: subrayados y con el mismo tono legible que el
+   resto de la línea, para que se distingan de texto normal sin depender solo
+   del color. */
+.footer-bottom p a,
+.footer-bottom .enlace-cookies {
+  color: #E4D8DA;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  margin-left: 10px;
+}
+.footer-bottom p a:hover,
+.footer-bottom .enlace-cookies:hover { color: #fff; }

@@ -69,8 +69,39 @@ $waGeneral = enlace_whatsapp(
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700;900&family=Poppins:wght@300;400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+
+<?php
+  // Las hojas de fuera no bloquean el pintado. Son tipografías e iconos: si
+  // llegan medio segundo tarde, el texto ya se lee (las fuentes van con
+  // `display=swap`) y los iconos aparecen sobre un hueco reservado. Bloquear
+  // el render por ellas retrasaba la primera pintura varios segundos en móvil.
+  //
+  // El truco de `media="print"` es el estándar de facto: el navegador la
+  // descarga con prioridad baja y sin bloquear, y al terminar se pasa a
+  // `all`. El <noscript> cubre a quien no tenga JavaScript.
+  $hojasExternas = [
+      'https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700;900'
+    . '&family=Poppins:wght@300;400;500;600&display=swap',
+      'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css',
+  ];
+?>
+<?php foreach ($hojasExternas as $hoja): ?>
+<link rel="stylesheet" href="<?= e($hoja) ?>" media="print" onload="this.media='all';this.onload=null">
+<?php endforeach; ?>
+<noscript>
+  <?php foreach ($hojasExternas as $hoja): ?>
+  <link rel="stylesheet" href="<?= e($hoja) ?>">
+  <?php endforeach; ?>
+</noscript>
+
+<?php if (!empty($precargarImagen)): ?>
+<?php // La foto más grande de la portada: se pide junto con el HTML, no
+      // después de descargar el CSS y el JS. ?>
+<link rel="preload" as="image" href="<?= e($precargarImagen) ?>" fetchpriority="high"
+      <?php if (!empty($precargarSrcset)): ?>
+        imagesrcset="<?= e($precargarSrcset) ?>" imagesizes="<?= e($precargarSizes ?? '100vw') ?>"
+      <?php endif; ?>>
+<?php endif; ?>
 <script>
   /* Antes de pintar nada: marca que hay JavaScript, para que las animaciones
      de aparición puedan esconder el contenido sin riesgo de dejarlo invisible

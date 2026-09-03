@@ -282,6 +282,31 @@ function limite_subida(int $topeAplicacion): int
 }
 
 /**
+ * `srcset` para una imagen guardada en la base.
+ *
+ * Solo tiene sentido con las referencias «bd:»: son las que `archivo.php`
+ * puede reducir. Una ruta de disco o una URL externa se dejan como están, y
+ * la función devuelve cadena vacía para que el `<img>` salga sin `srcset`.
+ *
+ * Mandar la foto de 1600 px a un teléfono que la pinta a 320 es lo que más
+ * pesa en una tienda con fotos: aquí baja de medio mega a treinta kilobytes.
+ */
+function imagen_srcset(?string $ruta, array $anchos = [320, 480, 640, 960]): string
+{
+    $ruta = trim((string)$ruta);
+    if (!preg_match('#^bd:(\d+)$#', $ruta, $m)) {
+        return '';
+    }
+    $id     = (int)$m[1];
+    $piezas = [];
+    foreach ($anchos as $w) {
+        $w = (int)$w;
+        $piezas[] = url('archivo.php?id=' . $id . '&w=' . $w) . ' ' . $w . 'w';
+    }
+    return implode(', ', $piezas);
+}
+
+/**
  * ¿La referencia de imagen apunta a algo que existe?
  *
  * Las referencias «bd:» y las URL externas se dan por buenas: no son

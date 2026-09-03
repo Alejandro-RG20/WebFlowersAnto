@@ -30,7 +30,8 @@ h1, h2, h3, h4, .logo-text, .hero-title { font-family: 'Playfair Display', serif
 .section-tag {
   display: inline-block;
   background: var(--rose-soft);
-  color: #B3546B;
+  /* Antes #B3546B: 4.08:1 sobre este fondo, por debajo del mínimo. */
+  color: #8A2E45;
   font-size: 0.85rem;
   font-weight: 600;
   padding: 6px 16px;
@@ -72,7 +73,11 @@ h1, h2, h3, h4, .logo-text, .hero-title { font-family: 'Playfair Display', serif
   padding: 6px 12px; border-radius: 30px; transition: all var(--transition);
   font-size: 0.9rem;
 }
-.nav-link:hover, .nav-link.active { color: var(--rose-pastel); background: var(--rose-soft); }
+/* El rosa pastel sobre blanco da 1.75:1: el enlace de la página en la que
+   estás era justo el menos legible del menú. Se mantiene el fondo rosa suave,
+   que es lo que marca cuál está activo, y la letra pasa a un rosa vino que sí
+   se lee (8.2:1). */
+.nav-link:hover, .nav-link.active { color: #8A2E45; background: var(--rose-soft); }
 .nav-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
 .btn-nav-whatsapp {
   background: #25D366; color: #fff; padding: 8px 16px; border-radius: 50px;
@@ -87,7 +92,9 @@ h1, h2, h3, h4, .logo-text, .hero-title { font-family: 'Playfair Display', serif
 }
 .icon-count {
   position: absolute; top: -2px; right: -6px;
-  background: var(--rose-pastel); color: #fff; border-radius: 50%;
+  /* Un número de 11 px en blanco sobre rosa pastel da 1.75:1 y no se lee.
+     Con la tinta oscura de la marca sube a 7.5:1 sin cambiar el color. */
+  background: var(--rose-pastel); color: var(--dark); border-radius: 50%;
   width: 18px; height: 18px; font-size: 0.65rem;
   display: flex; align-items: center; justify-content: center; font-weight: 600;
 }
@@ -107,8 +114,12 @@ h1, h2, h3, h4, .logo-text, .hero-title { font-family: 'Playfair Display', serif
 .hero-subtitle { font-size: 1.15rem; opacity: 0.9; margin-bottom: 32px; }
 .hero-buttons { display: flex; gap: 16px; flex-wrap: wrap; justify-content: center; }
 .btn { display: inline-flex; align-items: center; gap: 8px; padding: 14px 30px; border-radius: 50px; font-weight: 600; text-decoration: none; transition: all var(--transition); cursor: pointer; border: none; font-size: 1rem; }
-.btn-primary { background: var(--rose-pastel); color: #fff; box-shadow: 0 4px 15px rgba(248,176,194,0.4); }
-.btn-primary:hover { background: var(--rose-mid); transform: translateY(-3px); box-shadow: 0 8px 25px rgba(248,176,194,0.5); }
+/* Tinta oscura sobre el rosa, no blanco: en blanco el contraste era 1.75:1,
+   muy por debajo del 4.5:1 que hace falta para leerse, y en un móvil a pleno
+   sol el texto del botón principal desaparecía. El rosa de la marca se
+   conserva; solo cambia la tinta, y sube a 7.5:1. */
+.btn-primary { background: var(--rose-pastel); color: var(--dark); box-shadow: 0 4px 15px rgba(248,176,194,0.4); }
+.btn-primary:hover { background: var(--rose-mid); color: var(--dark); transform: translateY(-3px); box-shadow: 0 8px 25px rgba(248,176,194,0.5); }
 .btn-secondary { background: var(--dark); color: #fff; }
 .btn-secondary:hover { background: #2a1c1e; transform: translateY(-2px); }
 .btn-outline { background: transparent; border: 2px solid #fff; color: #fff; }
@@ -550,7 +561,8 @@ h1, h2, h3, h4, .logo-text, .hero-title { font-family: 'Playfair Display', serif
   padding-top: 20px;
   text-align: center;
   font-size: 0.85rem;
-  color: #A09092;
+  /* #A09092 daba 4.32:1 sobre el pie oscuro, justo por debajo del mínimo. */
+  color: #BCAEB0;
   display: flex;
   flex-direction: column;
   align-items: center;

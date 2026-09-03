@@ -211,9 +211,13 @@ final class Pedidos
                     (pedido_id, producto_id, nombre, imagen, precio_unitario, cantidad, subtotal)
                  VALUES (?,?,?,?,?,?,?)"
             );
+            // La condición `stock >= ?` va dentro del propio UPDATE, no en una
+            // consulta previa: así el motor decide, y dos compradores que
+            // pulsen a la vez no pueden llevarse los dos la última unidad. Si
+            // no alcanza, la fila no se toca y se corta el pedido más abajo.
             $bajarStock = $pdo->prepare(
-                "UPDATE productos SET stock = GREATEST(0, stock - ?), vendidos = vendidos + ?
-                  WHERE id = ? AND controla_stock = 1"
+                "UPDATE productos SET stock = stock - ?, vendidos = vendidos + ?
+                  WHERE id = ? AND controla_stock = 1 AND stock >= ?"
             );
 
             foreach ($detalle['items'] as $i) {
@@ -221,7 +225,29 @@ final class Pedidos
                     $pedidoId, $i['producto_id'], $i['nombre'], $i['imagen'],
                     $i['precio'], $i['cantidad'], $i['subtotal'],
                 ]);
-                $bajarStock->execute([$i['cantidad'], $i['cantidad'], $i['producto_id']]);
+                $bajarStock->execute([
+                    $i['cantidad'], $i['cantidad'], $i['producto_id'], $i['cantidad'],
+                ]);
+
+                // Cero filas puede significar dos cosas: que el producto no
+                // controla stock —lo normal aquí, y entonces no hay nada que
+                // descontar— o que alguien se llevó las últimas unidades
+                // mientras esta persona rellenaba el formulario. Se distingue
+                // preguntando, y solo en ese caso se corta.
+                if ($bajarStock->rowCount() === 0) {
+                    $comprueba = $pdo->prepare(
+                        "SELECT nombre, stock FROM productos
+                          WHERE id = ? AND controla_stock = 1"
+                    );
+                    $comprueba->execute([$i['producto_id']]);
+                    if ($fila = $comprueba->fetch()) {
+                        throw new RuntimeException(
+                            'Nos quedamos sin «' . $fila['nombre'] . '» mientras terminabas el '
+                            . 'pedido. Quita ese arreglo del carrito o baja la cantidad y '
+                            . 'vuelve a intentarlo.'
+                        );
+                    }
+                }
             }
 
             // El canje va dentro de la transacción: si el pedido se cae, el
@@ -270,6 +296,11 @@ final class Pedidos
             }
 
             $pdo->commit();
+        } catch (RuntimeException $ex) {
+            // Falta de existencias: es algo que el cliente puede arreglar, así
+            // que se le dice exactamente qué pasó.
+            $pdo->rollBack();
+            return ['ok' => false, 'error' => $ex->getMessage()];
         } catch (Throwable $ex) {
             $pdo->rollBack();
             error_log('Flowers Anto — crear pedido: ' . $ex->getMessage());

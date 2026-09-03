@@ -211,6 +211,50 @@ final class Temporadas
     }
 
     /**
+     * Variante del color de temporada que se lee sobre el fondo claro del
+     * sitio.
+     *
+     * El color lo elige la floristería desde el panel y puede ser cualquiera:
+     * un amarillo de girasol, un celeste de verano. Oscurecerlo un porcentaje
+     * fijo dejaba textos en 2,3:1 —ilegibles a pleno sol y suspenso en
+     * cualquier revisión de accesibilidad—. Aquí se oscurece paso a paso hasta
+     * alcanzar el 4.5:1 que pide la norma, conservando el tono: sigue siendo
+     * el amarillo de la campaña, solo que uno que se puede leer.
+     *
+     * La referencia es el rosa suave —el más oscuro de los fondos claros del
+     * sitio— y no el blanco: si se lee sobre ese, se lee sobre todos los
+     * demás, que son más claros todavía.
+     */
+    public static function legibleSobreClaro(string $hex, string $fondo = '#FDE8EC'): string
+    {
+        $luz = static function (string $color): float {
+            [$r, $g, $b] = self::canales($color);
+            $canal = static function (int $v): float {
+                $c = $v / 255;
+                return $c <= 0.03928 ? $c / 12.92 : (($c + 0.055) / 1.055) ** 2.4;
+            };
+            return 0.2126 * $canal($r) + 0.7152 * $canal($g) + 0.0722 * $canal($b);
+        };
+        $razon = static function (float $a, float $b): float {
+            return (max($a, $b) + 0.05) / (min($a, $b) + 0.05);
+        };
+
+        $luzFondo = $luz($fondo);
+        $actual   = $hex;
+
+        // Veinte pasos del 8 % llegan al negro de sobra; el bucle para en
+        // cuanto pasa el umbral, así que casi siempre son dos o tres.
+        for ($i = 0; $i < 20; $i++) {
+            if ($razon($luz($actual), $luzFondo) >= 4.5) {
+                return $actual;
+            }
+            $actual = self::oscurecer($actual, 0.08);
+        }
+        return '#2C2124';   // por si acaso: la tinta del sitio siempre se lee
+    }
+
+    /**
+     * Texto legible sobre ese fondo.    /**
      * Texto legible sobre ese fondo.
      *
      * El color lo elige el negocio y puede ser un amarillo brillante o un vino
@@ -249,7 +293,11 @@ final class Temporadas
             '--temporada-claro'      => self::aclarar($c, 0.80),
             '--temporada-suave'      => self::aclarar($c, 0.62),
             '--temporada-medio'      => self::aclarar($c, 0.25),
-            '--temporada-fuerte'     => self::oscurecer($c, 0.22),
+            // Este es el único que se usa como TEXTO sobre fondo claro, así que
+            // no basta con oscurecer un porcentaje fijo: un amarillo de
+            // campaña un 22 % más oscuro sigue siendo ilegible. Se oscurece
+            // hasta que de verdad se lee.
+            '--temporada-fuerte'     => self::legibleSobreClaro($c),
             '--temporada-contraste'  => self::textoSobre($c),
         ];
     }

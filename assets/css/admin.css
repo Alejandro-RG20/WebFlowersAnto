@@ -503,3 +503,24 @@ dialog.modal .modal-pie {
 .fila-mantenimiento.vacia { opacity: .5; cursor: default; }
 .fila-mantenimiento.sensible { border-color: #E7C9A9; background: #FFFBF5; }
 .fila-mantenimiento.sensible:hover { border-color: #D9A96F; }
+
+/* =====================================================================
+   Estado del sitio (panel de inicio)
+   Lo que hay que arreglar antes de abrir al público. Se ve primero
+   porque son cosas que, si se pasan por alto, las descubre un cliente.
+   ===================================================================== */
+.panel-salud { margin-bottom: 20px; }
+.panel-salud .panel-cabecera h2 { margin-bottom: 2px; }
+
+.salud-fila {
+  display: flex; gap: 12px; align-items: flex-start;
+  padding: 13px 0; border-bottom: 1px solid var(--p-linea, #E9E1DE);
+}
+.salud-fila:last-child { border-bottom: 0; padding-bottom: 0; }
+.salud-fila > i { flex: none; margin-top: 2px; font-size: 1.02rem; }
+.salud-fila.grave > i { color: #C0492B; }
+.salud-fila.aviso > i { color: #B8860B; }
+.salud-fila strong { display: block; font-size: .96rem; }
+.salud-fila p { margin: 3px 0 0; font-size: .87rem; line-height: 1.55; color: var(--p-suave, #7A6B6E); }
+.salud-fila .salud-arreglo { margin-top: 5px; color: var(--p-texto, #4A3B3D); }
+.salud-fila .salud-arreglo::before { content: "→ "; opacity: .55; }

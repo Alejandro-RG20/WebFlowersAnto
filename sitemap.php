@@ -14,6 +14,9 @@ $urls = [
     ['loc' => url_absoluta(),                 'prioridad' => '1.0', 'frecuencia' => 'daily'],
     ['loc' => url_absoluta('productos.php'),  'prioridad' => '0.9', 'frecuencia' => 'daily'],
     ['loc' => url_absoluta('seguimiento.php'),'prioridad' => '0.3', 'frecuencia' => 'yearly'],
+    ['loc' => url_absoluta('legal.php?doc=privacidad'),   'prioridad' => '0.2', 'frecuencia' => 'yearly'],
+    ['loc' => url_absoluta('legal.php?doc=terminos'),     'prioridad' => '0.2', 'frecuencia' => 'yearly'],
+    ['loc' => url_absoluta('legal.php?doc=devoluciones'), 'prioridad' => '0.2', 'frecuencia' => 'yearly'],
 ];
 
 foreach (Catalogo::categorias($pdo) as $c) {

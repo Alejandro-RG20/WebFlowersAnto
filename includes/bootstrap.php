@@ -47,11 +47,35 @@ date_default_timezone_set('America/Managua');
 // ---------------------------------------------------------------------
 // Cabeceras de seguridad (no aplican a la CLI)
 // ---------------------------------------------------------------------
+/**
+ * ¿La petición llegó cifrada?
+ *
+ * En hosting compartido el certificado suele terminar en un balanceador, así
+ * que $_SERVER['HTTPS'] llega vacío aunque el visitante venga por https. La
+ * cabecera X-Forwarded-Proto es la que lo dice de verdad.
+ */
+$peticionSegura = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+               || (($_SERVER['SERVER_PORT'] ?? '') === '443')
+               || (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https');
+
 if (PHP_SAPI !== 'cli' && !headers_sent()) {
     header('X-Content-Type-Options: nosniff');
     header('X-Frame-Options: SAMEORIGIN');
     header('Referrer-Policy: strict-origin-when-cross-origin');
     header('Permissions-Policy: geolocation=(), microphone=(), camera=()');
+    // Las ventanas de PayPal y de Google se abren aparte y necesitan poder
+    // hablar con la que las abrió: por eso «allow-popups» y no «same-origin».
+    header('Cross-Origin-Opener-Policy: same-origin-allow-popups');
+
+    // HSTS: una vez visto el sitio por https, el navegador no vuelve a
+    // intentar http. Solo se manda sobre https, como manda la especificación:
+    // enviarlo por http no sirve de nada y puede atar un dominio sin
+    // certificado. Se duplica con el .htaccess a propósito, porque detrás de
+    // un balanceador Apache no siempre se entera de que la petición era
+    // segura y PHP sí.
+    if ($peticionSegura) {
+        header('Strict-Transport-Security: max-age=31536000; includeSubDomains');
+    }
     header_remove('X-Powered-By');
 }
 
@@ -59,9 +83,7 @@ if (PHP_SAPI !== 'cli' && !headers_sent()) {
 // Sesión
 // ---------------------------------------------------------------------
 if (PHP_SAPI !== 'cli' && session_status() === PHP_SESSION_NONE) {
-    $https = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
-          || (($_SERVER['SERVER_PORT'] ?? '') === '443')
-          || (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https');
+    $https = $peticionSegura;
 
     session_set_cookie_params([
         'lifetime' => 0,
@@ -80,6 +102,22 @@ if (PHP_SAPI !== 'cli' && session_status() === PHP_SESSION_NONE) {
         session_regenerate_id(true);
         $_SESSION['sesion_creada'] = time();
     }
+
+    // Caducidad por inactividad. Un panel abierto y olvidado en un ordenador
+    // compartido —o en el móvil del repartidor— es una sesión de administrador
+    // esperando a que alguien la use. Ocho horas cubren una jornada entera sin
+    // molestar a quien está trabajando; el carrito de un visitante no se ve
+    // afectado porque solo se cierra la sesión de quien había entrado.
+    $LIMITE_INACTIVIDAD = 8 * 3600;
+    $ultimoPaso = (int)($_SESSION['ultimo_paso'] ?? 0);
+    if ($ultimoPaso > 0 && !empty($_SESSION['usuario_id'])
+        && time() - $ultimoPaso > $LIMITE_INACTIVIDAD) {
+        $_SESSION = [];
+        session_regenerate_id(true);
+        $_SESSION['sesion_creada'] = time();
+        $_SESSION['aviso_caducada'] = true;
+    }
+    $_SESSION['ultimo_paso'] = time();
 }
 
 // ---------------------------------------------------------------------
@@ -133,6 +171,7 @@ require_once __DIR__ . '/lib/pedidos.php';
 require_once __DIR__ . '/lib/repartidores.php';
 require_once __DIR__ . '/lib/archivos.php';
 require_once __DIR__ . '/lib/paypal.php';
+require_once __DIR__ . '/lib/verificacion.php';
 require_once __DIR__ . '/lib/checkout.php';
 
 Auth::iniciar($pdo);

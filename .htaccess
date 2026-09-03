@@ -13,6 +13,23 @@ DirectoryIndex index.php index.html
 # --- Nada de listados de directorio ----------------------------------
 Options -Indexes
 
+# --- Todo por HTTPS ---------------------------------------------------
+# Sin esto, quien entre por http:// manda su contraseña y su dirección en
+# claro, y la cookie de sesión pierde el atributo `secure`.
+#
+# Se comprueban dos cosas porque en un hosting compartido el certificado suele
+# terminar en un balanceador: ahí %{HTTPS} llega «off» aunque el visitante sí
+# venga por https, y la cabecera X-Forwarded-Proto es la que dice la verdad.
+# Sin la segunda condición se entraría en un bucle de redirecciones.
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteCond %{HTTPS} !=on
+  RewriteCond %{HTTP:X-Forwarded-Proto} !=https
+  RewriteCond %{HTTP_HOST} !^localhost [NC]
+  RewriteCond %{HTTP_HOST} !^127\.0\.0\.1 [NC]
+  RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [R=301,L]
+</IfModule>
+
 # --- Archivos que nunca deben servirse -------------------------------
 <FilesMatch "^(\.env.*|config\.local\.php|composer\.(json|lock)|.*\.md|.*\.sql)$">
   Require all denied
@@ -21,6 +38,7 @@ Options -Indexes
 # --- Carpetas internas ------------------------------------------------
 # Los comprobantes, los respaldos y el código no se sirven nunca por URL.
 RedirectMatch 404 ^/(.*/)?(storage|includes|db)/
+# `storage/` incluye respaldos, comprobantes y la caché de fotos reducidas.
 RedirectMatch 404 ^/(.*/)?\.git
 
 # La protección de uploads/ vive en uploads/.htaccess: <Directory> no se
@@ -31,7 +49,18 @@ RedirectMatch 404 ^/(.*/)?\.git
   Header always set X-Content-Type-Options "nosniff"
   Header always set X-Frame-Options "SAMEORIGIN"
   Header always set Referrer-Policy "strict-origin-when-cross-origin"
+  Header always set Cross-Origin-Opener-Policy "same-origin-allow-popups"
   Header unset X-Powered-By
+  Header unset Server
+
+  # HSTS: una vez que el navegador ha entrado por https, no vuelve a intentar
+  # http ni aunque escriban la dirección a mano. Se envía SOLO sobre https,
+  # que es lo que manda la especificación.
+  #
+  # Ojo: mientras esté puesto, el dominio queda atado a https durante un año
+  # en los navegadores que ya lo hayan visto. Con el certificado en su sitio
+  # —hoy lo dan gratis todos los hostings— no hay ningún problema.
+  Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains" env=HTTPS
 </IfModule>
 
 # --- Caché de estáticos ------------------------------------------------

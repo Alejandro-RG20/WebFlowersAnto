@@ -43,6 +43,10 @@ $datosHero = [
         'imagen'           => url_imagen(($p['imagen_hero'] ?? '') !== ''
                                           ? $p['imagen_hero']
                                           : ($p['portada'] ?? $p['imagen'])),
+        // La referencia sin resolver, para poder pedir tamaños con `srcset`.
+        'ref'              => (string)(($p['imagen_hero'] ?? '') !== ''
+                                          ? $p['imagen_hero']
+                                          : ($p['portada'] ?? $p['imagen'])),
         'enlace'           => url('producto.php?p=' . rawurlencode((string)$p['slug'])),
         'precio'           => (float)$p['precio'],
         'precio_usd'       => (float)$p['precio_usd'],
@@ -54,6 +58,12 @@ $datosHero = [
         'palabra_hero' => $temporada['palabra_hero'],
     ] : null,
 ];
+
+// La primera foto del carrusel es el elemento más grande de la portada: se
+// precarga desde la cabecera para que el navegador no tenga que esperar al JS.
+$precargarImagen  = $datosHero['hero'][0]['imagen'] ?? $datosHero['config']['hero_imagen'];
+$precargarSrcset  = imagen_srcset((string)($datosHero['hero'][0]['ref'] ?? ''), [480, 640, 960, 1280]);
+$precargarSizes   = '(max-width: 640px) 86vw, 620px';
 
 $tituloPagina      = $tienda . ' — Arreglos florales artesanales en Managua';
 $descripcionPagina = Ajustes::texto('meta_descripcion');
@@ -81,10 +91,51 @@ require __DIR__ . '/includes/vistas/cabecera.php';
 <section class="hero-editorial" id="heroEditorial" tabindex="-1"
          aria-roledescription="carrusel" aria-label="Arreglos destacados">
   <div class="hero-palabra" id="heroPalabra" aria-hidden="true"><span><?= e(Ajustes::texto('hero_palabra', 'FLORES')) ?></span></div>
-  <div class="hero-escenario" id="heroEscenario"></div>
+  <?php
+    // El carrusel lo maneja hero.js, pero las piezas se pintan aquí desde el
+    // servidor. Si el HTML llega vacío, el navegador no puede descubrir la foto
+    // principal hasta descargar y ejecutar el JS: eso es lo que disparaba el
+    // «Largest Contentful Paint» a veinte segundos en móvil. Con las piezas ya
+    // en el HTML, la foto empieza a bajar con la propia página.
+    $piezasHero = $datosHero['hero'];
+    if (!$piezasHero) {
+        $piezasHero = [[
+            'nombre'  => $datosHero['config']['hero_titulo'] ?: $tienda,
+            'imagen'  => $datosHero['config']['hero_imagen'],
+            'enlace'  => '',
+        ]];
+    }
+    // Los roles del carrusel, calculados igual que en hero.js con activo = 0.
+    $rolHero = static function (int $i, int $total): string {
+        if ($total === 1) { return $i === 0 ? 'centro' : 'oculto'; }
+        $paso = $i % $total;
+        if ($paso === 0)         { return 'centro'; }
+        if ($paso === $total - 1){ return 'izq'; }
+        if ($paso === 1)         { return 'der'; }
+        if ($paso === 2 || $total === 3) { return 'fondo'; }
+        return 'oculto';
+    };
+    $totalHero = count($piezasHero);
+  ?>
+  <div class="hero-escenario" id="heroEscenario" data-servidor="1">
+    <?php foreach (array_values($piezasHero) as $i => $pieza): ?>
+      <div class="hero-pieza" data-rol="<?= e($rolHero($i, $totalHero)) ?>" data-indice="<?= $i ?>">
+        <?php if (($pieza['enlace'] ?? '') !== ''): ?>
+          <a href="<?= e((string)$pieza['enlace']) ?>" tabindex="-1" aria-hidden="true">
+        <?php endif; ?>
+        <img src="<?= e((string)$pieza['imagen']) ?>" alt="<?= e((string)$pieza['nombre']) ?>"
+             <?php if (($ss = imagen_srcset((string)($pieza['ref'] ?? ''), [480, 640, 960, 1280])) !== ''): ?>
+               srcset="<?= e($ss) ?>" sizes="(max-width: 640px) 86vw, 620px"
+             <?php endif; ?>
+             draggable="false" decoding="async"
+             <?= $i === 0 ? 'fetchpriority="high"' : 'loading="lazy"' ?>>
+        <?php if (($pieza['enlace'] ?? '') !== ''): ?></a><?php endif; ?>
+      </div>
+    <?php endforeach; ?>
+  </div>
   <div class="hero-grano" aria-hidden="true"></div>
   <div class="hero-etiqueta" id="heroEtiqueta"></div>
-  <div class="hero-puntos" id="heroPuntos" role="tablist" aria-label="Elegir arreglo"></div>
+  <div class="hero-puntos" id="heroPuntos" role="group" aria-label="Elegir arreglo destacado"></div>
 
   <div class="hero-panel" id="heroPanel">
     <div class="contenido-pieza" aria-live="polite">
@@ -269,7 +320,7 @@ require __DIR__ . '/includes/vistas/cabecera.php';
             <strong>Cobertura:</strong> <?= e(implode(' · ', $cobertura)) ?>
           </p>
           <?php if ($zonasEnvio): ?>
-            <p style="margin-top:6px; font-size:.86rem; color:var(--tenue);">
+            <p style="margin-top:6px; font-size:.86rem; color:var(--suave);">
               El costo del envío cambia según la zona; lo ves antes de confirmar el pedido.
             </p>
           <?php endif; ?>
@@ -334,7 +385,8 @@ require __DIR__ . '/includes/vistas/cabecera.php';
           <figure class="tarjeta-producto" style="cursor:default;">
             <div class="tarjeta-imagen">
               <img src="<?= e(url_imagen((string)$foto['imagen'])) ?>"
-                   alt="<?= e((string)($foto['titulo'] ?? 'Entrega de ' . $tienda)) ?>" loading="lazy">
+                   alt="<?= e((string)($foto['titulo'] ?? 'Entrega de ' . $tienda)) ?>"
+                   width="600" height="700" loading="lazy" decoding="async">
             </div>
             <?php if ($foto['titulo']): ?>
               <figcaption class="tarjeta-cuerpo" style="padding:11px 13px;">

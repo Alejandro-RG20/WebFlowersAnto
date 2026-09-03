@@ -70,6 +70,9 @@ $devUrl    = Ajustes::texto('dev_url');
 
     <div class="footer-bottom">
       <p>© <?= date('Y') ?> <?= e($tienda) ?>. Todos los derechos reservados.
+        <a href="<?= e(url('legal.php?doc=privacidad')) ?>">Privacidad</a>
+        <a href="<?= e(url('legal.php?doc=terminos')) ?>">Términos</a>
+        <a href="<?= e(url('legal.php?doc=devoluciones')) ?>">Devoluciones</a>
         <button type="button" class="enlace-cookies" data-abrir-cookies>Cookies</button></p>
 
       <?php if ($devActivo): ?>

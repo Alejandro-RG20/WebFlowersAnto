@@ -106,8 +106,42 @@ $actividad = Rbac::puede('auditoria.ver') ? $pdo->query(
        FROM auditoria ORDER BY created_at DESC LIMIT 8"
 )->fetchAll() : [];
 
+// Revisión del estado: lo que, si está mal, no se nota hasta que lo sufre un
+// cliente. Solo la ve quien puede arreglarlo.
+require_once __DIR__ . '/../includes/lib/salud.php';
+$salud   = Rbac::puede('configuracion.editar') ? Salud::revisar($pdo) : [];
+$pendon  = array_values(array_filter($salud, fn($x) => $x['nivel'] !== 'bien'));
+$conteo  = Salud::resumen($salud);
+
 require __DIR__ . '/_cabecera.php';
 ?>
+
+<?php if ($pendon): ?>
+  <section class="panel panel-salud">
+    <div class="panel-cabecera"><div>
+      <h2>Antes de abrir al público</h2>
+      <p><?= (int)$conteo['grave'] ?> <?= e(unidad_plural((int)$conteo['grave'], 'problemas')) ?>
+         <?= $conteo['grave'] === 1 ? 'serio' : 'serios' ?>
+         y <?= (int)$conteo['aviso'] ?> <?= e(unidad_plural((int)$conteo['aviso'], 'avisos')) ?>.
+         Lo demás está en orden.</p>
+    </div></div>
+    <div class="panel-cuerpo">
+      <?php foreach ($pendon as $x): ?>
+        <div class="salud-fila <?= e($x['nivel']) ?>">
+          <i class="fa-solid <?= $x['nivel'] === 'grave' ? 'fa-triangle-exclamation' : 'fa-circle-info' ?>"
+             aria-hidden="true"></i>
+          <div>
+            <strong><?= e($x['titulo']) ?></strong>
+            <p><?= e($x['detalle']) ?></p>
+            <?php if ($x['arreglo'] !== ''): ?>
+              <p class="salud-arreglo"><?= e($x['arreglo']) ?></p>
+            <?php endif; ?>
+          </div>
+        </div>
+      <?php endforeach; ?>
+    </div>
+  </section>
+<?php endif; ?>
 
 <div class="rejilla-metricas">
   <?php if ($verPedidos): ?>

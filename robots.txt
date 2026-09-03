@@ -14,5 +14,8 @@ Disallow: /checkout.php
 Disallow: /carrito.php
 Disallow: /pedido.php
 Disallow: /comprobante.php
+Disallow: /archivo.php
 
-Sitemap: /sitemap.php
+# La dirección tiene que ser absoluta: una ruta relativa aquí la ignoran los
+# buscadores. Cambia el dominio por el tuyo al publicar.
+Sitemap: https://flowersanto.site.je/sitemap.php

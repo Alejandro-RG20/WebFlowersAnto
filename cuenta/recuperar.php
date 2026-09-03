@@ -36,14 +36,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             if ($usuario) {
                 // Los enlaces anteriores dejan de servir en cuanto se pide uno nuevo.
+                // Solo los de contraseña: un enlace de confirmación de correo
+                // pendiente no tiene por qué caducar porque alguien pida
+                // recuperar su clave.
                 $pdo->prepare("UPDATE password_resets SET usado_en = NOW()
-                                WHERE usuario_id = ? AND usado_en IS NULL")
+                                WHERE usuario_id = ? AND tipo = 'password' AND usado_en IS NULL")
                     ->execute([$usuario['id']]);
 
                 $token = bin2hex(random_bytes(32));
                 $pdo->prepare(
-                    "INSERT INTO password_resets (usuario_id, token_hash, expira_en, ip)
-                     VALUES (?, ?, DATE_ADD(NOW(), INTERVAL 60 MINUTE), ?)"
+                    "INSERT INTO password_resets (usuario_id, token_hash, expira_en, ip, tipo)
+                     VALUES (?, ?, DATE_ADD(NOW(), INTERVAL 60 MINUTE), ?, 'password')"
                 )->execute([$usuario['id'], hash('sha256', $token), ip_cliente()]);
 
                 $enlace = url_absoluta('cuenta/restablecer.php?token=' . $token);

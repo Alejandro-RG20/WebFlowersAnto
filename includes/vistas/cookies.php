@@ -29,6 +29,7 @@ $yaDecidio = in_array($decision, ['aceptado', 'rechazado'], true);
         Una cookie propia mantiene tu carrito y tu sesión: sin ella la tienda no funciona.
         Aparte, podemos guardar tus favoritos en este navegador para no perderlos.
         No usamos publicidad ni rastreadores de otras empresas.
+        <a href="<?= e(url('legal.php?doc=privacidad')) ?>">Más detalle en la política de privacidad</a>.
       </p>
     </div>
     <div class="ac-botones">

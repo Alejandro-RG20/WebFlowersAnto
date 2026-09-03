@@ -96,17 +96,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'descripcion'  => 'Cuenta de cliente creada.',
         ]);
 
-        Correo::enviar(
-            $datos['email'],
-            'Bienvenida a ' . Ajustes::texto('nombre_tienda', 'Flowers Anto'),
-            Correo::plantilla(
-                '¡Tu cuenta está lista!',
-                '<p>Hola ' . e($datos['nombre']) . ', gracias por crear tu cuenta.</p>'
-                . '<p>Desde ahora tus favoritos y tus pedidos quedan guardados y los puedes '
-                . 'consultar cuando quieras.</p>',
-                ['url' => url_absoluta('productos.php'), 'texto' => 'Ver los arreglos']
-            )
-        );
+        // Un solo correo, no dos: la bienvenida lleva dentro el enlace de
+        // confirmación. Dos mensajes seguidos al registrarse parecen spam y es
+        // más probable que ninguno se abra.
+        Verificacion::enviar($pdo, $usuario);
 
         $destino = $_SESSION['volver_a'] ?? '';
         unset($_SESSION['volver_a']);
