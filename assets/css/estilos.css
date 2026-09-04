@@ -47,9 +47,36 @@ h1, h2, h3, h4, .logo-text, .hero-title { font-family: 'Playfair Display', serif
 /* Navbar */
 .navbar {
   position: fixed; top: 0; left: 0; width: 100%;
-  background: rgba(255,255,255,0.92); backdrop-filter: blur(12px);
   z-index: 1000; padding: 8px 0;
   transition: box-shadow var(--transition), padding var(--transition);
+
+  /* Fondo casi opaco como base. Si el desenfoque no llega a aplicarse —o el
+     navegador tarda en pintar la capa— la barra sigue siendo visible y
+     legible: nunca queda un rectángulo transparente. */
+  background: rgba(255,255,255,0.97);
+
+  /* En iOS el desenfoque SOLO funciona con el prefijo; sin él la regla se
+     ignora entera. Y `translateZ(0)` fija la barra en su propia capa: sin
+     eso, Safari a veces no la vuelve a pintar al recargar o al soltar el
+     scroll, y desaparecía hasta que se deslizaba hacia arriba. */
+  -webkit-transform: translateZ(0);
+  transform: translateZ(0);
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+}
+
+/* El desenfoque es un adorno de escritorio. En el móvil se deja fuera a
+   propósito: es la capa que iOS a veces no vuelve a pintar al recargar o al
+   soltar el scroll, y entonces la barra parecía desaparecer hasta que se
+   deslizaba hacia arriba. Sin él, el fondo opaco de arriba manda siempre. */
+@media (min-width: 769px) {
+  @supports ((-webkit-backdrop-filter: blur(12px)) or (backdrop-filter: blur(12px))) {
+    .navbar {
+      background: rgba(255,255,255,0.88);
+      -webkit-backdrop-filter: blur(12px);
+      backdrop-filter: blur(12px);
+    }
+  }
 }
 .navbar.scrolled { box-shadow: 0 2px 20px rgba(0,0,0,0.08); padding: 4px 0; }
 .nav-container {
@@ -109,7 +136,7 @@ h1, h2, h3, h4, .logo-text, .hero-title { font-family: 'Playfair Display', serif
 .hero-bg { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-size: cover; background-position: center; background-repeat: no-repeat; }
 .hero-overlay { position: absolute; inset: 0; background: linear-gradient(135deg, rgba(30,20,30,0.75) 0%, rgba(20,10,20,0.6) 100%); }
 .hero-content { position: relative; z-index: 2; max-width: 750px; padding: 0 24px; animation: fadeInUp 1s ease-out; }
-.hero-badge { display: inline-block; background: rgba(255,255,255,0.2); backdrop-filter: blur(8px); padding: 8px 20px; border-radius: 50px; font-size: 0.9rem; margin-bottom: 24px; }
+.hero-badge { display: inline-block; background: rgba(255,255,255,0.2); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); padding: 8px 20px; border-radius: 50px; font-size: 0.9rem; margin-bottom: 24px; }
 .hero-title { font-size: 3.2rem; font-weight: 700; line-height: 1.2; margin-bottom: 18px; text-shadow: 0 2px 10px rgba(0,0,0,0.3); }
 .hero-subtitle { font-size: 1.15rem; opacity: 0.9; margin-bottom: 32px; }
 .hero-buttons { display: flex; gap: 16px; flex-wrap: wrap; justify-content: center; }
@@ -683,7 +710,8 @@ h1, h2, h3, h4, .logo-text, .hero-title { font-family: 'Playfair Display', serif
 @media (max-width: 768px) {
   .nav-menu {
     position: fixed; top: 70px; left: -100%; width: 100%; height: calc(100vh - 70px);
-    background: rgba(255,255,255,0.98); backdrop-filter: blur(12px);
+    background: rgba(255,255,255,0.98);
+    -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
     flex-direction: column; align-items: center; justify-content: center; gap: 24px;
     transition: left 0.4s ease;
   }
@@ -753,7 +781,7 @@ h1, h2, h3, h4, .logo-text, .hero-title { font-family: 'Playfair Display', serif
 
 .btn-fav, .btn-cart-quick{
   width:40px;height:40px;
-  backdrop-filter:blur(6px);
+  -webkit-backdrop-filter:blur(6px); backdrop-filter:blur(6px);
   box-shadow:0 2px 10px rgba(50,32,38,.14);
 }
 .btn-fav:active, .btn-cart-quick:active{ transform:scale(.92); }
@@ -783,7 +811,7 @@ h1, h2, h3, h4, .logo-text, .hero-title { font-family: 'Playfair Display', serif
   position:absolute;left:10px;top:10px;z-index:2;
   background:rgba(45,30,34,.82);color:#fff;
   font-size:.66rem;font-weight:600;letter-spacing:.09em;text-transform:uppercase;
-  padding:4px 10px;border-radius:30px;backdrop-filter:blur(4px);
+  padding:4px 10px;border-radius:30px;-webkit-backdrop-filter:blur(4px); backdrop-filter:blur(4px);
 }
 
 .aviso-carga{

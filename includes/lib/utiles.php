@@ -168,9 +168,21 @@ function redirigir_externo(string $url, int $codigo = 302): never
 /** Responde en JSON y termina la ejecución. */
 function responderJson(array $datos, int $codigo = 200): never
 {
-    http_response_code($codigo);
-    header('Content-Type: application/json; charset=utf-8');
-    header('X-Content-Type-Options: nosniff');
+    // Todo lo que se haya impreso antes se descarta. En un hosting compartido
+    // basta un aviso de PHP —el clásico «session_start(): ps_files_cleanup_dir
+    // Permission denied» de InfinityFree— para que se cuele delante del JSON:
+    // el navegador recibe «Notice: …{"ok":true}», no puede leerlo y la
+    // pantalla dice «Respuesta no válida del servidor», aunque la operación se
+    // haya hecho bien. Una respuesta JSON tiene que ser JSON y nada más.
+    while (ob_get_level() > 0) {
+        ob_end_clean();
+    }
+
+    if (!headers_sent()) {
+        http_response_code($codigo);
+        header('Content-Type: application/json; charset=utf-8');
+        header('X-Content-Type-Options: nosniff');
+    }
     echo json_encode($datos, JSON_UNESCAPED_UNICODE);
     exit;
 }

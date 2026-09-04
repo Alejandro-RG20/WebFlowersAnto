@@ -79,6 +79,27 @@ if (PHP_SAPI !== 'cli' && !headers_sent()) {
     header_remove('X-Powered-By');
 }
 
+/**
+ * Las respuestas JSON se escriben en un búfer.
+ *
+ * En un hosting compartido, un aviso de PHP ajeno al código —InfinityFree
+ * suelta «session_start(): ps_files_cleanup_dir … Permission denied» en cada
+ * petición— se imprime ANTES que la respuesta y la deja ilegible: el
+ * navegador recibe «Notice: …{"ok":true}» y dice «Respuesta no válida del
+ * servidor», aunque la foto se haya subido bien.
+ *
+ * Con el búfer abierto, `responderJson()` puede descartar todo eso y mandar
+ * JSON limpio. Se activa solo en las llamadas de API: las descargas de
+ * respaldos y de imágenes envían archivos en streaming y no deben acumularse
+ * en memoria.
+ */
+if (PHP_SAPI !== 'cli') {
+    $guion = (string)($_SERVER['SCRIPT_NAME'] ?? '');
+    if (str_contains($guion, '/api/') || str_ends_with($guion, '/subir.php')) {
+        ob_start();
+    }
+}
+
 // ---------------------------------------------------------------------
 // Sesión
 // ---------------------------------------------------------------------

@@ -186,7 +186,7 @@ a { color: inherit; }
 .tarjeta-producto .btn-fav {
   position: absolute; top: 10px; right: 10px; z-index: 3;
   width: 36px; height: 36px; border-radius: 50%; border: 0; cursor: pointer;
-  background: rgba(255,255,255,.94); color: var(--suave); backdrop-filter: blur(6px);
+  background: rgba(255,255,255,.94); color: var(--suave); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
   display: grid; place-items: center; box-shadow: var(--sombra-sm);
   transition: transform var(--transicion), color var(--transicion), background var(--transicion);
 }
@@ -288,7 +288,7 @@ a { color: inherit; }
 .galeria-flecha {
   position: absolute; top: 50%; transform: translateY(-50%); z-index: 2;
   width: 42px; height: 42px; border-radius: 50%; border: 0; cursor: pointer;
-  background: rgba(255,255,255,.92); color: var(--tinta); backdrop-filter: blur(6px);
+  background: rgba(255,255,255,.92); color: var(--tinta); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
   display: grid; place-items: center; box-shadow: var(--sombra-sm);
   transition: transform var(--transicion), opacity var(--transicion);
 }
@@ -299,7 +299,7 @@ a { color: inherit; }
 .galeria-contador {
   position: absolute; bottom: 12px; right: 12px; z-index: 2;
   background: rgba(44,33,36,.72); color: #fff; font-size: .78rem;
-  padding: 4px 11px; border-radius: 30px; backdrop-filter: blur(4px);
+  padding: 4px 11px; border-radius: 30px; -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px);
 }
 .galeria-miniaturas { display: flex; gap: 9px; margin-top: 12px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: thin; }
 .galeria-miniaturas button {
@@ -792,7 +792,10 @@ body:has(.aviso-cookies:not([hidden])) .whatsapp-float { bottom: 132px; }
    Páginas legales (privacidad, términos, devoluciones)
    Texto largo para leer: una columna estrecha y mucho aire entre líneas.
    ===================================================================== */
-.contenido-legal { padding: 26px 0 60px; }
+/* Solo el eje vertical: `.container` ya pone los 24px de los lados, y un
+   `padding` completo aquí los anulaba —esta regla va después— dejando el
+   texto pegado al borde de la pantalla en el teléfono. */
+.contenido-legal { padding-top: 26px; padding-bottom: 60px; }
 
 .legal-pestanas {
   display: flex; flex-wrap: wrap; gap: 8px;

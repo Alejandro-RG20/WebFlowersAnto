@@ -184,9 +184,24 @@
     datos.append('imagen', archivo);
     datos.append('csrf_token', csrf);
     const respuesta = await fetch(ruta('admin/subir.php'), {
-      method: 'POST', body: datos, credentials: 'same-origin'
+      method: 'POST', body: datos,
+      headers: { 'X-Requested-With': 'fetch' },
+      credentials: 'same-origin'
     });
-    const json = await respuesta.json().catch(() => ({ ok: false, error: 'Respuesta no válida del servidor.' }));
+
+    // Se lee como texto y se convierte aquí: si el hosting cuela un aviso de
+    // PHP o una página suya delante del JSON, «Respuesta no válida» a secas no
+    // dice nada. Enseñando el principio de lo que llegó, el problema se
+    // reconoce de un vistazo en vez de a ciegas.
+    const crudo = await respuesta.text();
+    let json;
+    try {
+      json = JSON.parse(crudo);
+    } catch (e) {
+      const pista = crudo.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 140);
+      throw new Error('El servidor respondió algo que no se pudo leer'
+        + (pista ? ': “' + pista + '”' : '.'));
+    }
     if (!respuesta.ok || !json.ok) { throw new Error(json.error || 'No se pudo subir la imagen.'); }
     return json.ruta;
   }

@@ -121,10 +121,17 @@ final class Salud
         // --- Contacto y datos de la tienda -----------------------------
         $faltan = [];
         foreach (['telefono' => 'teléfono', 'email_contacto' => 'correo de contacto',
-                  'direccion' => 'dirección', 'whatsapp' => 'WhatsApp'] as $clave => $nombre) {
+                  'direccion' => 'dirección'] as $clave => $nombre) {
             if (Ajustes::texto($clave) === '') {
                 $faltan[] = $nombre;
             }
+        }
+        // El WhatsApp no vive en una sola columna: hay el número general y el
+        // de pedidos, que lo sustituye si está puesto. Se pregunta por el que
+        // usa la web de verdad, en vez de por un nombre de columna que no
+        // existe —así este aviso decía «falta WhatsApp» con el número puesto—.
+        if (Ajustes::whatsappPedidos() === '') {
+            $faltan[] = 'WhatsApp';
         }
         if ($faltan) {
             $add('contacto', 'aviso', 'Faltan datos de contacto',

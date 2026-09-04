@@ -347,7 +347,7 @@ dialog.modal {
   border: 0; border-radius: 14px; padding: 0; width: min(94vw, 520px);
   box-shadow: var(--p-sombra2); color: var(--p-tinta); background: var(--p-papel);
 }
-dialog.modal::backdrop { background: rgba(44,33,36,.5); backdrop-filter: blur(2px); }
+dialog.modal::backdrop { background: rgba(44,33,36,.5); -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px); }
 dialog.modal .modal-cabecera { padding: 19px 22px 0; }
 dialog.modal h2 { font-size: 1.1rem; font-weight: 600; }
 dialog.modal p.sub { color: var(--p-suave); font-size: .88rem; margin-top: 5px; }
