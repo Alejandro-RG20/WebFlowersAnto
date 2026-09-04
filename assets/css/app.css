@@ -839,3 +839,35 @@ body:has(.aviso-cookies:not([hidden])) .whatsapp-float { bottom: 132px; }
 }
 .footer-bottom p a:hover,
 .footer-bottom .enlace-cookies:hover { color: #fff; }
+
+/* =====================================================================
+   Aviso de correo sin confirmar
+   Vive dentro de una caja de aviso normal; lo único propio es el bloque
+   de texto y el botón de reenvío, que no puede parecer un botón más de
+   la página: es una acción secundaria dentro de un mensaje.
+   ===================================================================== */
+.aviso-verificar { align-items: flex-start; }
+.aviso-verificar-cuerpo { display: grid; gap: 8px; }
+.aviso-verificar-titulo { font-weight: 600; margin: 0; }
+.aviso-verificar-cuerpo p { margin: 0; }
+.aviso-verificar-cuerpo a { color: inherit; text-decoration: underline; text-underline-offset: 3px; }
+
+.aviso-verificar-acciones {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px; margin-top: 2px;
+}
+.btn-enlace-aviso {
+  font: inherit; font-weight: 600; color: inherit;
+  background: none; border: 0; cursor: pointer;
+  text-decoration: underline; text-underline-offset: 3px;
+  /* Se ve como un enlace, pero conserva un area de toque comoda en el telefono. */
+  display: inline-flex; align-items: center; padding: 9px 0; min-height: 24px;
+}
+.btn-enlace-aviso:hover { text-decoration-thickness: 2px; }
+.btn-enlace-aviso:focus-visible { outline: 2px solid currentColor; outline-offset: 3px; border-radius: 2px; }
+.btn-enlace-aviso[disabled] { opacity: .6; cursor: default; text-decoration: none; }
+/* El giro de espera del boton generico es blanco y sobre este fondo claro no
+   se veria nada: aqui se pinta con el color del propio aviso. */
+.btn-enlace-aviso.btn-cargando::after {
+  border-color: rgba(158, 42, 53, .28); border-top-color: var(--alerta);
+}
+.aviso-verificar-nota { font-size: .85rem; opacity: .85; }

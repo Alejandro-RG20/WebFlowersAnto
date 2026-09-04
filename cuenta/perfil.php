@@ -103,6 +103,8 @@ require __DIR__ . '/../includes/vistas/cabecera.php';
     <p>Estos datos se usan para tus pedidos y para avisarte de su estado.</p>
   </header>
 
+  <?php require __DIR__ . '/../includes/vistas/aviso_verificar.php'; ?>
+
   <div class="diseno-cuenta">
     <?php require __DIR__ . '/../includes/vistas/menu_cuenta.php'; ?>
 

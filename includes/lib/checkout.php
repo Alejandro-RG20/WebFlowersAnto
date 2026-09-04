@@ -177,7 +177,9 @@ final class Checkout
         Auth::abrirSesion($nuevo);
         Favoritos::fusionarAlEntrar($pdo, $nuevoId);
         // El enlace de confirmación sale ya, sin estorbar el pedido: quien
-        // compra sigue su camino y confirma cuando abra su correo.
+        // compra sigue su camino y confirma cuando abra su correo. El aviso de
+        // que falta hacerlo lo verá en el seguimiento del pedido, que es donde
+        // importa: los avisos de estado salen por ahí.
         Verificacion::enviar($pdo, $nuevo);
         Auditoria::registrar($pdo, 'registro', 'usuarios', [
             'recurso_tipo' => 'usuario', 'recurso_id' => (string)$nuevoId,

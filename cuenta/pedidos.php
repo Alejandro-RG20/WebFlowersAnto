@@ -23,6 +23,8 @@ require __DIR__ . '/../includes/vistas/cabecera.php';
     <p>Todo lo que has pedido, con su estado actual.</p>
   </header>
 
+  <?php require __DIR__ . '/../includes/vistas/aviso_verificar.php'; ?>
+
   <div class="diseno-cuenta">
     <?php require __DIR__ . '/../includes/vistas/menu_cuenta.php'; ?>
 

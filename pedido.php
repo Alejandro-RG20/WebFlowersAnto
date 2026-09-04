@@ -117,6 +117,14 @@ require __DIR__ . '/includes/vistas/cabecera.php';
     </div>
   </header>
 
+  <?php // Aquí es donde más se nota: los avisos de «tu pedido va en camino»
+        // salen por correo, y a un correo sin confirmar no se le puede escribir.
+        // Solo al dueño del pedido: un invitado que llega por el enlace firmado
+        // no tiene cuenta que confirmar. ?>
+  <?php if (Auth::autenticado() && (int)($pedido['usuario_id'] ?? 0) === (int)Auth::id()):
+          require __DIR__ . '/includes/vistas/aviso_verificar.php';
+        endif; ?>
+
   <div class="diseno-compra">
     <div>
       <!-- Estado del pago -->

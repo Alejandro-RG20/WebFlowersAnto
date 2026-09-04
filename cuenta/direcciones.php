@@ -106,6 +106,8 @@ require __DIR__ . '/../includes/vistas/cabecera.php';
     <p>Guárdalas una vez y elígelas con un toque en tu próximo pedido.</p>
   </header>
 
+  <?php require __DIR__ . '/../includes/vistas/aviso_verificar.php'; ?>
+
   <div class="diseno-cuenta">
     <?php require __DIR__ . '/../includes/vistas/menu_cuenta.php'; ?>
 

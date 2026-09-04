@@ -103,7 +103,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         $destino = $_SESSION['volver_a'] ?? '';
         unset($_SESSION['volver_a']);
-        flash('exito', '¡Bienvenida, ' . $datos['nombre'] . '! Tu cuenta está lista.');
+        // Se nombra el correo al que fue: es lo que hace que la persona sepa
+        // dónde mirar, y de paso descubre una errata en su propia dirección
+        // antes de esperar un mensaje que nunca va a llegar.
+        flash('exito', '¡Bienvenida, ' . $datos['nombre'] . '! Tu cuenta está lista. '
+                     . 'Te enviamos un correo a ' . $datos['email'] . ' para confirmarla.');
         redirigir($destino !== '' ? $destino : 'cuenta/pedidos.php');
     }
 }

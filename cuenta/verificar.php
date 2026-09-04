@@ -16,25 +16,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     exigirToken(false, 'cuenta/verificar.php');
     $usuario = Auth::usuario();
 
+    // El aviso aparece en varias páginas. Se vuelve a la que se estaba
+    // mirando, no siempre al perfil: pedir el enlace desde el seguimiento de
+    // un pedido y acabar en otra pantalla desorienta.
+    $volver = url_interna(texto('volver', 200)) ?: url('cuenta/perfil.php');
+
     if (!$usuario) {
         flash('error', 'Entra a tu cuenta para pedir el enlace.');
         redirigir('cuenta/entrar.php');
     }
     if (Verificacion::verificado($usuario)) {
         flash('info', 'Tu correo ya estaba confirmado.');
-        redirigir('cuenta/perfil.php');
+        redirigir($volver);
     }
     if (!limitar($pdo, 'verificar:' . (int)$usuario['id'], 3, 3600)) {
         flash('alerta', 'Ya te enviamos varios enlaces. Revisa tu correo —mira también la '
                       . 'carpeta de no deseados— y espera un rato antes de pedir otro.');
-        redirigir('cuenta/perfil.php');
+        redirigir($volver);
     }
 
     $enviado = Verificacion::enviar($pdo, $usuario);
     flash($enviado ? 'exito' : 'error', $enviado
         ? 'Te enviamos un enlace a ' . $usuario['email'] . '. Caduca en 48 horas.'
         : 'No pudimos enviar el correo. Escríbenos por WhatsApp y lo confirmamos nosotros.');
-    redirigir('cuenta/perfil.php');
+    redirigir($volver);
 }
 
 if ($token !== '') {
