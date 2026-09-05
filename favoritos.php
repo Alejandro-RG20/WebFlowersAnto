@@ -32,6 +32,13 @@ $descripcionPagina = 'Los arreglos que guardaste para decidir después.';
 $paginaActiva      = 'favoritos';
 $cuerpoClase       = 'pagina-favoritos';
 
+if ($productos) {
+    Analitica::evento('view_item_list', [
+        'item_list_name' => 'Favoritos',
+        'items'          => Analitica::lista($productos, 'Favoritos'),
+    ]);
+}
+
 require __DIR__ . '/includes/vistas/cabecera.php';
 ?>
 
@@ -67,8 +74,12 @@ require __DIR__ . '/includes/vistas/cabecera.php';
       </div>
     </div>
   <?php else: ?>
-    <div class="rejilla-productos">
-      <?php foreach ($productos as $p) { require __DIR__ . '/includes/vistas/tarjeta_producto.php'; } ?>
+    <div class="rejilla-productos" data-ga-lista="Favoritos">
+      <?php $posicionGa = 0;
+            foreach ($productos as $p) {
+                $posicionGa++;
+                require __DIR__ . '/includes/vistas/tarjeta_producto.php';
+            } ?>
     </div>
   <?php endif; ?>
 </div>

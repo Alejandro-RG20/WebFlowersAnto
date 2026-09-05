@@ -341,4 +341,16 @@
     window.open(despacho.dataset.abrirWhatsapp, '_blank', 'noopener');
   }
 
+  // -------------------------------------------------------------------
+  // Pestañas: dejar a la vista la que está abierta
+  //
+  // La tira de pestañas se desplaza en horizontal. Con muchas pestañas, las
+  // últimas quedan fuera de la pantalla y al entrar en una de ellas no se veía
+  // ninguna marcada: parecía que no se había abierto nada.
+  // -------------------------------------------------------------------
+  const activa = document.querySelector('.pestanas a.activa');
+  if (activa && activa.parentElement.scrollWidth > activa.parentElement.clientWidth) {
+    activa.scrollIntoView({ block: 'nearest', inline: 'center' });
+  }
+
 })();

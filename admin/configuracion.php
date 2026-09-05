@@ -14,7 +14,8 @@ $seccion = 'configuracion';
 Rbac::exigirPanel();
 Rbac::exigir('configuracion.ver');
 
-$pestana = opcion('t', ['marca', 'portada', 'contacto', 'pedidos', 'envio', 'avisos', 'banco', 'desarrollador'], 'marca', $_GET);
+$pestana = opcion('t', ['marca', 'portada', 'contacto', 'pedidos', 'envio', 'avisos', 'banco',
+                        'analitica', 'desarrollador'], 'marca', $_GET);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     exigirToken(false, 'admin/configuracion.php');
@@ -218,7 +219,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // de otra pestaña con el formulario vacío, borrándolos. Por eso el valor
     // por defecto es vacío y abajo se rechaza en vez de escribir nada.
     $grupo  = opcion('grupo', ['marca', 'portada', 'contacto', 'pedidos',
-                               'envio', 'avisos', 'banco', 'desarrollador'], '');
+                               'envio', 'avisos', 'banco', 'analitica', 'desarrollador'], '');
     $antes  = Ajustes::todos();
 
     $campos = match ($grupo) {
@@ -296,6 +297,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'paypal_venmo'       => casilla('paypal_venmo'),
             'paypal_cuotas'      => casilla('paypal_cuotas'),
             'paypal_webhook_id'  => texto('paypal_webhook_id', 60),
+        ],
+        'analitica' => [
+            'ga_activo'         => casilla('ga_activo'),
+            // Se guarda en mayúsculas y sin espacios: pegar el identificador
+            // desde el correo de Google arrastra un espacio con mucha
+            // facilidad, y con ese espacio la etiqueta no mide nada.
+            'ga_id'             => strtoupper(texto('ga_id', 24)),
+            'ga_moneda'         => strtoupper(texto('ga_moneda', 3)) ?: 'NIO',
+            'ga_depurar'        => casilla('ga_depurar'),
+            'ga_excluir_equipo' => casilla('ga_excluir_equipo'),
         ],
         'desarrollador' => [
             'dev_activo'      => casilla('dev_activo'),
@@ -402,6 +413,7 @@ function campoImagen(string $nombre, string $etiqueta, string $valor, string $ay
       'envio'         => 'Envío y zonas',
       'avisos'        => 'Avisos por correo',
       'banco'         => 'Transferencias',
+      'analitica'     => 'Analytics',
       'desarrollador' => 'Créditos',
   ] as $clave => $nombre): ?>
     <a href="<?= e(url('admin/configuracion.php?t=' . $clave)) ?>"
@@ -1241,6 +1253,127 @@ function campoImagen(string $nombre, string $etiqueta, string $valor, string $ay
       </form>
     </dialog>
   <?php endif; ?>
+
+<?php elseif ($pestana === 'analitica'): ?>
+  <?php
+    $gaId    = strtoupper(trim((string)($c['ga_id'] ?? '')));
+    $gaBueno = $gaId !== '' && Analitica::idValido($gaId);
+  ?>
+  <div class="caja-aviso info">
+    <i class="fa-solid fa-chart-line" aria-hidden="true"></i>
+    <span>Analytics cuenta visitas y ventas. Respeta el aviso de cookies del sitio:
+      hasta que la persona pulsa «Aceptar todo», Google recibe una señal anónima,
+      sin cookies y sin saber quién es. Las visitas del equipo no se cuentan.</span>
+  </div>
+
+  <?php if (!empty($c['ga_activo']) && !$gaBueno): ?>
+    <div class="caja-aviso error">
+      <i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i>
+      <span>La medición está encendida pero el identificador
+        <?= $gaId === '' ? 'está vacío' : '«' . e($gaId) . '» no tiene el formato correcto' ?>.
+        Mientras no se arregle, no se mide nada. Tiene que empezar por <code>G-</code>.</span>
+    </div>
+  <?php endif; ?>
+
+  <form method="post" action="<?= e(url('admin/configuracion.php')) ?>" data-una-vez>
+    <?= campoToken() ?>
+    <input type="hidden" name="grupo" value="analitica">
+
+    <section class="panel">
+      <div class="panel-cabecera"><div><h2>Google Analytics 4</h2>
+        <p>Medición de visitas, productos y ventas</p></div></div>
+
+      <div class="panel-cuerpo">
+        <div class="interruptor">
+          <input type="checkbox" id="ga_activo" name="ga_activo" value="1"
+                 <?= !empty($c['ga_activo']) ? 'checked' : '' ?>>
+          <label for="ga_activo">Medir con Google Analytics
+            <small>Al apagarlo, la etiqueta deja de cargarse en el sitio de inmediato.</small></label>
+        </div>
+
+        <div class="campo">
+          <label for="ga_id">Identificador de medición</label>
+          <input type="text" id="ga_id" name="ga_id" maxlength="24" autocomplete="off"
+                 style="text-transform:uppercase; font-family:ui-monospace,monospace;"
+                 placeholder="G-XXXXXXXXXX" pattern="[Gg]-[A-Za-z0-9]{4,20}"
+                 value="<?= e($gaId) ?>">
+          <p class="ayuda">
+            Está en <strong>analytics.google.com → Administrar → Flujos de datos</strong>,
+            arriba a la derecha. Empieza por <code>G-</code>.
+            <?php if ($gaBueno): ?>
+              <span class="estado-suave si">Formato correcto</span>
+            <?php endif; ?>
+          </p>
+        </div>
+
+        <div class="rejilla-campos dos">
+          <div class="campo">
+            <label for="ga_moneda">Moneda de los informes</label>
+            <input type="text" id="ga_moneda" name="ga_moneda" maxlength="3"
+                   style="text-transform:uppercase;"
+                   value="<?= e((string)($c['ga_moneda'] ?? 'NIO')) ?>">
+            <p class="ayuda">Tres letras. <code>NIO</code> son los córdobas.
+              El símbolo «C$» aquí no vale: Analytics no lo reconoce.</p>
+          </div>
+          <div class="campo" style="align-self:end;">
+            <div class="interruptor">
+              <input type="checkbox" id="ga_excluir_equipo" name="ga_excluir_equipo" value="1"
+                     <?= !isset($c['ga_excluir_equipo']) || !empty($c['ga_excluir_equipo']) ? 'checked' : '' ?>>
+              <label for="ga_excluir_equipo">No contar al equipo
+                <small>Tus visitas y las de tus empleados no ensucian las estadísticas.</small></label>
+            </div>
+          </div>
+        </div>
+
+        <div class="interruptor">
+          <input type="checkbox" id="ga_depurar" name="ga_depurar" value="1"
+                 <?= !empty($c['ga_depurar']) ? 'checked' : '' ?>>
+          <label for="ga_depurar">Modo de comprobación
+            <small>Los eventos salen al momento en Analytics → Administrar → DebugView.
+              Enciéndelo para comprobar que llega todo y vuelve a apagarlo.</small></label>
+        </div>
+
+        <hr style="border:0;border-top:1px solid var(--linea,#E3DAD6);margin:22px 0;">
+        <h3 style="font-size:1.02rem;margin-bottom:4px;">Qué se mide</h3>
+        <p class="ayuda" style="margin-bottom:12px;">
+          Además de las visitas por página, el sitio manda estos eventos de tienda.
+          En Analytics aparecen en <strong>Informes → Monetización</strong> y en
+          <strong>Interacción → Eventos</strong>.</p>
+        <div class="tabla-envoltura">
+          <table class="tabla">
+            <thead><tr><th>Evento</th><th>Cuándo ocurre</th></tr></thead>
+            <tbody>
+              <?php foreach ([
+                  'view_item_list'   => 'Se ve una lista: catálogo, destacados, novedades, temporada, favoritos o relacionados.',
+                  'select_item'      => 'Se entra a un arreglo desde una de esas listas.',
+                  'view_item'        => 'Se abre la ficha de un arreglo.',
+                  'search'           => 'Se busca algo en el catálogo (queda guardado qué se buscó).',
+                  'add_to_cart'      => 'Se añade un arreglo al carrito.',
+                  'remove_from_cart' => 'Se quita un arreglo o se vacía el carrito.',
+                  'view_cart'        => 'Se abre el carrito.',
+                  'begin_checkout'   => 'Se empieza a completar el pedido.',
+                  'add_payment_info' => 'Se elige forma de pago.',
+                  'purchase'         => 'El pedido queda registrado. Se cuenta una sola vez, aunque el cliente vuelva a abrirlo.',
+                  'generate_lead'    => 'Se escribe por WhatsApp desde el sitio.',
+                  'sign_up'          => 'Alguien crea una cuenta.',
+                  'login'            => 'Alguien entra a su cuenta.',
+              ] as $evento => $cuando): ?>
+                <tr>
+                  <td class="celda-principal"><code><?= e($evento) ?></code></td>
+                  <td><?= e($cuando) ?></td>
+                </tr>
+              <?php endforeach; ?>
+            </tbody>
+          </table>
+        </div>
+
+        <?php if ($editable): ?>
+          <button type="submit" class="boton boton-principal" style="margin-top:18px;">
+            <i class="fa-solid fa-floppy-disk" aria-hidden="true"></i> Guardar</button>
+        <?php endif; ?>
+      </div>
+    </section>
+  </form>
 
 <?php else: ?>
   <form method="post" action="<?= e(url('admin/configuracion.php')) ?>">

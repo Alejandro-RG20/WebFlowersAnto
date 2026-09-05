@@ -15,7 +15,8 @@ $disponible = Catalogo::disponible($p);
 $enlace     = url('producto.php?p=' . rawurlencode((string)$p['slug']));
 $portada    = $p['portada'] ?? $p['imagen'];
 ?>
-<article class="tarjeta-producto<?= $disponible ? '' : ' agotado' ?>" data-producto="<?= (int)$p['id'] ?>">
+<article class="tarjeta-producto<?= $disponible ? '' : ' agotado' ?>" data-producto="<?= (int)$p['id'] ?>"
+         <?= Analitica::atributo($p, 1, (int)($posicionGa ?? 0)) ?>>
   <a class="tarjeta-imagen" href="<?= e($enlace) ?>" aria-label="<?= e((string)$p['nombre']) ?>">
     <?php // `srcset`: el teléfono se baja la versión de 320 px, no la de 1600. ?>
     <img src="<?= e(url_imagen($portada)) ?>" alt="<?= e((string)$p['nombre']) ?>"

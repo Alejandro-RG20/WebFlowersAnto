@@ -10,8 +10,10 @@
  * el navegador para recuperarlos si caduca la sesión. Quien rechaza no la
  * tiene, y si ya existía se borra.
  *
- * No hay analítica ni rastreadores de terceros, y el texto no promete lo
- * contrario.
+ * El texto dice la verdad en las dos configuraciones posibles: si Analytics
+ * está apagado, promete que no hay medición de terceros; si está encendido, lo
+ * dice y explica que sin aceptar no se guarda nada suyo. Un aviso de cookies
+ * que promete lo que no cumple es peor que no tenerlo.
  */
 
 declare(strict_types=1);
@@ -28,7 +30,12 @@ $yaDecidio = in_array($decision, ['aceptado', 'rechazado'], true);
       <p id="cookiesTexto">
         Una cookie propia mantiene tu carrito y tu sesión: sin ella la tienda no funciona.
         Aparte, podemos guardar tus favoritos en este navegador para no perderlos.
-        No usamos publicidad ni rastreadores de otras empresas.
+        <?php if (Analitica::configurado()): ?>
+          Si aceptas, usamos también Google Analytics para saber qué se visita y mejorar la
+          tienda; mientras no aceptes, no guardamos nada tuyo para eso.
+        <?php else: ?>
+          No usamos publicidad ni rastreadores de otras empresas.
+        <?php endif; ?>
         <a href="<?= e(url('legal.php?doc=privacidad')) ?>">Más detalle en la política de privacidad</a>.
       </p>
     </div>

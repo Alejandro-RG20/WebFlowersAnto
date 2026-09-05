@@ -101,6 +101,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // más probable que ninguno se abra.
         Verificacion::enviar($pdo, $usuario);
 
+        Analitica::eventoDiferido('sign_up', ['method' => 'formulario']);
+
         $destino = $_SESSION['volver_a'] ?? '';
         unset($_SESSION['volver_a']);
         // Se nombra el correo al que fue: es lo que hace que la persona sepa

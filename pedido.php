@@ -91,6 +91,25 @@ $tituloPagina      = 'Pedido ' . $pedido['codigo'] . ' — ' . Ajustes::texto('n
 $descripcionPagina = 'Estado y detalle de tu pedido.';
 $paginaActiva      = 'cuenta';
 
+// La venta se mide aquí y una sola vez. `compraPendiente()` solo dice que sí
+// en la primera visita después de crear el pedido: recargar esta página, o
+// volver mañana a ver cómo va, no vuelve a sumar ingresos.
+if (Analitica::compraPendiente((int)$pedido['id'])) {
+    $itemsGa = array_map(
+        fn($i) => Analitica::item($i, (int)$i['cantidad']),
+        (array)($pedido['items'] ?? [])
+    );
+    Analitica::evento('purchase', array_filter([
+        'transaction_id' => (string)$pedido['codigo'],
+        'currency'       => Analitica::moneda(),
+        'value'          => round((float)$pedido['total'], 2),
+        'shipping'       => round((float)$pedido['envio'], 2),
+        'coupon'         => (string)($pedido['cupon_codigo'] ?? ''),
+        'metodo_pago'    => (string)$pedido['metodo_pago'],
+        'items'          => $itemsGa,
+    ], fn($v) => $v !== ''));
+}
+
 require __DIR__ . '/includes/vistas/cabecera.php';
 ?>
 

@@ -128,6 +128,9 @@ $devUrl    = Ajustes::texto('dev_url');
 <?php require __DIR__ . '/cookies.php'; ?>
 
 <script src="<?= e(url_recurso('assets/js/app.js')) ?>" defer></script>
+<?php if (Analitica::activo()): ?>
+<script src="<?= e(url_recurso('assets/js/analitica.js')) ?>" defer></script>
+<?php endif; ?>
 <?php if (!empty($jsExtra)): foreach ((array)$jsExtra as $script): ?>
 <script src="<?= e(url_recurso($script)) ?>" defer></script>
 <?php endforeach; ?>

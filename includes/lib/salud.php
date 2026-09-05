@@ -141,6 +141,30 @@ final class Salud
             $add('contacto', 'bien', 'Datos de contacto completos', 'Nada que rellenar.');
         }
 
+        // --- Analytics -------------------------------------------------
+        // Una medición encendida con el identificador mal escrito es peor que
+        // apagada: se cree que se están contando visitas y en realidad no se
+        // cuenta ninguna, así que las decisiones se toman sobre un cero falso.
+        if (!Ajustes::activo('ga_activo', false)) {
+            $add('analytics', 'aviso', 'No se están midiendo las visitas',
+                 'Sin Analytics no hay forma de saber qué arreglos se miran, de dónde llega '
+               . 'la gente ni cuántas visitas acaban en pedido.',
+                 'Enciéndelo en Configuración → Analytics.');
+        } elseif (!Analitica::idValido(Analitica::id())) {
+            $add('analytics', 'grave', 'El identificador de Analytics está mal',
+                 'La medición está encendida, pero «' . (Analitica::id() ?: 'está vacío')
+               . '» no tiene el formato correcto, así que no se registra ni una visita.',
+                 'Corrígelo en Configuración → Analytics: empieza por G-.');
+        } elseif (Ajustes::activo('ga_depurar', false)) {
+            $add('analytics', 'aviso', 'Analytics está en modo de comprobación',
+                 'Los eventos van marcados como de prueba. Sirve para revisar que llegan, '
+               . 'pero conviene apagarlo cuando termines.',
+                 'Apaga «Modo de comprobación» en Configuración → Analytics.');
+        } else {
+            $add('analytics', 'bien', 'Analytics midiendo',
+                 'Propiedad ' . Analitica::id() . ', en ' . Analitica::moneda() . '.');
+        }
+
         // --- Catálogo --------------------------------------------------
         $publicados = (int)$pdo->query("SELECT COUNT(*) FROM productos WHERE activo = 1")->fetchColumn();
         if ($publicados === 0) {

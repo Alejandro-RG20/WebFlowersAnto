@@ -117,8 +117,18 @@ require __DIR__ . '/includes/vistas/cabecera.php';
     <p>Usamos una cookie propia imprescindible: la que mantiene tu carrito y tu sesión. Sin
        ella la tienda no funciona. Aparte, si lo aceptas, guardamos tus favoritos en tu
        propio navegador para no perderlos.
-       <strong>No usamos publicidad ni rastreadores de otras empresas.</strong>
+       <strong>No usamos publicidad.</strong>
        Puedes cambiar tu decisión cuando quieras desde el enlace «Cookies» del pie de página.</p>
+<?php if (Analitica::configurado()): ?>
+    <p>Usamos <strong>Google Analytics</strong> para saber qué páginas se visitan y qué
+       arreglos se miran más. Nos sirve para mejorar la tienda; no lo usamos para
+       publicidad ni vendemos esos datos a nadie.</p>
+    <p>Esa medición <strong>respeta tu respuesta a este aviso</strong>: hasta que pulsas
+       «Aceptar todo», Google no guarda ninguna cookie ni identificador tuyo, y solo recibe
+       una señal anónima de que hubo una visita. Si eliges «Solo lo necesario», sigue sin
+       guardarse nada tuyo, y si cambias de opinión más tarde, el cambio se aplica al
+       momento. Nunca le mandamos tu nombre, tu correo, tu teléfono ni tu dirección.</p>
+<?php endif; ?>
 
     <h2>Menores</h2>
     <p>Esta tienda está pensada para personas mayores de edad. Si crees que un menor nos ha

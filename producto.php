@@ -77,6 +77,12 @@ $datosEstructurados = [
     ],
 ];
 
+Analitica::evento('view_item', [
+    'currency' => Analitica::moneda(),
+    'value'    => round((float)$producto['precio'], 2),
+    'items'    => [Analitica::item($producto)],
+]);
+
 require __DIR__ . '/includes/vistas/cabecera.php';
 ?>
 
@@ -237,8 +243,12 @@ require __DIR__ . '/includes/vistas/cabecera.php';
       <span class="section-tag">También te puede gustar</span>
       <h2>Más de <?= e((string)$producto['categoria_nombre']) ?></h2>
     </div>
-    <div class="rejilla-productos aparece">
-      <?php foreach ($relacionados as $p) { require __DIR__ . '/includes/vistas/tarjeta_producto.php'; } ?>
+    <div class="rejilla-productos aparece" data-ga-lista="Relacionados">
+      <?php $posicionGa = 0;
+            foreach ($relacionados as $p) {
+                $posicionGa++;
+                require __DIR__ . '/includes/vistas/tarjeta_producto.php';
+            } ?>
     </div>
   </div>
 </section>

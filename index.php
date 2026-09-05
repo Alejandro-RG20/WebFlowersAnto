@@ -84,6 +84,21 @@ $datosEstructurados = [
     'openingHours' => Ajustes::texto('horario'),
 ];
 
+// La portada enseña varias listas a la vez: se miden las dos fijas para saber
+// cuál de las dos filas se mira y desde cuál se entra a los productos.
+if ($destacados) {
+    Analitica::evento('view_item_list', [
+        'item_list_name' => 'Destacados',
+        'items'          => Analitica::lista($destacados, 'Destacados'),
+    ]);
+}
+if ($recientes) {
+    Analitica::evento('view_item_list', [
+        'item_list_name' => 'Novedades',
+        'items'          => Analitica::lista($recientes, 'Novedades'),
+    ]);
+}
+
 require __DIR__ . '/includes/vistas/cabecera.php';
 ?>
 
@@ -169,10 +184,13 @@ require __DIR__ . '/includes/vistas/cabecera.php';
         <span class="temporada-cuenta">Hasta el <?= e(fecha_corta((string)$temporada['fecha_fin'])) ?></span>
       <?php endif; ?>
     </div>
-    <div class="rejilla-productos">
-      <?php foreach (array_slice($temporada['productos'], 0, 4) as $p) {
-          require __DIR__ . '/includes/vistas/tarjeta_producto.php';
-      } ?>
+    <?php $listaTemporada = 'Temporada: ' . (string)$temporada['nombre']; ?>
+    <div class="rejilla-productos" data-ga-lista="<?= e($listaTemporada) ?>">
+      <?php $posicionGa = 0;
+            foreach (array_slice($temporada['productos'], 0, 4) as $p) {
+                $posicionGa++;
+                require __DIR__ . '/includes/vistas/tarjeta_producto.php';
+            } ?>
     </div>
   </div>
 </section>
@@ -209,8 +227,12 @@ require __DIR__ . '/includes/vistas/cabecera.php';
       <h2>Creaciones que enamoran</h2>
       <p>Los que más nos piden. Todos se pueden personalizar antes de enviarlos.</p>
     </div>
-    <div class="rejilla-productos aparece">
-      <?php foreach ($destacados as $p) { require __DIR__ . '/includes/vistas/tarjeta_producto.php'; } ?>
+    <div class="rejilla-productos aparece" data-ga-lista="Destacados">
+      <?php $posicionGa = 0;
+            foreach ($destacados as $p) {
+                $posicionGa++;
+                require __DIR__ . '/includes/vistas/tarjeta_producto.php';
+            } ?>
     </div>
     <div style="text-align:center; margin-top:34px;">
       <a class="btn btn-secondary" href="<?= e(url('productos.php')) ?>">
@@ -287,8 +309,12 @@ require __DIR__ . '/includes/vistas/cabecera.php';
       <span class="section-tag">Novedades</span>
       <h2>Lo último del taller</h2>
     </div>
-    <div class="rejilla-productos aparece">
-      <?php foreach ($recientes as $p) { require __DIR__ . '/includes/vistas/tarjeta_producto.php'; } ?>
+    <div class="rejilla-productos aparece" data-ga-lista="Novedades">
+      <?php $posicionGa = 0;
+            foreach ($recientes as $p) {
+                $posicionGa++;
+                require __DIR__ . '/includes/vistas/tarjeta_producto.php';
+            } ?>
     </div>
   </div>
 </section>

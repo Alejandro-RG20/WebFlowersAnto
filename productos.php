@@ -56,6 +56,27 @@ $descripcionPagina = $categoriaActual
     : 'Catálogo completo de ramos, arreglos y cajas de flores. Filtra por categoría, tipo de flor y precio.';
 $paginaActiva = 'productos';
 
+// --- Medición ---------------------------------------------------------
+// El nombre de la lista es el que se verá en los informes de Analytics, así
+// que se arma con lo que la persona realmente está mirando: una búsqueda, una
+// categoría o el catálogo entero. Si todo se llamara «Catálogo» no habría
+// forma de saber qué buscan y no encuentran.
+$listaGa = $filtros['q'] !== ''       ? 'Búsqueda: ' . $filtros['q']
+         : ($categoriaActual          ? 'Categoría: ' . $categoriaActual['nombre']
+                                      : 'Catálogo');
+if ($filtros['q'] !== '') {
+    Analitica::evento('search', [
+        'search_term'  => $filtros['q'],
+        'resultados'   => (int)($resultado['total'] ?? count($resultado['items'])),
+    ]);
+}
+if ($resultado['items']) {
+    Analitica::evento('view_item_list', [
+        'item_list_name' => $listaGa,
+        'items'          => Analitica::lista($resultado['items'], $listaGa),
+    ]);
+}
+
 require __DIR__ . '/includes/vistas/cabecera.php';
 ?>
 
@@ -162,8 +183,12 @@ require __DIR__ . '/includes/vistas/cabecera.php';
   </p>
 
   <?php if ($resultado['items']): ?>
-    <div class="rejilla-productos">
-      <?php foreach ($resultado['items'] as $p) { require __DIR__ . '/includes/vistas/tarjeta_producto.php'; } ?>
+    <div class="rejilla-productos" data-ga-lista="<?= e($listaGa) ?>">
+      <?php $posicionGa = 0;
+            foreach ($resultado['items'] as $p) {
+                $posicionGa++;
+                require __DIR__ . '/includes/vistas/tarjeta_producto.php';
+            } ?>
     </div>
 
     <?php if ($resultado['paginas'] > 1):

@@ -194,5 +194,6 @@ require_once __DIR__ . '/lib/archivos.php';
 require_once __DIR__ . '/lib/paypal.php';
 require_once __DIR__ . '/lib/verificacion.php';
 require_once __DIR__ . '/lib/checkout.php';
+require_once __DIR__ . '/lib/analitica.php';
 
 Auth::iniciar($pdo);

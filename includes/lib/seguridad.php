@@ -122,6 +122,16 @@ function cabeceraCSP(): void
         $formulario .= ' https://www.paypal.com https://www.sandbox.paypal.com';
     }
 
+    // Analytics carga su biblioteca desde googletagmanager.com y manda las
+    // medidas a google-analytics.com. Sin estos orígenes el navegador bloquea
+    // la etiqueta en silencio y en los informes no aparece ni una visita.
+    if (class_exists('Analitica') && Analitica::activo()) {
+        $script  .= ' https://www.googletagmanager.com';
+        $conecta .= ' https://www.google-analytics.com https://analytics.google.com '
+                  . 'https://*.google-analytics.com https://*.analytics.google.com '
+                  . 'https://www.googletagmanager.com';
+    }
+
     header(
         "Content-Security-Policy: " .
         "default-src 'self'; " .

@@ -53,6 +53,12 @@ $waGeneral = enlace_whatsapp(
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+
+<?php // Analytics va lo más arriba posible, solo por detrás del juego de
+      // caracteres: el consentimiento por defecto tiene que quedar fijado
+      // antes de que el navegador empiece a pedir nada de Google.
+      require __DIR__ . '/analitica.php'; ?>
+
 <title><?= e($tituloPagina) ?></title>
 <meta name="description" content="<?= e($descripcionPagina) ?>">
 <meta name="theme-color" content="<?= e(Ajustes::texto('hero_color_fondo', '#EFD9DE')) ?>">
@@ -136,6 +142,10 @@ $waGeneral = enlace_whatsapp(
       data-autenticado="<?= Auth::autenticado() ? '1' : '0' ?>"
       data-favoritos="<?= e(implode(',', $favoritosGlobal)) ?>"
       data-favs-sembrados="<?= Favoritos::sembrado() ? '1' : '0' ?>"
+<?php if (Analitica::activo()): ?>
+      data-ga-moneda="<?= e(Analitica::moneda()) ?>"
+      data-ga-pagina="<?= e($paginaActiva ?? 'sitio') ?>"
+<?php endif; ?>
 <?php if ($temaTemporada && $temaTemporada['estilo']): ?>
       data-temporada="<?= e($temaTemporada['estilo_id']) ?>"
       data-temporada-formas="<?= e(implode(',', $temaTemporada['estilo']['formas'])) ?>"

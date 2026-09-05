@@ -143,6 +143,18 @@ $paginaActiva      = 'carrito';
 
 $jsExtra = $paypalActivo ? ['assets/js/paypal.js'] : [];
 
+// `begin_checkout` es el evento que parte el embudo por la mitad: cuánta gente
+// llena el carrito y cuánta llega de verdad a poner sus datos.
+if ($detalle['items']) {
+    $itemsGa = array_map(fn($i) => Analitica::item($i, (int)$i['cantidad']), $detalle['items']);
+    Analitica::evento('begin_checkout', array_filter([
+        'currency' => Analitica::moneda(),
+        'value'    => round((float)$detalle['total'], 2),
+        'coupon'   => (string)($detalle['cupon']['codigo'] ?? ''),
+        'items'    => $itemsGa,
+    ], fn($v) => $v !== ''));
+}
+
 require __DIR__ . '/includes/vistas/cabecera.php';
 ?>
 
@@ -181,7 +193,14 @@ require __DIR__ . '/includes/vistas/cabecera.php';
 
   <form method="post" action="<?= e(url('checkout.php')) ?>" novalidate data-una-vez data-checkout>
     <?= campoToken() ?>
-    <div class="diseno-compra">
+    <div class="diseno-compra"<?php if (Analitica::activo() && $detalle['items']):
+        echo ' data-ga-checkout="' . e((string)json_encode(array_filter([
+            'currency' => Analitica::moneda(),
+            'value'    => round((float)$detalle['total'], 2),
+            'coupon'   => (string)($detalle['cupon']['codigo'] ?? ''),
+            'items'    => $itemsGa,
+        ], fn($v) => $v !== ''), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) . '"';
+      endif; ?>>
       <div>
         <!-- 1. Identificación -->
         <div class="tarjeta">

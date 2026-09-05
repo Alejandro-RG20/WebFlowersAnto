@@ -17,9 +17,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $accion     = opcion('accion', ['agregar', 'fijar', 'quitar', 'vaciar'], 'agregar');
     $productoId = identificador('producto_id');
 
+    // Estas acciones redirigen, así que lo que se mide se apunta con
+    // `eventoDiferido()` y se dispara al pintarse la página siguiente. Y se
+    // mide DESPUÉS de que la operación salga bien: un intento fallido no es
+    // una venta a medias, es un intento.
+    //
+    // Nada de esto se duplica con lo que mide el navegador: el JavaScript
+    // habla con api/carrito.php, no con esta página. Aquí llegan la ficha del
+    // producto y quien navega sin JavaScript.
+    $antes = ($accion === 'quitar' || $accion === 'vaciar') && Analitica::activo()
+        ? Carrito::detalle($pdo)['items']
+        : [];
+    $linea = fn(int $id): ?array => current(array_filter($antes,
+        fn($i) => (int)$i['producto_id'] === $id)) ?: null;
+
     switch ($accion) {
         case 'agregar':
-            $error = Carrito::agregar($pdo, $productoId, entero('cantidad', 1, Carrito::MAX_UNIDADES, 1));
+            $cantidad = entero('cantidad', 1, Carrito::MAX_UNIDADES, 1);
+            $error = Carrito::agregar($pdo, $productoId, $cantidad);
+            if ($error === '' && Analitica::activo()) {
+                $p = Catalogo::porIds($pdo, [$productoId])[$productoId] ?? null;
+                if ($p) {
+                    $item = Analitica::item($p, $cantidad);
+                    Analitica::eventoDiferido('add_to_cart', [
+                        'currency' => Analitica::moneda(),
+                        'value'    => round((float)$item['price'] * $cantidad, 2),
+                        'items'    => [$item],
+                    ]);
+                }
+            }
             flash($error === '' ? 'exito' : 'alerta', $error === '' ? 'Arreglo añadido al carrito.' : $error);
             // Desde la ficha se vuelve al carrito; desde una tarjeta, a donde estabas.
             redirigir(texto('volver_a') !== '' ? texto('volver_a') : 'carrito.php');
@@ -32,11 +58,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             redirigir('carrito.php');
 
         case 'quitar':
+            $quitada = $linea($productoId);
             Carrito::quitar($pdo, $productoId);
+            if ($quitada) {
+                $item = Analitica::item($quitada, (int)$quitada['cantidad']);
+                Analitica::eventoDiferido('remove_from_cart', [
+                    'currency' => Analitica::moneda(),
+                    'value'    => round((float)$quitada['subtotal'], 2),
+                    'items'    => [$item],
+                ]);
+            }
             flash('info', 'Arreglo quitado del carrito.');
             redirigir('carrito.php');
 
         case 'vaciar':
+            if ($antes) {
+                $items = array_map(fn($i) => Analitica::item($i, (int)$i['cantidad']), $antes);
+                Analitica::eventoDiferido('remove_from_cart', [
+                    'currency' => Analitica::moneda(),
+                    'value'    => Analitica::valor($items),
+                    'items'    => $items,
+                ]);
+            }
             Carrito::vaciar($pdo);
             flash('info', 'Vaciamos tu carrito.');
             redirigir('carrito.php');
@@ -54,6 +97,15 @@ $faltaParaEnvio = $umbralEnvio > 0 ? max(0, $umbralEnvio - $detalle['subtotal'])
 $tituloPagina = 'Tu carrito — ' . $tienda;
 $descripcionPagina = 'Revisa los arreglos que elegiste antes de completar tu pedido.';
 $paginaActiva = 'carrito';
+
+if ($detalle['items']) {
+    $itemsGa = array_map(fn($i) => Analitica::item($i, (int)$i['cantidad']), $detalle['items']);
+    Analitica::evento('view_cart', [
+        'currency' => Analitica::moneda(),
+        'value'    => round((float)$detalle['subtotal'], 2),
+        'items'    => $itemsGa,
+    ]);
+}
 
 require __DIR__ . '/includes/vistas/cabecera.php';
 ?>
@@ -96,7 +148,7 @@ require __DIR__ . '/includes/vistas/cabecera.php';
       <!-- Artículos -->
       <div class="tarjeta">
         <?php foreach ($detalle['items'] as $i): ?>
-          <div class="linea-carrito">
+          <div class="linea-carrito"<?= Analitica::atributo($i, (int)$i['cantidad']) ?>>
             <a href="<?= e(url('producto.php?p=' . rawurlencode((string)$i['slug']))) ?>">
               <img src="<?= e(url_imagen((string)$i['imagen'])) ?>" alt="<?= e((string)$i['nombre']) ?>" loading="lazy">
             </a>

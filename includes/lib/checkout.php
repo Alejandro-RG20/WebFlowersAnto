@@ -181,6 +181,7 @@ final class Checkout
         // que falta hacerlo lo verá en el seguimiento del pedido, que es donde
         // importa: los avisos de estado salen por ahí.
         Verificacion::enviar($pdo, $nuevo);
+        Analitica::eventoDiferido('sign_up', ['method' => 'durante_el_pedido']);
         Auditoria::registrar($pdo, 'registro', 'usuarios', [
             'recurso_tipo' => 'usuario', 'recurso_id' => (string)$nuevoId,
             'descripcion'  => 'Cuenta creada durante el proceso de pedido.',
@@ -215,6 +216,12 @@ final class Checkout
                 'zona_envio_id' => $datos['zona_envio_id'],
             ]);
         }
+
+        // La compra se mide en la página de seguimiento, no aquí, porque es la
+        // que el cliente ve; aquí solo se deja la marca de que este pedido es
+        // nuevo. Si se midiera al abrir el seguimiento sin más, cada vez que
+        // el cliente entra a ver «¿ya salió mi ramo?» contaría otra venta.
+        Analitica::marcarCompra((int)$pedido['id']);
 
         // El cupón ya se gastó o dejó de valer: el pedido se registra igual con
         // su total correcto, pero el cliente tiene que enterarse aquí y no al

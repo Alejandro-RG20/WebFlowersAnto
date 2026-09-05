@@ -361,7 +361,16 @@ final class Pedidos
     /** Añade artículos, comprobantes e historial. */
     private static function completar(PDO $pdo, array $pedido): array
     {
-        $st = $pdo->prepare("SELECT * FROM pedido_items WHERE pedido_id = ? ORDER BY id");
+        // El `slug` se trae del catálogo solo para enlazar y para que la
+        // medición llame al producto igual que en el resto del sitio. Va por
+        // LEFT JOIN a propósito: si el arreglo se borró del catálogo, el
+        // pedido conserva su nombre y su precio, que es lo que se cobró.
+        $st = $pdo->prepare(
+            "SELECT i.*, p.slug
+               FROM pedido_items i
+          LEFT JOIN productos p ON p.id = i.producto_id
+              WHERE i.pedido_id = ? ORDER BY i.id"
+        );
         $st->execute([$pedido['id']]);
         $pedido['items'] = $st->fetchAll();
 

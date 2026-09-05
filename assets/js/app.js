@@ -92,6 +92,21 @@
       const r = await pedir('carrito.php', { accion: 'agregar', producto_id: datos.producto_id, cantidad: datos.cantidad || 1 });
       pintarContador('cartCount', r.unidades);
       aviso(r.mensaje || 'Añadido al carrito', r.aviso ? 'info' : 'exito');
+      // La medición se entera cuando el servidor ya aceptó, no al pulsar.
+      // Quien escucha esto es analitica.js, si la medición está encendida.
+      // Medir nunca puede estropear una compra que ya salió bien: por eso va
+      // en su propio try, y un dato mal formado se queda sin evento y ya.
+      try {
+        const conProducto = form.closest('[data-ga-item]');
+        if (conProducto) {
+          document.dispatchEvent(new CustomEvent('fa:carrito:agregado', {
+            detail: {
+              item: JSON.parse(conProducto.dataset.gaItem),
+              cantidad: Number(datos.cantidad) || 1
+            }
+          }));
+        }
+      } catch (e) { /* la medición no manda sobre el carrito */ }
     } catch (e) {
       aviso(e.message, 'error');
     } finally {

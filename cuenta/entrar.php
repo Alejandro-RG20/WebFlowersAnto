@@ -53,6 +53,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'descripcion'  => 'Inicio de sesión con contraseña.',
             ]);
 
+            // Va después de abrir la sesión: así, si quien entra es del
+            // equipo, `Analitica::activo()` ya lo sabe y no lo mide.
+            Analitica::eventoDiferido('login', ['method' => 'password']);
+
             $destino = $_SESSION['volver_a'] ?? '';
             unset($_SESSION['volver_a']);
             flash('exito', '¡Hola de nuevo, ' . Auth::nombreCompleto() . '!');
