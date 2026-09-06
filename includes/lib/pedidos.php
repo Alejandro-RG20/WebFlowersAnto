@@ -733,33 +733,62 @@ final class Pedidos
     // Notificaciones por correo
     // -----------------------------------------------------------------
 
+    /**
+     * Tabla de artículos y totales para los correos.
+     *
+     * Desglosa igual que la factura: subtotal, descuento, envío y total. Antes
+     * saltaba de las líneas al total, así que un pedido de un ramo de 900 con
+     * 200 de envío decía «900» y debajo «Total 1,100», y esos 200 de diferencia
+     * no los explicaba nadie. En un correo que pide dinero, cada córdoba tiene
+     * que poder seguirse con el dedo.
+     */
     private static function tablaItems(array $pedido): string
     {
+        $moneda = (string)$pedido['moneda'];
+        $importe = static fn($v) => e($moneda . number_format((float)$v, 2));
+
         $filas = '';
         foreach ($pedido['items'] as $i) {
             $filas .= '<tr>
                 <td style="padding:7px 0;border-bottom:1px solid #F1E7E9;">' . e($i['nombre'])
                 . ' <span style="color:#8A7A7D;">× ' . (int)$i['cantidad'] . '</span></td>
                 <td style="padding:7px 0;border-bottom:1px solid #F1E7E9;text-align:right;white-space:nowrap;">'
-                . e($pedido['moneda'] . number_format((float)$i['subtotal'], 2)) . '</td></tr>';
+                . $importe($i['subtotal']) . '</td></tr>';
         }
+
+        $linea = static function (string $texto, string $valor, string $color = '') use (&$importe): string {
+            $c = $color !== '' ? 'color:' . $color . ';' : '';
+            return '<tr><td style="padding:7px 0;' . $c . '">' . $texto . '</td>'
+                 . '<td style="padding:7px 0;text-align:right;white-space:nowrap;' . $c . '">'
+                 . $valor . '</td></tr>';
+        };
+
+        $totales = $linea('Subtotal', $importe($pedido['subtotal']));
+
         // El descuento se enseña como línea propia: el cliente tiene que ver
         // que su cupón se aplicó, no solo un total más bajo del que esperaba.
-        $descuento = '';
         if ((float)($pedido['descuento'] ?? 0) > 0) {
-            $descuento = '<tr><td style="padding:8px 0 0;color:#2F6B44;">Descuento'
-                       . ((string)($pedido['cupon_codigo'] ?? '') !== ''
-                           ? ' <span style="color:#8A7A7D;">' . e((string)$pedido['cupon_codigo']) . '</span>' : '')
-                       . '</td><td style="padding:8px 0 0;text-align:right;color:#2F6B44;white-space:nowrap;">−'
-                       . e($pedido['moneda'] . number_format((float)$pedido['descuento'], 2)) . '</td></tr>';
+            $etiqueta = 'Descuento'
+                . ((string)($pedido['cupon_codigo'] ?? '') !== ''
+                    ? ' <span style="color:#8A7A7D;">' . e((string)$pedido['cupon_codigo']) . '</span>' : '');
+            $totales .= $linea($etiqueta, '−' . $importe($pedido['descuento']), '#2F6B44');
+        }
+
+        // El envío solo tiene sentido si hay envío. Cuando sale gratis se dice
+        // con todas las letras: es parte de lo que el cliente ganó comprando.
+        if (($pedido['entrega_tipo'] ?? '') !== 'retiro') {
+            $totales .= (float)$pedido['envio'] > 0
+                ? $linea('Envío', $importe($pedido['envio']))
+                : $linea('Envío', '<span style="color:#2F6B44;font-weight:600;">Gratis</span>');
         }
 
         return '<table role="presentation" width="100%" cellpadding="0" cellspacing="0"
                        style="border-collapse:collapse;font-size:14.5px;margin:14px 0;">' . $filas
-             . $descuento
-             . '<tr><td style="padding:10px 0 0;font-weight:600;">Total</td>
-                    <td style="padding:10px 0 0;text-align:right;font-weight:600;">'
-             . e($pedido['moneda'] . number_format((float)$pedido['total'], 2)) . '</td></tr></table>';
+             . $totales
+             . '<tr><td style="padding:11px 0 0;font-weight:700;border-top:2px solid #4A3B3D;">Total</td>
+                    <td style="padding:11px 0 0;text-align:right;font-weight:700;white-space:nowrap;
+                               border-top:2px solid #4A3B3D;">'
+             . $importe($pedido['total']) . '</td></tr></table>';
     }
 
     /** Bloque con los datos de entrega, para los correos. */
