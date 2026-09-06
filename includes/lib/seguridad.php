@@ -34,6 +34,11 @@ function campoToken(): string
  */
 function exigirToken(bool $json = true, string $volverA = ''): void
 {
+    // El origen se mira antes que el token: si la petición viene de otra web,
+    // no hay nada que comprobar después. Al ir aquí dentro, todo lo que ya
+    // exigía token queda protegido sin tocar ni un endpoint.
+    exigirMismoOrigen($json);
+
     $token = $_POST['csrf_token'] ?? ($_SERVER['HTTP_X_CSRF_TOKEN'] ?? null);
     if (verificarToken(is_string($token) ? $token : null)) {
         return;
@@ -43,6 +48,84 @@ function exigirToken(bool $json = true, string $volverA = ''): void
     }
     flash('error', 'La página caducó por seguridad. Vuelve a enviar el formulario.');
     redirigir($volverA !== '' ? $volverA : '/');
+}
+
+/**
+ * Rechaza las peticiones que llegan desde otro sitio web.
+ *
+ * Esto es la otra mitad de lo que la gente llama «configurar CORS». El
+ * navegador ya impide que una web ajena LEA la respuesta de otra —para eso no
+ * hay que hacer nada, basta con no mandar `Access-Control-Allow-Origin`, y este
+ * sitio no lo manda en ninguna parte—. Lo que el navegador NO impide es que esa
+ * web ajena ENVÍE la petición: un formulario suyo puede hacer POST aquí con la
+ * sesión del cliente, y aunque no vea el resultado, la acción se habría hecho.
+ *
+ * Contra eso ya está el token CSRF, que es la defensa buena. Esto es la segunda
+ * cerradura: se compara el origen declarado por el navegador con el del propio
+ * sitio, y lo que venga de fuera no llega ni a mirarse.
+ *
+ * `Origin` lo pone el navegador y no se puede falsear desde JavaScript. Cuando
+ * no viene —hay clientes que no lo mandan en peticiones normales— se cae al
+ * `Referer`, y si tampoco hay, se deja pasar: cerrar por falta de una cabecera
+ * opcional rompería a gente legítima sin ganar seguridad, porque el token CSRF
+ * sigue estando delante.
+ */
+function exigirMismoOrigen(bool $json = true): void
+{
+    if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST') {
+        return;
+    }
+
+    $declarado = (string)($_SERVER['HTTP_ORIGIN'] ?? '');
+    if ($declarado === '' || $declarado === 'null') {
+        $referente = (string)($_SERVER['HTTP_REFERER'] ?? '');
+        if ($referente === '') {
+            return;   // no hay nada que comparar
+        }
+        $partes = parse_url($referente);
+        $declarado = isset($partes['scheme'], $partes['host'])
+            ? $partes['scheme'] . '://' . $partes['host']
+              . (isset($partes['port']) ? ':' . $partes['port'] : '')
+            : '';
+        if ($declarado === '') {
+            return;
+        }
+    }
+
+    // El origen propio se arma con lo que ve el servidor, no con APP_URL: en un
+    // hosting compartido el sitio responde igual por dominio y por subdominio
+    // temporal, y comparar contra un solo valor dejaría fuera al segundo.
+    $esquema = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+            || (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https') ? 'https' : 'http';
+    $propios = [$esquema . '://' . (string)($_SERVER['HTTP_HOST'] ?? '')];
+
+    if (APP_URL !== '') {
+        $partes = parse_url(APP_URL);
+        if (isset($partes['scheme'], $partes['host'])) {
+            $propios[] = $partes['scheme'] . '://' . $partes['host']
+                       . (isset($partes['port']) ? ':' . $partes['port'] : '');
+        }
+    }
+
+    foreach ($propios as $propio) {
+        if (strcasecmp($declarado, $propio) === 0) {
+            return;
+        }
+    }
+
+    $pdo = $GLOBALS['pdo'] ?? null;
+    if ($pdo instanceof PDO && class_exists('Auditoria')) {
+        Auditoria::registrar($pdo, 'origen_rechazado', 'seguridad', [
+            'descripcion' => 'Petición desde otro sitio: ' . mb_substr($declarado, 0, 150),
+            'resultado'   => 'error',
+        ]);
+    }
+
+    if ($json) {
+        errorJson('Petición rechazada: no viene de esta tienda.', 403);
+    }
+    http_response_code(403);
+    exit('Petición rechazada: no viene de esta tienda.');
 }
 
 /**

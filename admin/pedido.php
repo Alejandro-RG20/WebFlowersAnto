@@ -156,6 +156,26 @@ require __DIR__ . '/_cabecera.php';
   <span class="estado" style="background: <?= e((string)$estadoPago['color']) ?>;"><?= e((string)$estadoPago['nombre']) ?></span>
   <span class="estado-suave"><?= e(ucfirst((string)$pedido['canal'])) ?></span>
   <span class="estado-suave"><?= e(ucfirst((string)$pedido['metodo_pago'])) ?></span>
+
+  <?php // Factura: verla si ya existe, o emitirla si el pedido está entregado
+        // y por lo que sea se quedó sin ella.
+        $facturaPedido = Rbac::puede('facturas.ver')
+            ? Facturas::porPedido($pdo, (int)$pedido['id']) : null; ?>
+  <?php if ($facturaPedido): ?>
+    <a class="boton boton-claro boton-mini" target="_blank" rel="noopener"
+       href="<?= e(url('admin/factura.php?id=' . (int)$facturaPedido['id'])) ?>">
+      <i class="fa-solid fa-file-invoice" aria-hidden="true"></i>
+      Factura <?= e((string)$facturaPedido['folio']) ?><?= Facturas::anulada($facturaPedido) ? ' (anulada)' : '' ?></a>
+  <?php elseif (Facturas::activo() && Rbac::puede('facturas.emitir')
+                && (string)$pedido['estado'] === Pedidos::COMPLETADO): ?>
+    <form method="post" action="<?= e(url('admin/facturas.php')) ?>" data-una-vez>
+      <?= campoToken() ?>
+      <input type="hidden" name="accion" value="emitir">
+      <input type="hidden" name="pedido_id" value="<?= (int)$pedido['id'] ?>">
+      <button type="submit" class="boton boton-claro boton-mini">
+        <i class="fa-solid fa-file-invoice" aria-hidden="true"></i> Emitir factura</button>
+    </form>
+  <?php endif; ?>
 </div>
 
 <div class="rejilla-detalle">

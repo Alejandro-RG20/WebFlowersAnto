@@ -62,6 +62,10 @@ if (Rbac::puede('pedidos.ver')) {
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 <link rel="stylesheet" href="<?= e(url_recurso('assets/css/admin.css')) ?>">
+<?php // Hojas propias de una pantalla concreta, como la de la factura. ?>
+<?php foreach ((array)($cssPanelExtra ?? []) as $hojaPanel): ?>
+<link rel="stylesheet" href="<?= e(url_recurso($hojaPanel)) ?>">
+<?php endforeach; ?>
 <link rel="icon" href="<?= e(url_imagen(Ajustes::texto('favicon_url', 'images/placeholders/logo.svg'))) ?>">
 </head>
 <body data-base="<?= e(url()) ?>" data-csrf="<?= e(generarToken()) ?>">
@@ -98,6 +102,7 @@ if (Rbac::puede('pedidos.ver')) {
       }
       itemMenu('clientes',     'clientes.php',     'fa-solid fa-users',      'Clientes',     'clientes.ver',     $seccion);
       itemMenu('repartidores', 'repartidores.php', 'fa-solid fa-motorcycle', 'Repartidores', 'repartidores.ver', $seccion);
+      itemMenu('facturas',     'facturas.php',     'fa-solid fa-file-invoice', 'Facturas',   'facturas.ver',     $seccion);
       itemMenu('cupones',      'cupones.php',      'fa-solid fa-ticket',     'Cupones',      'cupones.ver',      $seccion);
     ?>
 

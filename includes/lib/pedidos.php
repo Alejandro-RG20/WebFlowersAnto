@@ -473,7 +473,23 @@ final class Pedidos
             'detalles'     => ['nota' => $nota],
         ]);
 
-        self::notificarCambioEstado($pdo, self::porId($pdo, (int)$pedido['id']), $nuevo, $nota);
+        $actualizado = self::porId($pdo, (int)$pedido['id']);
+        self::notificarCambioEstado($pdo, $actualizado, $nuevo, $nota);
+
+        // Entregado es el momento de facturar: ya no va a cambiar nada del
+        // pedido. Va después del aviso de estado para que el cliente reciba
+        // primero «tu pedido llegó» y detrás su factura, en ese orden.
+        //
+        // Emitir es idempotente y nunca tumba el cambio de estado: si el
+        // correo no sale, el pedido se queda entregado igual y la factura
+        // sigue ahí para reenviarla desde el panel.
+        if ($nuevo === self::COMPLETADO && $actualizado && Facturas::automatica()) {
+            $emision = Facturas::emitir($pdo, $actualizado);
+            if ($emision['ok'] && empty($emision['repetida'])) {
+                Facturas::enviar($pdo, $emision['factura'], $actualizado);
+            }
+        }
+
         return ['ok' => true];
     }
 

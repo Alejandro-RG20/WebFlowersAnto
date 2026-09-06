@@ -141,6 +141,40 @@ final class Salud
             $add('contacto', 'bien', 'Datos de contacto completos', 'Nada que rellenar.');
         }
 
+        // --- Facturación -----------------------------------------------
+        // Lo que se vigila no es que esté encendida —eso es decisión del
+        // negocio— sino que, estándolo, esté emitiendo bien: sin datos
+        // fiscales sale una factura coja, y un pedido entregado sin factura
+        // es dinero cobrado del que no queda documento.
+        if (Facturas::activo()) {
+            $sinFactura = (int)$pdo->query(
+                "SELECT COUNT(*) FROM pedidos p
+              LEFT JOIN facturas f ON f.pedido_id = p.id
+                  WHERE p.estado = 'completado' AND f.id IS NULL"
+            )->fetchColumn();
+
+            if (Ajustes::texto('factura_ruc') === '') {
+                $add('facturacion', 'aviso', 'Las facturas salen sin RUC',
+                     'La facturación está encendida pero no hay RUC ni cédula configurados, '
+                   . 'así que el documento sale sin ese dato.',
+                     'Ponlo en Configuración → Facturación.');
+            } elseif ($sinFactura > 0) {
+                $add('facturacion', 'aviso',
+                     $sinFactura === 1
+                        ? 'Hay un pedido entregado sin factura'
+                        : 'Hay ' . $sinFactura . ' pedidos entregados sin factura',
+                     $sinFactura === 1
+                        ? 'Se entregó antes de encender la facturación, o su emisión falló.'
+                        : 'Se entregaron antes de encender la facturación, o su emisión falló.',
+                     $sinFactura === 1
+                        ? 'Emítela desde Ventas → Facturas, en «Entregados sin factura».'
+                        : 'Emítelas desde Ventas → Facturas, en «Entregados sin factura».');
+            } else {
+                $add('facturacion', 'bien', 'Facturación al día',
+                     'Todos los pedidos entregados tienen su factura.');
+            }
+        }
+
         // --- Analytics -------------------------------------------------
         // Una medición encendida con el identificador mal escrito es peor que
         // apagada: se cree que se están contando visitas y en realidad no se

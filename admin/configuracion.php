@@ -15,7 +15,7 @@ Rbac::exigirPanel();
 Rbac::exigir('configuracion.ver');
 
 $pestana = opcion('t', ['marca', 'portada', 'contacto', 'pedidos', 'envio', 'avisos', 'banco',
-                        'analitica', 'desarrollador'], 'marca', $_GET);
+                        'factura', 'analitica', 'desarrollador'], 'marca', $_GET);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     exigirToken(false, 'admin/configuracion.php');
@@ -219,7 +219,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // de otra pestaña con el formulario vacío, borrándolos. Por eso el valor
     // por defecto es vacío y abajo se rechaza en vez de escribir nada.
     $grupo  = opcion('grupo', ['marca', 'portada', 'contacto', 'pedidos',
-                               'envio', 'avisos', 'banco', 'analitica', 'desarrollador'], '');
+                               'envio', 'avisos', 'banco', 'factura', 'analitica', 'desarrollador'], '');
     $antes  = Ajustes::todos();
 
     $campos = match ($grupo) {
@@ -297,6 +297,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'paypal_venmo'       => casilla('paypal_venmo'),
             'paypal_cuotas'      => casilla('paypal_cuotas'),
             'paypal_webhook_id'  => texto('paypal_webhook_id', 60),
+        ],
+        'factura' => [
+            'factura_activo'       => casilla('factura_activo'),
+            'factura_auto'         => casilla('factura_auto'),
+            'factura_razon_social' => texto('factura_razon_social', 160),
+            'factura_ruc'          => texto('factura_ruc', 40),
+            'factura_direccion'    => texto('factura_direccion', 255),
+            'factura_telefono'     => texto('factura_telefono', 40),
+            'factura_serie'        => strtoupper(texto('factura_serie', 10)) ?: 'A',
+            // La numeración nunca puede retroceder por debajo de lo ya
+            // emitido: dos facturas con el mismo folio es lo peor que le
+            // puede pasar a una serie, y aquí es donde se evita.
+            'factura_siguiente'    => max(
+                entero('factura_siguiente', 1, 999999, 1),
+                (int)$pdo->query("SELECT COALESCE(MAX(numero), 0) + 1 FROM facturas")->fetchColumn()
+            ),
+            'factura_iva_activo'   => casilla('factura_iva_activo'),
+            'factura_iva_tasa'     => min(99.99, max(0, decimal('factura_iva_tasa'))),
+            'factura_pie'          => textoLargo('factura_pie', 500),
         ],
         'analitica' => [
             'ga_activo'         => casilla('ga_activo'),
@@ -413,6 +432,7 @@ function campoImagen(string $nombre, string $etiqueta, string $valor, string $ay
       'envio'         => 'Envío y zonas',
       'avisos'        => 'Avisos por correo',
       'banco'         => 'Transferencias',
+      'factura'       => 'Facturación',
       'analitica'     => 'Analytics',
       'desarrollador' => 'Créditos',
   ] as $clave => $nombre): ?>
@@ -1253,6 +1273,131 @@ function campoImagen(string $nombre, string $etiqueta, string $valor, string $ay
       </form>
     </dialog>
   <?php endif; ?>
+
+<?php elseif ($pestana === 'factura'): ?>
+  <div class="caja-aviso info">
+    <i class="fa-solid fa-file-invoice" aria-hidden="true"></i>
+    <span>Cuando marcas un pedido como <strong>entregado</strong>, se emite su factura y se le
+      manda al cliente por correo, igual que los avisos de estado. Lo que escribas aquí es lo
+      que sale impreso en el documento.</span>
+  </div>
+
+  <form method="post" action="<?= e(url('admin/configuracion.php')) ?>" data-una-vez>
+    <?= campoToken() ?>
+    <input type="hidden" name="grupo" value="factura">
+
+    <section class="panel">
+      <div class="panel-cabecera"><div><h2>Facturación</h2>
+        <p>Datos fiscales y numeración</p></div></div>
+
+      <div class="panel-cuerpo">
+        <div class="interruptor">
+          <input type="checkbox" id="factura_activo" name="factura_activo" value="1"
+                 <?= !empty($c['factura_activo']) ? 'checked' : '' ?>>
+          <label for="factura_activo">Emitir facturas
+            <small>Con esto apagado no se genera ninguna, y las ya emitidas se conservan.</small></label>
+        </div>
+
+        <div class="interruptor">
+          <input type="checkbox" id="factura_auto" name="factura_auto" value="1"
+                 <?= !isset($c['factura_auto']) || !empty($c['factura_auto']) ? 'checked' : '' ?>>
+          <label for="factura_auto">Emitir y enviar sola al entregar
+            <small>Si lo apagas, las emites a mano desde Ventas → Facturas.</small></label>
+        </div>
+
+        <hr style="border:0;border-top:1px solid var(--linea,#E3DAD6);margin:22px 0;">
+        <h3 style="font-size:1.02rem;margin-bottom:4px;">Quién factura</h3>
+        <p class="ayuda" style="margin-bottom:14px;">
+          Estos datos se copian dentro de cada factura al emitirla. Si mañana cambian, las
+          facturas viejas siguen mostrando lo que decían el día que se emitieron, que es como
+          tiene que ser.</p>
+
+        <div class="rejilla-campos dos">
+          <div class="campo">
+            <label for="factura_razon_social">Nombre o razón social</label>
+            <input type="text" id="factura_razon_social" name="factura_razon_social" maxlength="160"
+                   value="<?= e((string)($c['factura_razon_social'] ?? '')) ?>">
+          </div>
+          <div class="campo">
+            <label for="factura_ruc">RUC / cédula</label>
+            <input type="text" id="factura_ruc" name="factura_ruc" maxlength="40"
+                   value="<?= e((string)($c['factura_ruc'] ?? '')) ?>">
+            <p class="ayuda">Si lo dejas vacío, la factura sale sin esa línea.</p>
+          </div>
+        </div>
+
+        <div class="rejilla-campos dos">
+          <div class="campo">
+            <label for="factura_direccion">Dirección</label>
+            <input type="text" id="factura_direccion" name="factura_direccion" maxlength="255"
+                   value="<?= e((string)($c['factura_direccion'] ?? '')) ?>">
+          </div>
+          <div class="campo">
+            <label for="factura_telefono">Teléfono</label>
+            <input type="text" id="factura_telefono" name="factura_telefono" maxlength="40"
+                   value="<?= e((string)($c['factura_telefono'] ?? '')) ?>">
+          </div>
+        </div>
+
+        <hr style="border:0;border-top:1px solid var(--linea,#E3DAD6);margin:22px 0;">
+        <h3 style="font-size:1.02rem;margin-bottom:4px;">Numeración</h3>
+        <div class="rejilla-campos dos">
+          <div class="campo">
+            <label for="factura_serie">Serie</label>
+            <input type="text" id="factura_serie" name="factura_serie" maxlength="10"
+                   style="text-transform:uppercase;"
+                   value="<?= e((string)($c['factura_serie'] ?? 'A')) ?>">
+            <p class="ayuda">Letras, números y guiones. Va delante del número.</p>
+          </div>
+          <div class="campo">
+            <label for="factura_siguiente">Siguiente número</label>
+            <input type="number" id="factura_siguiente" name="factura_siguiente" min="1" max="999999"
+                   value="<?= (int)($c['factura_siguiente'] ?? 1) ?>">
+            <p class="ayuda">
+              La próxima factura será
+              <strong><?= e(Facturas::folio(
+                  strtoupper((string)($c['factura_serie'] ?? 'A')),
+                  max(1, (int)($c['factura_siguiente'] ?? 1)))) ?></strong>.
+              Solo se toca para continuar una numeración que ya traías.</p>
+          </div>
+        </div>
+
+        <hr style="border:0;border-top:1px solid var(--linea,#E3DAD6);margin:22px 0;">
+        <h3 style="font-size:1.02rem;margin-bottom:4px;">IVA</h3>
+        <p class="ayuda" style="margin-bottom:14px;">
+          Los precios del catálogo ya llevan el impuesto incluido, así que la factura lo
+          <strong>desglosa</strong> en vez de sumarlo: el total sigue siendo exactamente lo que
+          el cliente pagó. Enciéndelo solo si declaras IVA.</p>
+
+        <div class="interruptor">
+          <input type="checkbox" id="factura_iva_activo" name="factura_iva_activo" value="1"
+                 <?= !empty($c['factura_iva_activo']) ? 'checked' : '' ?>>
+          <label for="factura_iva_activo">Desglosar el IVA en la factura</label>
+        </div>
+
+        <div class="campo" style="max-width:220px;">
+          <label for="factura_iva_tasa">Tasa (%)</label>
+          <input type="number" id="factura_iva_tasa" name="factura_iva_tasa"
+                 min="0" max="99.99" step="0.01"
+                 value="<?= e(number_format((float)($c['factura_iva_tasa'] ?? 15), 2, '.', '')) ?>">
+          <p class="ayuda">En Nicaragua es 15%.</p>
+        </div>
+
+        <div class="campo">
+          <label for="factura_pie">Texto al pie de la factura <small style="font-weight:400;">(opcional)</small></label>
+          <textarea id="factura_pie" name="factura_pie" maxlength="500"
+                    style="min-height:90px;"><?= e((string)($c['factura_pie'] ?? '')) ?></textarea>
+          <p class="ayuda">Por ejemplo el aviso de que no se aceptan devoluciones de flor natural,
+             o el agradecimiento de la tienda.</p>
+        </div>
+
+        <?php if ($editable): ?>
+          <button type="submit" class="boton boton-principal" style="margin-top:6px;">
+            <i class="fa-solid fa-floppy-disk" aria-hidden="true"></i> Guardar</button>
+        <?php endif; ?>
+      </div>
+    </section>
+  </form>
 
 <?php elseif ($pestana === 'analitica'): ?>
   <?php

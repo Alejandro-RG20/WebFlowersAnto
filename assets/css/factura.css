@@ -1,0 +1,143 @@
+/**
+ * Hoja de factura.
+ *
+ * Se diseña para dos destinos a la vez: la pantalla y el papel. Lo que se
+ * imprime tiene que salir en blanco y negro, sin la barra de navegación ni los
+ * botones, y cabiendo en una hoja: es un documento, no una página web.
+ */
+
+.factura-acciones {
+  display: flex; gap: 10px; flex-wrap: wrap;
+  margin: 22px 0 16px; justify-content: flex-end;
+}
+
+.hoja-factura {
+  /* Por encima de la capa de adornos de temporada: las flores decorativas del
+     sitio quedaban pintadas sobre el documento, y una factura con confeti
+     encima no es una factura. */
+  position: relative; z-index: 1;
+  background: #fff;
+  border: 1px solid var(--linea, #EFE6E8);
+  border-radius: var(--radio-sm, 12px);
+  padding: 34px 34px 28px;
+  margin-bottom: 40px;
+  max-width: 820px;
+  margin-inline: auto;
+  color: var(--texto, #4A3B3D);
+}
+
+.factura-anulada-aviso {
+  display: flex; gap: 10px; align-items: center;
+  background: var(--alerta-fondo, #FBEAEA);
+  color: var(--alerta, #93313A);
+  border: 1px solid #F1CFD1; border-radius: 8px;
+  padding: 11px 15px; margin: 0 0 22px; font-size: .93rem;
+}
+
+/* Una factura anulada tiene que verse anulada de un vistazo, también impresa. */
+.hoja-factura--anulada { position: relative; overflow: hidden; }
+.hoja-factura--anulada::after {
+  content: 'ANULADA';
+  position: absolute; top: 45%; left: 50%;
+  transform: translate(-50%, -50%) rotate(-24deg);
+  font-size: clamp(3rem, 13vw, 7rem); font-weight: 800; letter-spacing: .06em;
+  color: rgba(147, 49, 58, .11); pointer-events: none; white-space: nowrap;
+}
+
+.factura-cabecera {
+  display: flex; justify-content: space-between; gap: 24px; flex-wrap: wrap;
+  padding-bottom: 20px; border-bottom: 2px solid var(--texto, #4A3B3D);
+}
+.factura-emisor { display: flex; gap: 14px; align-items: flex-start; }
+.factura-logo { width: 58px; height: 58px; border-radius: 50%; object-fit: cover; }
+.factura-emisor h1 { font-size: 1.32rem; margin: 0 0 3px; line-height: 1.25; }
+.factura-emisor p { margin: 0; font-size: .86rem; color: var(--suave, #8A7A7D); line-height: 1.55; }
+.factura-ruc { font-weight: 600; color: var(--texto, #4A3B3D) !important; }
+
+.factura-folio { text-align: right; min-width: 190px; }
+.factura-etiqueta {
+  display: block; font-size: .72rem; letter-spacing: .12em;
+  text-transform: uppercase; color: var(--suave, #8A7A7D);
+}
+.factura-folio strong { font-size: 1.45rem; display: block; margin: 2px 0 6px; }
+.factura-folio p { margin: 0; font-size: .84rem; color: var(--suave, #8A7A7D); }
+
+.factura-cliente { padding: 20px 0; border-bottom: 1px solid var(--linea, #EFE6E8); }
+.factura-cliente h2 {
+  font-size: .72rem; letter-spacing: .12em; text-transform: uppercase;
+  color: var(--suave, #8A7A7D); margin: 0 0 7px; font-weight: 600;
+}
+.factura-cliente p { margin: 0 0 2px; font-size: .9rem; line-height: 1.55; }
+
+.factura-tabla { width: 100%; border-collapse: collapse; margin: 22px 0 0; font-size: .9rem; }
+.factura-tabla th {
+  text-align: left; font-size: .72rem; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--suave, #8A7A7D); font-weight: 600;
+  padding: 0 0 9px; border-bottom: 1px solid var(--linea, #EFE6E8);
+}
+.factura-tabla td { padding: 11px 0; border-bottom: 1px solid var(--linea, #EFE6E8); }
+.factura-tabla .num { text-align: right; white-space: nowrap; padding-left: 14px; }
+
+.factura-totales { display: flex; justify-content: flex-end; margin-top: 18px; }
+.factura-totales dl {
+  margin: 0; min-width: 290px;
+  display: grid; grid-template-columns: 1fr auto; gap: 7px 24px;
+  font-size: .91rem;
+}
+.factura-totales dt { margin: 0; }
+.factura-totales dd { margin: 0; text-align: right; white-space: nowrap; }
+.factura-totales .suave { color: var(--suave, #8A7A7D); font-size: .85rem; }
+.factura-totales .suave small { font-weight: 400; }
+/* La raya del total cruza las dos columnas de la rejilla. Puesta en cada
+   celda salía partida por el hueco que las separa. */
+.factura-totales .factura-raya {
+  grid-column: 1 / -1; height: 0;
+  border-top: 2px solid var(--texto, #4A3B3D);
+  margin: 5px 0 2px;
+}
+.factura-totales .factura-total { font-size: 1.12rem; font-weight: 700; }
+
+.factura-pie {
+  margin-top: 26px; padding-top: 18px;
+  border-top: 1px solid var(--linea, #EFE6E8);
+  font-size: .85rem; color: var(--suave, #8A7A7D); line-height: 1.6;
+}
+.factura-pie p { margin: 0 0 6px; }
+.factura-nota { white-space: pre-line; }
+
+@media (max-width: 560px) {
+  .hoja-factura { padding: 22px 18px; }
+  .factura-folio { text-align: left; }
+  .factura-totales dl { min-width: 0; width: 100%; }
+}
+
+/* --- Papel ---------------------------------------------------------------
+   Se quita todo lo que no es el documento y se pasa a tinta negra: una
+   factura impresa en rosa pastel no se lee en una fotocopia. */
+@media print {
+  @page { margin: 14mm; }
+
+  body { background: #fff !important; }
+  #navbar, .navbar, .aviso-cookies, .aviso-global, .no-imprimir,
+  footer.pie, .pie-sitio, .btn-whatsapp-flotante, .factura-acciones {
+    display: none !important;
+  }
+  main, .container { padding: 0 !important; margin: 0 !important; max-width: none !important; }
+
+  .hoja-factura {
+    border: 0; border-radius: 0; padding: 0; margin: 0; max-width: none;
+    color: #000; box-shadow: none;
+  }
+  .factura-emisor p, .factura-folio p, .factura-cliente h2,
+  .factura-tabla th, .factura-totales .suave, .factura-pie { color: #333 !important; }
+  .factura-cabecera, .factura-totales .factura-raya { border-color: #000 !important; }
+  /* Los adornos de temporada no se imprimen. */
+  .capa-temporada { display: none !important; }
+  .factura-tabla td, .factura-tabla th, .factura-cliente, .factura-pie {
+    border-color: #bbb !important;
+  }
+  /* Que no parta una fila de artículos entre dos hojas. */
+  .factura-tabla tr { break-inside: avoid; }
+  .factura-totales, .factura-pie { break-inside: avoid; }
+  .hoja-factura--anulada::after { color: rgba(0, 0, 0, .13); }
+}

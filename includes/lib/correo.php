@@ -281,17 +281,33 @@ final class Correo
      * usa <img> con formatos que todos los clientes de correo pintan; en los
      * demás casos se escribe el nombre de la tienda, que nunca falla.
      */
+    /**
+     * Cabecera del correo: logo + nombre de la tienda.
+     *
+     * El logo no salía. La comprobación miraba la extensión de `logo_url`,
+     * y desde que las imágenes se guardan dentro de la base ese valor es
+     * «bd:47»: no tiene extensión, así que nunca pasaba el filtro y el correo
+     * salía solo con el nombre. Ahora el tipo se resuelve como corresponde en
+     * cada caso —consultando la tabla `archivos` si es una imagen de la base,
+     * y por la extensión si es una ruta o una URL de fuera—.
+     */
     private static function marca(string $colorTexto): string
     {
         $tienda = Ajustes::texto('nombre_tienda', 'Flowers Anto');
         $logo   = trim(Ajustes::texto('logo_url', ''));
-        $ext    = strtolower((string)pathinfo(parse_url($logo, PHP_URL_PATH) ?? '', PATHINFO_EXTENSION));
 
         $nombre = '<div style="font-size:20px;font-weight:700;letter-spacing:.01em;color:' . $colorTexto . ';">'
                 . e($tienda) . '</div>';
 
-        if ($logo === '' || !in_array($ext, ['png', 'jpg', 'jpeg', 'webp', 'gif'], true)) {
+        if ($logo === '' || !self::logoPintable($logo)) {
             return $nombre;
+        }
+
+        // Absoluta y con dominio: en la bandeja de entrada no hay ninguna
+        // página desde la que resolver una ruta relativa.
+        $src = url_imagen($logo);
+        if (!preg_match('#^https?://#i', $src)) {
+            $src = url_absoluta($src);
         }
 
         // El nombre acompaña siempre al logo: si el cliente tiene las imágenes
@@ -299,11 +315,41 @@ final class Correo
         // es el correo.
         return '<table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
             <td style="vertical-align:middle;padding-right:12px;">
-              <img src="' . e(url_absoluta($logo)) . '" alt="" width="46" height="46"
+              <img src="' . e($src) . '" alt="" width="46" height="46"
                    style="display:block;width:46px;height:46px;border-radius:50%;object-fit:cover;border:0;">
             </td>
             <td style="vertical-align:middle;">' . $nombre . '</td>
           </tr></table>';
+    }
+
+    /**
+     * ¿Este logo lo va a pintar un cliente de correo?
+     *
+     * Se deja fuera el SVG a propósito: ni Gmail ni Outlook lo dibujan, y un
+     * hueco roto en la cabecera queda peor que el nombre a secas.
+     */
+    private static function logoPintable(string $logo): bool
+    {
+        $buenos = ['png', 'jpg', 'jpeg', 'webp', 'gif'];
+
+        // Imagen guardada dentro de la base: el tipo lo dice su propia fila.
+        if (preg_match('#^bd:(\d+)$#', $logo, $m)) {
+            $pdo = $GLOBALS['pdo'] ?? null;
+            if (!$pdo instanceof PDO) {
+                return false;
+            }
+            try {
+                $st = $pdo->prepare("SELECT extension FROM archivos WHERE id = ?");
+                $st->execute([(int)$m[1]]);
+                $ext = strtolower((string)$st->fetchColumn());
+            } catch (PDOException) {
+                return false;
+            }
+            return in_array($ext, $buenos, true);
+        }
+
+        $ext = strtolower((string)pathinfo((string)parse_url($logo, PHP_URL_PATH), PATHINFO_EXTENSION));
+        return in_array($ext, $buenos, true);
     }
 
     /**

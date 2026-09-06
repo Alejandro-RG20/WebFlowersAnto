@@ -7,6 +7,7 @@
 
 declare(strict_types=1);
 require_once __DIR__ . '/../includes/bootstrap.php';
+require_once __DIR__ . '/../includes/lib/respaldos.php';
 
 Rbac::exigirPanel();
 Rbac::exigir('respaldos.crear');
@@ -32,4 +33,9 @@ Auditoria::registrar($pdo, 'descargar_respaldo', 'sistema', [
     'descripcion'  => 'Descarga del respaldo ' . $respaldo['archivo'],
 ]);
 
-Archivos::servir($ruta, 'application/sql', (string)$respaldo['archivo'], true);
+// El tipo tiene que corresponderse con lo que va dentro: si un .gz se anuncia
+// como texto, hay navegadores que lo descomprimen al vuelo y guardan un archivo
+// que ya no coincide con el hash registrado.
+$tipo = Respaldos::comprimido((string)$respaldo['archivo']) ? 'application/gzip' : 'application/sql';
+
+Archivos::servir($ruta, $tipo, (string)$respaldo['archivo'], true);

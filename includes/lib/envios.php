@@ -200,13 +200,17 @@ final class Envios
             $id = $st->fetchColumn();
 
             if ($id !== false) {
+                // El id sale de la consulta de arriba, que ya filtra por
+                // usuario, así que aquí no puede colarse el de otra persona.
+                // Se repite la condición igualmente: si algún día alguien
+                // cambia esa consulta, la cerradura sigue puesta aquí.
                 $pdo->prepare(
                     "UPDATE direcciones_usuario
                         SET etiqueta = ?, nombre_recibe = ?, telefono = ?, referencia = ?, mapa_url = ?
-                      WHERE id = ?"
+                      WHERE id = ? AND usuario_id = ?"
                 )->execute([
                     $datos['etiqueta'], $datos['nombre_recibe'], $datos['telefono'],
-                    $datos['referencia'], $datos['mapa_url'], $id,
+                    $datos['referencia'], $datos['mapa_url'], $id, $usuarioId,
                 ]);
                 return;
             }

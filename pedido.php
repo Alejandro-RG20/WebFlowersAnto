@@ -144,6 +144,18 @@ require __DIR__ . '/includes/vistas/cabecera.php';
           require __DIR__ . '/includes/vistas/aviso_verificar.php';
         endif; ?>
 
+  <?php $facturaPedido = Facturas::porPedido($pdo, (int)$pedido['id']);
+        if ($facturaPedido && !Facturas::anulada($facturaPedido)): ?>
+    <div class="caja-aviso exito">
+      <i class="fa-solid fa-file-invoice" aria-hidden="true"></i>
+      <div>
+        <p style="margin:0 0 6px;">Tu factura <strong><?= e((string)$facturaPedido['folio']) ?></strong>
+           ya está lista.</p>
+        <a href="<?= e(Facturas::enlace($pedido)) ?>">Verla e imprimirla</a>
+      </div>
+    </div>
+  <?php endif; ?>
+
   <div class="diseno-compra">
     <div>
       <!-- Estado del pago -->

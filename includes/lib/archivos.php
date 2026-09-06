@@ -25,6 +25,9 @@ final class Archivos
      */
     private const LADO_MAX = 1600;
 
+    /** Tamaño de cada trozo al servir un archivo. Ver `servir()`. */
+    private const TROZO_BYTES = 262144;
+
     private const IMAGENES = [
         IMAGETYPE_JPEG => ['jpg',  'image/jpeg'],
         IMAGETYPE_PNG  => ['png',  'image/png'],
@@ -404,22 +407,115 @@ final class Archivos
         }
         // Solo se permiten tipos que el navegador no ejecuta como HTML.
         $permitidos = ['image/jpeg', 'image/png', 'image/gif', 'image/webp',
-                       'application/pdf', 'application/sql', 'application/octet-stream'];
+                       'application/pdf', 'application/sql', 'application/gzip',
+                       'application/octet-stream'];
         if (!in_array($mime, $permitidos, true)) {
             $mime = 'application/octet-stream';
         }
 
-        if (ob_get_level()) {
+        // --- Que nada se interponga entre el archivo y el cliente ---------
+        //
+        // Una descarga grande se quedaba a medias. La causa está en esta
+        // capa: si queda un búfer de salida abierto, o el hosting trae la
+        // compresión encendida, PHP acumula el archivo entero en memoria
+        // antes de mandar nada y además la longitud anunciada deja de
+        // coincidir con los bytes que salen; el navegador espera unos bytes
+        // que ya no van a llegar y se queda colgado para siempre.
+        //
+        // Se cierran TODOS los niveles de búfer, no uno: en un hosting
+        // compartido `output_buffering` viene puesto en el php.ini y encima
+        // se puede haber abierto otro por código.
+        while (ob_get_level() > 0) {
             ob_end_clean();
         }
+        @ini_set('zlib.output_compression', 'Off');
+        @ini_set('output_buffering', '0');
+        @ini_set('implicit_flush', '1');
+
+        // Una descarga lenta no puede morir por el reloj del script; y si
+        // quien descarga cierra la pestaña, el proceso se para en vez de
+        // seguir leyendo un archivo que ya nadie recibe.
+        @set_time_limit(0);
+        ignore_user_abort(false);
+
+        $total  = (int)filesize($ruta);
+        $inicio = 0;
+        $fin    = $total - 1;
+        $parcial = false;
+
+        // --- Descargas que se pueden reanudar -----------------------------
+        //
+        // Es lo que convierte un corte en una molestia y no en volver a
+        // empezar: con `Accept-Ranges`, el navegador que pierde la conexión
+        // a la mitad vuelve a pedir solo lo que le falta.
+        $rango = (string)($_SERVER['HTTP_RANGE'] ?? '');
+        if ($rango !== '' && preg_match('/^bytes=(\d*)-(\d*)$/', trim($rango), $m)) {
+            $desde = $m[1] !== '' ? (int)$m[1] : null;
+            $hasta = $m[2] !== '' ? (int)$m[2] : null;
+
+            if ($desde === null && $hasta !== null) {
+                $inicio = max(0, $total - $hasta);   // «bytes=-500»: los últimos 500
+            } elseif ($desde !== null) {
+                $inicio = $desde;
+                $fin    = $hasta !== null ? min($hasta, $total - 1) : $total - 1;
+            }
+
+            if ($inicio > $fin || $inicio >= $total) {
+                header('Content-Range: bytes */' . $total);
+                http_response_code(416);
+                exit;
+            }
+            $parcial = true;
+        }
+
+        $longitud = $fin - $inicio + 1;
+
         header('Content-Type: ' . $mime);
-        header('Content-Length: ' . filesize($ruta));
+        header('Content-Length: ' . $longitud);
         header('Content-Disposition: ' . ($descargar ? 'attachment' : 'inline')
              . '; filename="' . self::nombreSeguro($nombreVisible) . '"');
+        header('Accept-Ranges: bytes');
         header('X-Content-Type-Options: nosniff');
         header('Content-Security-Policy: default-src \'none\'; img-src \'self\'; object-src \'none\'');
         header('Cache-Control: private, no-store');
-        readfile($ruta);
+        if ($parcial) {
+            http_response_code(206);
+            header('Content-Range: bytes ' . $inicio . '-' . $fin . '/' . $total);
+        }
+
+        if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'HEAD') {
+            exit;
+        }
+
+        // --- Envío por trozos ---------------------------------------------
+        //
+        // `readfile()` deja el control a PHP y, según la configuración del
+        // hosting, puede acabar cargando el archivo entero. Leyendo de 256 KB
+        // en 256 KB la memoria usada es siempre la misma, dé igual que el
+        // respaldo pese 2 MB o 200.
+        $manejador = fopen($ruta, 'rb');
+        if (!$manejador) {
+            http_response_code(500);
+            exit('No se pudo abrir el archivo.');
+        }
+        if ($inicio > 0) {
+            fseek($manejador, $inicio);
+        }
+
+        $restante = $longitud;
+        while ($restante > 0 && !feof($manejador)) {
+            if (connection_aborted()) {
+                break;
+            }
+            $trozo = fread($manejador, (int)min(self::TROZO_BYTES, $restante));
+            if ($trozo === false || $trozo === '') {
+                break;
+            }
+            echo $trozo;
+            $restante -= strlen($trozo);
+            flush();
+        }
+        fclose($manejador);
         exit;
     }
 }

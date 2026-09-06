@@ -90,6 +90,26 @@ final class Respaldos
             return $resultado;
         }
 
+        // --- Comprimir ----------------------------------------------------
+        //
+        // Un volcado SQL es texto y se encoge a la mitad o menos. Con las
+        // fotos guardadas dentro de la base el ahorro es más flojo —van en
+        // hexadecimal y eso ya viene medio comprimido—, pero aun así deja la
+        // descarga en la mitad de bytes: menos tiempo con la conexión abierta
+        // es menos ocasiones de que se corte, y de paso ocupa menos en un
+        // hosting que cobra por espacio.
+        //
+        // Si el sistema no trae zlib, el respaldo se queda en .sql y todo lo
+        // demás sigue funcionando igual: no vale la pena perder la copia.
+        if (function_exists('gzopen')) {
+            $comprimido = self::comprimir($ruta);
+            if ($comprimido !== null) {
+                @unlink($ruta);
+                $archivo = basename($comprimido);
+                $ruta    = $comprimido;
+            }
+        }
+
         $usuario = Auth::usuario();
         $pdo->prepare(
             "INSERT INTO respaldos (archivo, nombre, tamano, tipo, estado, hash_sha256, tablas, notas,
@@ -260,6 +280,86 @@ final class Respaldos
      *
      * @return array{ok: bool, error?: string, tablas?: int, sentencias?: int}
      */
+    /**
+     * Comprime el volcado a .sql.gz. Devuelve la ruta nueva, o null si falló.
+     *
+     * Se hace por trozos, nunca cargando el archivo entero: un respaldo con
+     * las fotos dentro puede pesar cientos de MB y la memoria de un hosting
+     * compartido es la que es.
+     */
+    private static function comprimir(string $ruta): ?string
+    {
+        $destino = $ruta . '.gz';
+        $entrada = @fopen($ruta, 'rb');
+        $salida  = @gzopen($destino, 'wb6');
+        if (!$entrada || !$salida) {
+            if ($entrada) { fclose($entrada); }
+            if ($salida)  { gzclose($salida); }
+            @unlink($destino);
+            return null;
+        }
+        while (!feof($entrada)) {
+            $trozo = fread($entrada, self::LOTE_BYTES);
+            if ($trozo === false) {
+                break;
+            }
+            if ($trozo !== '' && gzwrite($salida, $trozo) === false) {
+                fclose($entrada);
+                gzclose($salida);
+                @unlink($destino);
+                return null;
+            }
+        }
+        fclose($entrada);
+        gzclose($salida);
+
+        if (!is_file($destino) || filesize($destino) === 0) {
+            @unlink($destino);
+            return null;
+        }
+        return $destino;
+    }
+
+    /** ¿El respaldo está comprimido? Se decide por el nombre, que lo pone el sitio. */
+    public static function comprimido(string $archivo): bool
+    {
+        return str_ends_with(strtolower($archivo), '.gz');
+    }
+
+    /**
+     * ¿El archivo es un gzip? Se mira su contenido, no su nombre.
+     *
+     * Por el contenido y no por la extensión porque el archivo que sube
+     * alguien llega con un nombre temporal sin extensión, y porque un nombre
+     * se puede cambiar a mano; los dos primeros bytes, no.
+     */
+    private static function esGzip(string $ruta): bool
+    {
+        $f = @fopen($ruta, 'rb');
+        if (!$f) {
+            return false;
+        }
+        $magia = (string)fread($f, 2);
+        fclose($f);
+        return $magia === "\x1f\x8b";
+    }
+
+    /**
+     * Abre un respaldo para leerlo como texto, esté comprimido o no.
+     *
+     * El envoltorio `compress.zlib://` descomprime al vuelo, así que quien
+     * lee sigue usando fgets() y fread() sin enterarse de nada. Es lo que
+     * permite que validar y restaurar no tengan dos caminos distintos.
+     *
+     * @return resource|false
+     */
+    private static function abrir(string $ruta)
+    {
+        return self::esGzip($ruta)
+            ? @fopen('compress.zlib://' . $ruta, 'rb')
+            : @fopen($ruta, 'rb');
+    }
+
     public static function validar(string $ruta): array
     {
         if (!is_file($ruta) || !is_readable($ruta)) {
@@ -274,12 +374,16 @@ final class Respaldos
                     . (int)(MAX_RESPALDO_BYTES / 1048576) . ' MB permitidos.'];
         }
 
-        $manejador = fopen($ruta, 'rb');
+        $manejador = self::abrir($ruta);
         if (!$manejador) {
-            return ['ok' => false, 'error' => 'No se pudo leer el archivo.'];
+            return ['ok' => false, 'error' => self::esGzip($ruta)
+                ? 'No se pudo descomprimir el archivo: puede estar dañado o no ser un .sql.gz.'
+                : 'No se pudo leer el archivo.'];
         }
 
         // Un volcado es texto plano. Si trae bytes nulos, no es un .sql.
+        // Con uno comprimido se mira lo de dentro, que es lo que se va a
+        // ejecutar; lo de fuera son bytes de zlib y siempre parecerían basura.
         $muestra = (string)fread($manejador, 8192);
         if (str_contains($muestra, "\0")) {
             fclose($manejador);
@@ -289,9 +393,27 @@ final class Respaldos
         $tablas     = 0;
         $sentencias = 0;
         $peligrosas = [];
-        rewind($manejador);
+        $leidos     = 0;
+
+        // Un .gz de dos megas puede esconder dentro un archivo de veinte
+        // gigas —lo que se llama «bomba de descompresión»— y leerlo entero
+        // tumbaría el servidor. Se lee hasta el límite y ni un byte más.
+        $tope = MAX_RESPALDO_BYTES * 20;
+
+        // `rewind` no vale sobre el flujo comprimido: hay que volver a abrir.
+        fclose($manejador);
+        $manejador = self::abrir($ruta);
+        if (!$manejador) {
+            return ['ok' => false, 'error' => 'No se pudo leer el archivo.'];
+        }
 
         while (($linea = fgets($manejador)) !== false) {
+            $leidos += strlen($linea);
+            if ($leidos > $tope) {
+                fclose($manejador);
+                return ['ok' => false, 'error' => 'Descomprimido, el archivo pasa de '
+                        . (int)($tope / 1048576) . ' MB. Por seguridad no se acepta.'];
+            }
             $limpia = ltrim($linea);
             if ($limpia === '' || str_starts_with($limpia, '--') || str_starts_with($limpia, '/*')) {
                 continue;
@@ -362,7 +484,7 @@ final class Respaldos
         }
 
         // 2. Ejecución
-        $manejador = fopen($ruta, 'rb');
+        $manejador = self::abrir($ruta);
         if (!$manejador) {
             return ['ok' => false, 'error' => 'No se pudo abrir el respaldo.'];
         }
@@ -554,8 +676,12 @@ final class Respaldos
             return ['ok' => false, 'error' => 'El archivo supera los '
                     . (int)(MAX_RESPALDO_BYTES / 1048576) . ' MB permitidos.'];
         }
-        if (strtolower((string)pathinfo((string)$archivo['name'], PATHINFO_EXTENSION)) !== 'sql') {
-            return ['ok' => false, 'error' => 'El respaldo debe ser un archivo .sql.'];
+        // Se aceptan las dos formas en que salen de aquí: el volcado en texto
+        // y el comprimido, que es el que se descarga desde el panel.
+        $nombreSubido = strtolower((string)$archivo['name']);
+        $esGz = str_ends_with($nombreSubido, '.sql.gz') || str_ends_with($nombreSubido, '.gz');
+        if (!$esGz && !str_ends_with($nombreSubido, '.sql')) {
+            return ['ok' => false, 'error' => 'El respaldo debe ser un archivo .sql o .sql.gz.'];
         }
 
         $revision = self::validar($archivo['tmp_name']);
@@ -567,7 +693,9 @@ final class Respaldos
             return ['ok' => false, 'error' => 'No se pudo preparar la carpeta de respaldos.'];
         }
 
-        $nombreArchivo = sprintf('subido_%s_%s.sql', date('Ymd_His'), bin2hex(random_bytes(4)));
+        // La extensión la decide el contenido, no lo que dijera quien lo subió.
+        $extension     = self::esGzip((string)$archivo['tmp_name']) ? '.sql.gz' : '.sql';
+        $nombreArchivo = sprintf('subido_%s_%s%s', date('Ymd_His'), bin2hex(random_bytes(4)), $extension);
         $destino       = DIR_RESPALDOS . '/' . $nombreArchivo;
 
         if (!move_uploaded_file($archivo['tmp_name'], $destino)) {
