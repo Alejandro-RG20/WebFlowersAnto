@@ -326,6 +326,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'ga_moneda'         => strtoupper(texto('ga_moneda', 3)) ?: 'NIO',
             'ga_depurar'        => casilla('ga_depurar'),
             'ga_excluir_equipo' => casilla('ga_excluir_equipo'),
+            // Se guarda tal cual se pegue; `verificacion_google()` se encarga
+            // de quitarle el «google-site-verification=» si viene delante.
+            'seo_google_verificacion' => texto('seo_google_verificacion', 120),
         ],
         'desarrollador' => [
             'dev_activo'      => casilla('dev_activo'),
@@ -1476,6 +1479,31 @@ function campoImagen(string $nombre, string $etiqueta, string $valor, string $ay
           <label for="ga_depurar">Modo de comprobación
             <small>Los eventos salen al momento en Analytics → Administrar → DebugView.
               Enciéndelo para comprobar que llega todo y vuelve a apagarlo.</small></label>
+        </div>
+
+        <hr style="border:0;border-top:1px solid var(--linea,#E3DAD6);margin:22px 0;">
+        <h3 style="font-size:1.02rem;margin-bottom:4px;">Search Console</h3>
+        <p class="ayuda" style="margin-bottom:14px;">
+          Search Console es distinto de Analytics: no cuenta visitas, dice si Google
+          <em>encuentra</em> la tienda, qué se busca antes de llegar a ella y qué páginas
+          dan error. Para dejarlo mirar hay que demostrar que el sitio es tuyo, y este
+          código es la forma de hacerlo desde el propio sitio.</p>
+
+        <div class="campo">
+          <label for="seo_google_verificacion">Código de verificación</label>
+          <input type="text" id="seo_google_verificacion" name="seo_google_verificacion"
+                 maxlength="120" autocomplete="off"
+                 style="font-family:ui-monospace,monospace;"
+                 placeholder="2mphJQdUI4LGCzfBKsHo..."
+                 value="<?= e((string)($c['seo_google_verificacion'] ?? '')) ?>">
+          <p class="ayuda">
+            <?php $verifOk = verificacion_google(); ?>
+            <?php if ($verifOk !== ''): ?>
+              <span class="estado-suave si">Etiqueta puesta en todas las páginas</span><br>
+            <?php endif; ?>
+            Sale en <strong>search.google.com/search-console</strong> al añadir la propiedad.
+            Puedes pegarlo solo o con el <code>google-site-verification=</code> delante:
+            se limpia al guardar.</p>
         </div>
 
         <hr style="border:0;border-top:1px solid var(--linea,#E3DAD6);margin:22px 0;">

@@ -325,6 +325,33 @@ function imagen_srcset(?string $ruta, array $anchos = [320, 480, 640, 960]): str
  * archivos de este disco. Una ruta local sí se comprueba, porque pintar un
  * `<img>` roto en producción se ve peor que no pintar nada.
  */
+/**
+ * Código de verificación de Google Search Console, ya limpio.
+ *
+ * Se acepta pegado de las dos formas en que Google lo enseña: el código solo,
+ * o la línea entera del registro DNS —«google-site-verification=CÓDIGO»—, que
+ * es la que sale en el panel cuando se verifica por dominio. Pegar la línea
+ * entera en la etiqueta la dejaría inservible y el fallo no se ve a simple
+ * vista, así que se corrige aquí en vez de pedir que se recorte a mano.
+ *
+ * Devuelve cadena vacía si lo que hay no tiene forma de código, para no pintar
+ * una etiqueta rota.
+ */
+function verificacion_google(): string
+{
+    $bruto = trim(Ajustes::texto('seo_google_verificacion', ''));
+    if ($bruto === '') {
+        return '';
+    }
+    if (str_contains($bruto, '=')) {
+        $bruto = trim(substr($bruto, strrpos($bruto, '=') + 1));
+    }
+    $bruto = trim($bruto, "\"' \t\n\r");
+
+    // El código de Google son letras, números, guiones y guiones bajos.
+    return preg_match('/^[A-Za-z0-9_-]{20,100}$/', $bruto) ? $bruto : '';
+}
+
 function imagen_disponible(?string $ruta): bool
 {
     $ruta = trim((string)$ruta);

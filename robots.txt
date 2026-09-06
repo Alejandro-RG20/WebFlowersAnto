@@ -14,8 +14,14 @@ Disallow: /checkout.php
 Disallow: /carrito.php
 Disallow: /pedido.php
 Disallow: /comprobante.php
-Disallow: /archivo.php
+Disallow: /factura.php
 
-# La dirección tiene que ser absoluta: una ruta relativa aquí la ignoran los
-# buscadores. Cambia el dominio por el tuyo al publicar.
-Sitemap: https://flowersanto.site.je/sitemap.php
+# Las fotos del catálogo sí se dejan rastrear: en una floristería, la búsqueda
+# de imágenes es una puerta de entrada real, y las fotos viven en archivo.php.
+Allow: /archivo.php
+
+# Este archivo es solo el respaldo. Normalmente responde robots.php, que
+# escribe la dirección del sitemap con el dominio real desde el que se pide;
+# solo se llega aquí si el servidor no permite reescrituras, y en ese caso hay
+# que corregir el dominio de abajo a mano.
+Sitemap: https://flowersantopedidos.site.je/sitemap.php

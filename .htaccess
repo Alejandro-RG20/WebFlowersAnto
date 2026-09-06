@@ -23,11 +23,24 @@ Options -Indexes
 # Sin la segunda condición se entraría en un bucle de redirecciones.
 <IfModule mod_rewrite.c>
   RewriteEngine On
+
   RewriteCond %{HTTPS} !=on
   RewriteCond %{HTTP:X-Forwarded-Proto} !=https
   RewriteCond %{HTTP_HOST} !^localhost [NC]
   RewriteCond %{HTTP_HOST} !^127\.0\.0\.1 [NC]
   RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [R=301,L]
+
+  # robots.txt lo genera PHP para que la dirección del sitemap lleve siempre el
+  # dominio real: escrita a mano se quedaba vieja al cambiar de dominio, y un
+  # sitemap que apunta a otro sitio es un sitemap que Google no llega a leer.
+  #
+  # Va DESPUÉS del salto a https a propósito: si fuera antes, una petición por
+  # http se respondería tal cual en vez de redirigirse, y el archivo acabaría
+  # sirviéndose por las dos direcciones.
+  #
+  # Si el servidor no permite reescrituras, no pasa nada: se sirve el
+  # robots.txt de al lado, que dice lo mismo con el dominio escrito a mano.
+  RewriteRule ^robots\.txt$ robots.php [L]
 </IfModule>
 
 # --- Archivos que nunca deben servirse -------------------------------

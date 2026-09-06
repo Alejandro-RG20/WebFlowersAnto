@@ -64,6 +64,14 @@ $waGeneral = enlace_whatsapp(
 <meta name="theme-color" content="<?= e(Ajustes::texto('hero_color_fondo', '#EFD9DE')) ?>">
 <link rel="canonical" href="<?= e($urlCanonica) ?>">
 
+<?php // Google Search Console: demuestra que el sitio es de la tienda. No es
+      // un secreto —viaja en el HTML de cualquier sitio que lo use— y hace
+      // falta que esté en TODAS las páginas, no solo en la portada, porque
+      // Google comprueba la dirección concreta que se está verificando.
+      if (($verificacionGoogle = verificacion_google()) !== ''): ?>
+<meta name="google-site-verification" content="<?= e($verificacionGoogle) ?>">
+<?php endif; ?>
+
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="<?= e($tienda) ?>">
 <meta property="og:title" content="<?= e($tituloPagina) ?>">
