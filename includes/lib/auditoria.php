@@ -14,11 +14,33 @@ declare(strict_types=1);
 
 final class Auditoria
 {
+    /**
+     * Fragmentos que delatan un dato que no debe quedar escrito.
+     *
+     * Se comparan como SUBCADENA del nombre del campo, no como nombre exacto:
+     * así «paypal_secreto», «smtp_password» o «token_hash» quedan cubiertos sin
+     * tener que enumerarlos uno a uno, y un campo que se añada mañana con un
+     * nombre parecido nace protegido.
+     *
+     * Van los términos en español y en inglés porque el proyecto mezcla los
+     * dos: las columnas se llaman en español, pero los datos que vienen de
+     * PayPal o de SMTP llegan con sus nombres originales.
+     */
     private const CLAVES_PROHIBIDAS = [
         'password', 'password_hash', 'contrasena', 'contraseña', 'clave',
-        'token', 'csrf_token', 'token_hash', 'secret', 'client_secret',
+        'token', 'csrf_token', 'token_hash', 'secret', 'secreto', 'client_secret',
         'respuesta_seguridad', 'nueva_password', 'confirmar_password', 'db_pass',
+        'llave', 'api_key', 'apikey', 'authorization', 'autorizacion', 'bearer', 'cvv',
     ];
+
+    /**
+     * Hasta dónde baja el filtrado dentro de estructuras anidadas.
+     *
+     * Un tope hace falta: sin él, un dato con referencias circulares o muy
+     * hondo podría dar vueltas hasta agotar la memoria. Tres niveles cubren de
+     * sobra cualquier detalle que se anote aquí.
+     */
+    private const HONDURA_MAX = 3;
 
     /**
      * Anota una acción.
@@ -85,37 +107,95 @@ final class Auditoria
             return null;
         }
 
-        $limpio = [];
-        foreach ($detalles as $clave => $valor) {
-            $normal = mb_strtolower((string)$clave);
-            $sensible = false;
-            foreach (self::CLAVES_PROHIBIDAS as $prohibida) {
-                if (str_contains($normal, $prohibida)) {
-                    $sensible = true;
-                    break;
-                }
-            }
-            if ($sensible) {
-                $limpio[$clave] = '[oculto]';
-            } elseif (is_scalar($valor) || $valor === null) {
-                $limpio[$clave] = is_string($valor) ? mb_substr($valor, 0, 300) : $valor;
-            } else {
-                $limpio[$clave] = mb_substr((string)json_encode($valor, JSON_UNESCAPED_UNICODE), 0, 300);
-            }
-        }
-        return mb_substr((string)json_encode($limpio, JSON_UNESCAPED_UNICODE), 0, 2000);
+        return mb_substr(
+            (string)json_encode(self::filtrar($detalles, 0), JSON_UNESCAPED_UNICODE),
+            0,
+            2000
+        );
     }
 
-    /** Compara dos filas y devuelve solo lo que cambió, para anotarlo. */
+    /**
+     * Oculta los valores sensibles a cualquier profundidad.
+     *
+     * Antes solo se miraba el primer nivel. Con un detalle plano bastaba, que
+     * es lo único que se anota hoy, pero una clave escondida un nivel más
+     * abajo —«config» → «paypal_secreto»— se serializaba entera y el secreto
+     * acababa escrito en claro. Bajar por toda la estructura cuesta lo mismo y
+     * cierra el agujero antes de que alguien lo abra sin darse cuenta.
+     *
+     * @param array<array-key,mixed> $datos
+     * @return array<array-key,mixed>
+     */
+    private static function filtrar(array $datos, int $hondura): array
+    {
+        $limpio = [];
+
+        foreach ($datos as $clave => $valor) {
+            if (self::claveSensible((string)$clave)) {
+                $limpio[$clave] = '[oculto]';
+                continue;
+            }
+
+            if (is_array($valor)) {
+                // Más hondo de la cuenta no se sigue mirando, así que tampoco
+                // se guarda: vale más perder un detalle que escribir un secreto.
+                $limpio[$clave] = $hondura < self::HONDURA_MAX
+                    ? self::filtrar($valor, $hondura + 1)
+                    : '[…]';
+                continue;
+            }
+
+            if (is_scalar($valor) || $valor === null) {
+                $limpio[$clave] = is_string($valor) ? mb_substr($valor, 0, 300) : $valor;
+                continue;
+            }
+
+            // Objetos y demás: se anota el tipo, nunca el contenido, que puede
+            // arrastrar cualquier cosa dentro.
+            $limpio[$clave] = '[' . get_debug_type($valor) . ']';
+        }
+
+        return $limpio;
+    }
+
+    /** ¿El nombre de este campo delata un dato que no debe quedar escrito? */
+    private static function claveSensible(string $clave): bool
+    {
+        $normal = mb_strtolower($clave);
+        foreach (self::CLAVES_PROHIBIDAS as $prohibida) {
+            if (str_contains($normal, $prohibida)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Compara dos filas y devuelve solo lo que cambió, para anotarlo.
+     *
+     * De los campos sensibles se anota QUE cambiaron y nada más. El valor no
+     * llega a existir en el array que se devuelve: `limpiarDetalles()` lo
+     * ocultaría igual al guardar, pero este método es público y su resultado
+     * podría acabar mañana en otro sitio —una descripción, un registro de
+     * error— donde ya no habría filtro. Un secreto que nunca se copia no se
+     * puede filtrar por descuido.
+     *
+     * Y para la auditoría es lo que importa: quién tocó la credencial y
+     * cuándo. El valor no aporta nada que se pueda usar sin poder usarse
+     * también para robarlo.
+     */
     public static function diferencias(array $antes, array $despues, array $campos): array
     {
         $cambios = [];
         foreach ($campos as $campo) {
             $a = $antes[$campo] ?? null;
             $d = $despues[$campo] ?? null;
-            if ((string)$a !== (string)$d) {
-                $cambios[$campo] = ['antes' => $a, 'ahora' => $d];
+            if ((string)$a === (string)$d) {
+                continue;
             }
+            $cambios[$campo] = self::claveSensible((string)$campo)
+                ? 'cambiado'
+                : ['antes' => $a, 'ahora' => $d];
         }
         return $cambios;
     }
