@@ -24,4 +24,4 @@ Allow: /archivo.php
 # escribe la dirección del sitemap con el dominio real desde el que se pide;
 # solo se llega aquí si el servidor no permite reescrituras, y en ese caso hay
 # que corregir el dominio de abajo a mano.
-Sitemap: https://flowersantopedidos.site.je/sitemap.php
+Sitemap: https://flowersanto.site.je/sitemap.php
