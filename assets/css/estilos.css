@@ -48,7 +48,7 @@ h1, h2, h3, h4, .logo-text, .hero-title { font-family: 'Playfair Display', serif
 .navbar {
   position: fixed; top: 0; left: 0; width: 100%;
   z-index: 1000; padding: 8px 0;
-  transition: box-shadow var(--transition), padding var(--transition);
+  transition: box-shadow var(--transition);
 
   /* Fondo casi opaco como base. Si el desenfoque no llega a aplicarse —o el
      navegador tarda en pintar la capa— la barra sigue siendo visible y
@@ -78,21 +78,33 @@ h1, h2, h3, h4, .logo-text, .hero-title { font-family: 'Playfair Display', serif
     }
   }
 }
-.navbar.scrolled { box-shadow: 0 2px 20px rgba(0,0,0,0.08); padding: 4px 0; }
+/* Solo la sombra: antes también encogía el relleno, y como el alto de la
+   barra es el que separa el contenido de abajo (`--alto-navbar`), cada
+   scroll movía la página entera unos píxeles. */
+.navbar.scrolled { box-shadow: 0 2px 20px rgba(0,0,0,0.08); }
 .nav-container {
   max-width: 1200px; margin: 0 auto; padding: 0 24px;
   display: flex; align-items: center; justify-content: space-between;
-  flex-wrap: nowrap;
+  flex-wrap: nowrap; gap: 16px;
+  /* Fija el alto de la fila para que `--alto-navbar` sea de verdad el alto de
+     la barra: de ahí cuelgan el hueco superior del body, el desplegable del
+     menú y la posición de los adornos del hero. */
+  min-height: calc(var(--alto-navbar) - 16px);
 }
-.logo { display: flex; align-items: center; gap: 10px; text-decoration: none; flex-shrink: 0; }
+/* `min-width: 0` deja que el nombre se recorte con puntos suspensivos en vez
+   de empujar los botones fuera de la pantalla. */
+.logo { display: flex; align-items: center; gap: 10px; text-decoration: none; min-width: 0; }
 .logo-icon {
   width: 60px; height: 60px; border-radius: 50%; overflow: hidden;
   background: transparent; display: flex; align-items: center; justify-content: center;
-  transition: transform var(--transition);
+  transition: transform var(--transition); flex-shrink: 0;
 }
 .logo-icon img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .logo:hover .logo-icon { transform: rotate(-15deg) scale(1.1); }
-.logo-text { font-size: 1.6rem; font-weight: 700; color: var(--dark); white-space: nowrap; }
+.logo-text {
+  font-size: 1.6rem; font-weight: 700; color: var(--dark);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0;
+}
 .logo-highlight { color: var(--rose-pastel); }
 .nav-menu { display: flex; list-style: none; gap: 4px; flex-shrink: 1; }
 .nav-link {
@@ -121,6 +133,11 @@ h1, h2, h3, h4, .logo-text, .hero-title { font-family: 'Playfair Display', serif
      el tamaño del icono, que sigue mandando en el aspecto. */
   min-width: 44px; min-height: 44px;
   display: inline-flex; align-items: center; justify-content: center;
+  /* Estos botones son enlaces. Sin quitarles la decoración el navegador
+     pinta el subrayado del enlace bajo el icono, y se veía una rayita suelta
+     debajo del corazón y del carrito. */
+  text-decoration: none;
+  flex-shrink: 0;
 }
 .icon-count {
   position: absolute; top: -2px; right: -6px;
@@ -130,7 +147,14 @@ h1, h2, h3, h4, .logo-text, .hero-title { font-family: 'Playfair Display', serif
   width: 18px; height: 18px; font-size: 0.65rem;
   display: flex; align-items: center; justify-content: center; font-weight: 600;
 }
-.hamburger { display: none; flex-direction: column; gap: 5px; background: none; border: none; cursor: pointer; padding: 8px; }
+.hamburger {
+  display: none; flex-direction: column; align-items: center; justify-content: center;
+  gap: 5px; background: none; border: none; cursor: pointer; padding: 8px;
+  /* 44x44 para el dedo, y sin encogerse: era el último elemento de la fila y,
+     cuando no cabía todo, era el que se quedaba cortado contra el borde. */
+  width: 44px; height: 44px; flex-shrink: 0;
+  -webkit-tap-highlight-color: transparent;
+}
 .hamburger span { width: 25px; height: 3px; background: var(--dark); border-radius: 3px; transition: var(--transition); }
 .hamburger.active span:nth-child(1) { transform: rotate(45deg) translate(5px, 5px); }
 .hamburger.active span:nth-child(2) { opacity: 0; }
@@ -575,6 +599,10 @@ h1, h2, h3, h4, .logo-text, .hero-title { font-family: 'Playfair Display', serif
   border-radius: 50%; display: flex; align-items: center; justify-content: center;
   color: #fff; transition: all var(--transition);
   border: 1px solid rgba(255,255,255,0.1);
+  /* Mismo caso que `.whatsapp-float`: son enlaces, y sin esto el subrayado
+     del navegador cruzaba por debajo del icono dentro del círculo. */
+  text-decoration: none;
+  flex-shrink: 0;
 }
 .social-btn:hover { background: var(--rose-pastel); transform: translateY(-3px); box-shadow: 0 6px 15px rgba(248,176,194,0.4); }
 .whatsapp-btn { background: #0E7A6D; border-color: #0E7A6D; }
@@ -746,17 +774,14 @@ h1, h2, h3, h4, .logo-text, .hero-title { font-family: 'Playfair Display', serif
   .foto-cliente { flex: 0 0 calc(50% - 10px); }
 }
 @media (max-width: 768px) {
-  .nav-menu {
-    position: fixed; top: 70px; left: -100%; width: 100%; height: calc(100vh - 70px);
-    background: rgba(255,255,255,0.98);
-    -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
-    flex-direction: column; align-items: center; justify-content: center; gap: 24px;
-    transition: left 0.4s ease;
-  }
-  .nav-menu.active { left: 0; }
-  .hamburger { display: flex; }
-  .btn-nav-whatsapp span { display: none; }
-  .btn-nav-whatsapp { padding: 10px; border-radius: 50%; }
+  /* El menú desplegable de móvil vive en `app.css`, en su bloque de 900 px.
+     Aquí había una segunda versión, de cuando se abría con la clase `.active`
+     y la propiedad `left`. El guion pasó a usar `abierto` y una
+     transformación, así que la regla de apertura ya no la aplicaba nadie,
+     pero el resto sí seguía colándose: el `height` y el centrado vertical
+     dejaban el menú flotando en mitad de la pantalla con un hueco arriba y
+     otro abajo, y el `top: 70px` no coincidía con el alto real de la barra,
+     de modo que asomaba una franja de la portada por debajo. */
   .hero-title { font-size: 2.2rem; }
   .footer-grid { grid-template-columns: 1fr; }
   .products-vertical { grid-template-columns: 1fr; }
@@ -788,9 +813,17 @@ h1, h2, h3, h4, .logo-text, .hero-title { font-family: 'Playfair Display', serif
    Va al final para sobreescribir las reglas anteriores sin tocarlas.
    ===================================================================== */
 
-/* La navbar es fija: el hero necesita conocer su alto para no taparse. */
-:root{ --alto-navbar: 72px; }
-@media (max-width: 768px){ :root{ --alto-navbar: 64px; } }
+/* La barra es fija: todo lo que va debajo necesita saber cuánto ocupa. Es la
+   única fuente del dato — de aquí salen el alto de la fila, el hueco superior
+   del body, el arranque del menú desplegable y la posición de los adornos del
+   hero. Antes cada sitio llevaba su propio número (70, 72, 84) y ninguno
+   coincidía con el alto de verdad, que es lo que dejaba una franja de la
+   portada asomando entre la barra y el menú abierto.
+
+   El número sale de la fila: 8 px de relleno arriba y abajo más el elemento
+   más alto que contiene (el logo, 60 px; en móvil 44 px). */
+:root{ --alto-navbar: 76px; }
+@media (max-width: 900px){ :root{ --alto-navbar: 62px; } }
 
 /* --------------------------------------------------------- catálogo */
 .product-count{

@@ -33,7 +33,7 @@
 }
 
 /* --- Base ---------------------------------------------------------- */
-body { padding-top: 84px; }
+body { padding-top: var(--alto-navbar, 76px); }
 main { min-height: 55vh; }
 img { max-width: 100%; }
 
@@ -699,19 +699,63 @@ a.creditos-dev:hover { background: rgba(255,255,255,.13); border-color: rgba(255
 
 /* --- Móvil ---------------------------------------------------------------- */
 @media (max-width: 900px) {
-  body { padding-top: 72px; }
+  /* El desplegable cuelga de la barra, no de la pantalla.
+     Estaba puesto como `fixed` contando con que se midiera contra la ventana,
+     pero `.navbar` lleva un `transform` (el arreglo del repintado de iOS) y
+     eso convierte a la barra en el marco de referencia de todo lo que lleva
+     dentro: el `bottom: 0` del menú caía en el borde inferior de la barra,
+     de 62 px, así que el panel se quedaba de 34 px y los enlaces se salían
+     por debajo. De ahí el hueco por el que se veía la portada.
+
+     Colgarlo de la barra con `absolute` es lo mismo en pantalla —la barra ya
+     es fija— y además es fiable: no depende de qué ancestro tenga o deje de
+     tener un `transform`. El alto se pide entero y explícito, así que llega
+     hasta abajo pase lo que pase. */
   .nav-menu {
-    position: fixed; inset: 72px 0 auto 0; flex-direction: column; gap: 0;
-    background: var(--papel); padding: 12px 22px 22px; box-shadow: var(--sombra);
-    transform: translateY(-120%); transition: transform .3s cubic-bezier(.4,0,.2,1);
-    max-height: calc(100dvh - 72px); overflow-y: auto;
+    position: absolute; top: 100%; left: 0; right: 0;
+    height: calc(100vh - var(--alto-navbar));
+    height: calc(100dvh - var(--alto-navbar));
+    flex-direction: column; align-items: stretch; justify-content: flex-start; gap: 0;
+    background: var(--papel); padding: 12px 22px calc(22px + env(safe-area-inset-bottom));
+    box-shadow: var(--sombra);
+    overflow-y: auto; overscroll-behavior: contain;
+    /* Se abre creciendo desde su borde de arriba, que es justo donde acaba la
+       barra: así en ningún momento de la animación se pinta por encima de
+       ella. Solo se animan opacidad y transformación, que el navegador
+       compone sin repintar. Cerrado se esconde del todo para que el tabulador
+       y el lector de pantalla no entren en un menú que no se ve. */
+    transform-origin: top center;
+    opacity: 0; transform: scaleY(.985); visibility: hidden;
+    transition: opacity .24s ease, transform .24s cubic-bezier(.4,0,.2,1),
+                visibility 0s linear .24s;
   }
-  .nav-menu.abierto { transform: none; }
+  .nav-menu.abierto {
+    opacity: 1; transform: none; visibility: visible;
+    transition: opacity .24s ease, transform .24s cubic-bezier(.4,0,.2,1),
+                visibility 0s;
+  }
   .nav-menu li { width: 100%; border-bottom: 1px solid var(--linea); }
   .nav-menu li:last-child { border-bottom: 0; }
   .nav-link { display: block; padding: 14px 4px; border-radius: 0; font-size: 1rem; }
+
+  /* El menú de tres rayas aparece a la vez que el desplegable. Estaba atado a
+     768 px mientras el desplegable empezaba en 900: entre esos dos anchos el
+     menú se escondía sin dejar ningún botón para abrirlo. */
+  .hamburger { display: flex; }
+
+  /* La barra en el móvil: menos aire a los lados y separaciones más justas,
+     que es lo que hacía falta para que las tres rayas no quedasen cortadas
+     contra el borde de la pantalla. */
+  .nav-container { padding: 0 14px; gap: 10px; }
+  .nav-actions { gap: 2px; }
   .btn-nav-whatsapp span { display: none; }
-  .btn-nav-whatsapp { padding: 9px 12px; }
+  /* Redondo y con el mismo aire que los demás iconos: pegado al nombre de la
+     tienda parecía parte del rótulo. */
+  .btn-nav-whatsapp {
+    width: 40px; height: 40px; padding: 0; border-radius: 50%;
+    justify-content: center; margin-left: 6px;
+  }
+  .icon-btn { min-width: 40px; padding: 4px; }
   .logo-icon { width: 44px; height: 44px; }
   .logo-text { font-size: 1.18rem; }
   .section { padding: 48px 0; }
@@ -723,6 +767,14 @@ a.creditos-dev:hover { background: rgba(255,255,255,.13); border-color: rgba(255
   .container { padding: 0 16px; }
   .rejilla-productos { gap: 13px; grid-template-columns: repeat(2, 1fr); }
   .tarjeta { padding: 17px; }
+  /* En las pantallas más estrechas no caben los cinco botones sin recortar el
+     nombre de la tienda. El de WhatsApp es el que se retira: la misma acción
+     sigue a un toque en el botón flotante, que está en todas las páginas.
+     Lo que se gana se reparte para que «Flowers Anto» entre entero. */
+  .btn-nav-whatsapp { display: none; }
+  .nav-container { padding: 0 12px; gap: 6px; }
+  .logo-icon { width: 40px; height: 40px; }
+  .logo-text { font-size: 1.05rem; }
 }
 
 /* --- Impresión ------------------------------------------------------------ */

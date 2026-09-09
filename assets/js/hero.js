@@ -80,7 +80,7 @@ function pintarEscenario() {
   }
 
   puntos.innerHTML = piezas.map((p, i) => `
-    <button type="button" data-indice="${i}" aria-pressed="${i === activo}"
+    <button type="button" data-indice="${i}" aria-current="${i === activo}"
             aria-label="Ver ${esc(p.nombre)}"></button>`).join('');
 }
 
@@ -93,7 +93,7 @@ function actualizarRoles() {
     el.dataset.rol = rolDe(+el.dataset.indice);
   });
   puntos.querySelectorAll('button').forEach((b, i) => {
-    b.setAttribute('aria-pressed', String(i === activo));
+    b.setAttribute('aria-current', String(i === activo));
   });
 }
 
