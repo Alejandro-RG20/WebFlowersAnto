@@ -81,7 +81,7 @@ function url_absoluta(string $ruta = ''): string
  * (images/... o uploads/...) y deja pasar las absolutas por si algún día se
  * sirven las fotos desde un CDN.
  */
-function url_imagen(?string $ruta, string $def = 'images/placeholders/logo.svg'): string
+function url_imagen(?string $ruta, string $def = 'images/placeholders/logo.svg', ?int $ancho = null): string
 {
     $ruta = trim((string)$ruta);
     if ($ruta === '') {
@@ -93,10 +93,59 @@ function url_imagen(?string $ruta, string $def = 'images/placeholders/logo.svg')
     // «bd:47» es una imagen guardada dentro de la base. Se resuelve aquí, que
     // es por donde pasa todo lo que se pinta, para que el resto del código
     // siga tratando el valor como una ruta cualquiera.
+    //
+    // Con `$ancho` se pide una copia reducida. Sirve para los sitios donde la
+    // foto se pinta pequeña y no hay `srcset` que valga: el logo de la
+    // cabecera ocupa 60 px y estaba descargando el original de 1087.
     if (preg_match('#^bd:(\d+)$#', $ruta, $m)) {
-        return url('archivo.php?id=' . (int)$m[1]);
+        return url('archivo.php?id=' . (int)$m[1] . ($ancho ? '&w=' . $ancho : ''));
     }
     return url($ruta);
+}
+
+/**
+ * Medidas reales de una imagen guardada en la base.
+ *
+ * Se usan para escribir `width` y `height` en el `<img>`: con ellos el
+ * navegador reserva el hueco antes de descargar la foto y la página no da un
+ * salto al llegar. Las fotos del carrusel no tienen todas la misma
+ * proporción, así que fijar un tamaño igual para todas las deformaría; por
+ * eso se leen las de cada una.
+ *
+ * Devuelve [] si la referencia no es «bd:» o si el archivo no está.
+ */
+function imagen_medidas(?string $ruta): array
+{
+    static $cache = [];
+
+    $ruta = trim((string)$ruta);
+    if (!preg_match('#^bd:(\d+)$#', $ruta, $m)) {
+        return [];
+    }
+    $id = (int)$m[1];
+    if (array_key_exists($id, $cache)) {
+        return $cache[$id];
+    }
+
+    // Misma vía que el resto de las librerías del proyecto.
+    $pdo = $GLOBALS['pdo'] ?? null;
+    if (!$pdo instanceof PDO) {
+        return $cache[$id] = [];
+    }
+
+    try {
+        $st = $pdo->prepare("SELECT ancho, alto FROM archivos WHERE id = ?");
+        $st->execute([$id]);
+        $fila = $st->fetch();
+    } catch (Throwable) {
+        $fila = false;
+    }
+
+    $medidas = ($fila && (int)$fila['ancho'] > 0 && (int)$fila['alto'] > 0)
+        ? ['ancho' => (int)$fila['ancho'], 'alto' => (int)$fila['alto']]
+        : [];
+
+    return $cache[$id] = $medidas;
 }
 
 /**

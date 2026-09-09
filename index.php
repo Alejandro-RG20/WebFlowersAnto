@@ -47,6 +47,11 @@ $datosHero = [
         'ref'              => (string)(($p['imagen_hero'] ?? '') !== ''
                                           ? $p['imagen_hero']
                                           : ($p['portada'] ?? $p['imagen'])),
+        // El mismo `srcset` que lleva el <img>. Sin él, la precarga del
+        // carrusel se bajaba el original entero de cada foto.
+        'srcset'           => imagen_srcset((string)(($p['imagen_hero'] ?? '') !== ''
+                                          ? $p['imagen_hero']
+                                          : ($p['portada'] ?? $p['imagen'])), [480, 640, 960, 1280]),
         'enlace'           => url('producto.php?p=' . rawurlencode((string)$p['slug'])),
         'precio'           => (float)$p['precio'],
         'precio_usd'       => (float)$p['precio_usd'],
@@ -138,10 +143,14 @@ require __DIR__ . '/includes/vistas/cabecera.php';
         <?php if (($pieza['enlace'] ?? '') !== ''): ?>
           <a href="<?= e((string)$pieza['enlace']) ?>" tabindex="-1" aria-hidden="true">
         <?php endif; ?>
+        <?php // Las medidas se leen de la base porque cada arreglo tiene su
+              // propia proporción: un tamaño fijo para todos los deformaría.
+              $medHero = imagen_medidas((string)($pieza['ref'] ?? '')); ?>
         <img src="<?= e((string)$pieza['imagen']) ?>" alt="<?= e((string)$pieza['nombre']) ?>"
              <?php if (($ss = imagen_srcset((string)($pieza['ref'] ?? ''), [480, 640, 960, 1280])) !== ''): ?>
                srcset="<?= e($ss) ?>" sizes="(max-width: 640px) 86vw, 620px"
              <?php endif; ?>
+             <?php if ($medHero): ?>width="<?= $medHero['ancho'] ?>" height="<?= $medHero['alto'] ?>"<?php endif; ?>
              draggable="false" decoding="async"
              <?= $i === 0 ? 'fetchpriority="high"' : 'loading="lazy"' ?>>
         <?php if (($pieza['enlace'] ?? '') !== ''): ?></a><?php endif; ?>

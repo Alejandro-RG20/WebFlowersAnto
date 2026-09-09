@@ -21,7 +21,7 @@ $devUrl    = Ajustes::texto('dev_url');
     <div class="footer-grid">
       <div class="footer-brand">
         <div class="logo">
-          <span class="logo-icon"><img src="<?= e(url_imagen(Ajustes::texto('logo_url', 'images/logoanto.jpeg'))) ?>" alt="" width="60" height="60" loading="lazy"></span>
+          <span class="logo-icon"><img src="<?= e(url_imagen(Ajustes::texto('logo_url', 'images/logoanto.jpeg'), 'images/placeholders/logo.svg', 160)) ?>" alt="" width="60" height="60" loading="lazy"></span>
           <span class="logo-text"><?= e($tienda) ?></span>
         </div>
         <p><?= e(Ajustes::texto('eslogan', 'Convertimos tus sentimientos en flores.')) ?></p>
@@ -95,7 +95,10 @@ $devUrl    = Ajustes::texto('dev_url');
           <?php if ($logo !== ''): ?>
             <?php // El logo ya lleva el nombre dentro, así que se muestra entero
                   // y no se repite el texto al lado. ?>
-            <img src="<?= e(url_imagen($logo)) ?>" alt="<?= e(Ajustes::texto('dev_nombre')) ?>" loading="lazy">
+            <?php $medLogo = imagen_medidas($logo); ?>
+            <img src="<?= e(url_imagen($logo, 'images/placeholders/logo.svg', 320)) ?>"
+                 alt="<?= e(Ajustes::texto('dev_nombre')) ?>" loading="lazy" decoding="async"
+                 <?php if ($medLogo): ?>width="<?= $medLogo['ancho'] ?>" height="<?= $medLogo['alto'] ?>"<?php endif; ?>>
           <?php else: ?>
             <span class="creditos-dev-inicial" aria-hidden="true"><?= e(mb_substr(Ajustes::texto('dev_nombre'), 0, 1)) ?></span>
             <span class="creditos-dev-texto">

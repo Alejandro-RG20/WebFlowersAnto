@@ -27,7 +27,7 @@ require_once __DIR__ . '/includes/arranque-minimo.php';
 
 /** Anchos que se pueden pedir. Una lista cerrada evita que alguien llene el
  *  disco pidiendo mil tamaños distintos de la misma foto. */
-const ANCHOS = [320, 480, 640, 960, 1280];
+const ANCHOS = [160, 320, 480, 640, 960, 1280];
 
 $id    = (int)($_GET['id'] ?? 0);
 $ancho = (int)($_GET['w'] ?? 0);

@@ -166,7 +166,7 @@ $waGeneral = enlace_whatsapp(
 <nav class="navbar" id="navbar">
   <div class="nav-container">
     <a href="<?= e(url()) ?>" class="logo" aria-label="<?= e($tienda) ?> — Inicio">
-      <span class="logo-icon"><img src="<?= e(url_imagen(Ajustes::texto('logo_url', 'images/logoanto.jpeg'))) ?>" alt="" width="60" height="60"></span>
+      <span class="logo-icon"><img src="<?= e(url_imagen(Ajustes::texto('logo_url', 'images/logoanto.jpeg'), 'images/placeholders/logo.svg', 160)) ?>" alt="" width="60" height="60"></span>
       <span class="logo-text"><?= e($tienda) ?></span>
     </a>
 

@@ -272,7 +272,14 @@ function iniciar(datos) {
     reiniciarReloj();
 
     // Precarga: la siguiente imagen ya está lista cuando el usuario avanza.
-    piezas.slice(1).forEach(p => { const i = new Image(); i.src = p.imagen; });
+    // Se le pasan `sizes` y `srcset` para que el navegador elija el mismo
+    // tamaño que pondría en la página. Sin ellos se bajaba el original
+    // completo de cada foto —más de un mega cada una— para nada.
+    piezas.slice(1).forEach(p => {
+      const i = new Image();
+      if (p.srcset) { i.sizes = '(max-width: 640px) 86vw, 620px'; i.srcset = p.srcset; }
+      i.src = p.imagen;
+    });
   }
 
   seccion.classList.add('listo');

@@ -613,7 +613,17 @@ h1, h2, h3, h4, .logo-text, .hero-title { font-family: 'Playfair Display', serif
   position: fixed; bottom: 28px; right: 28px; width: 60px; height: 60px;
   background: #25D366; border-radius: 50%; display: flex; align-items: center; justify-content: center;
   color: #fff; font-size: 1.8rem; box-shadow: 0 6px 20px rgba(37,211,102,0.4);
-  z-index: 998; transition: all var(--transition); animation: pulse 2s infinite;
+  z-index: 998; transition: transform var(--transition), box-shadow var(--transition);
+}
+/* El halo late en un pseudo-elemento que se escala y se desvanece.
+   Antes se animaba `box-shadow` del propio botón: eso el navegador no lo
+   puede componer en la GPU, así que repintaba el botón en cada fotograma,
+   sin parar, mientras la página estuviera abierta. `transform` y `opacity`
+   sí se componen. Se ve igual. */
+.whatsapp-float::after {
+  content: ""; position: absolute; inset: 0; z-index: -1;
+  border-radius: 50%; background: rgba(37,211,102,0.5);
+  pointer-events: none; animation: pulse 2s infinite;
 }
 .whatsapp-float:hover { transform: scale(1.1); box-shadow: 0 8px 28px rgba(37,211,102,0.55); }
 
@@ -696,7 +706,7 @@ h1, h2, h3, h4, .logo-text, .hero-title { font-family: 'Playfair Display', serif
 @keyframes fadeInUp { from { opacity: 0; transform: translateY(40px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 @keyframes bounce { 0%,20%,50%,80%,100%{ transform: translateX(-50%) translateY(0); } 40%{ transform: translateX(-50%) translateY(-10px); } 60%{ transform: translateX(-50%) translateY(-4px); } }
-@keyframes pulse { 0%{ box-shadow: 0 0 0 0 rgba(37,211,102,0.5); } 70%{ box-shadow: 0 0 0 18px rgba(37,211,102,0); } 100%{ box-shadow: 0 0 0 0 rgba(37,211,102,0); } }
+@keyframes pulse { 0%{ transform: scale(1); opacity: .5; } 70%{ transform: scale(1.6); opacity: 0; } 100%{ transform: scale(1.6); opacity: 0; } }
 .reveal { opacity: 0; transform: translateY(40px); transition: opacity 0.8s ease, transform 0.8s ease; }
 .reveal.visible { opacity: 1; transform: translateY(0); }
 
