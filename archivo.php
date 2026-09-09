@@ -105,11 +105,33 @@ if ($hayQueTrabajar) {
         exit;
     }
 
-    $reducida = transformar($pdo, $id, $ancho, (string)$meta['mime'], $salida);
-    if ($reducida !== null) {
-        if (!is_dir($carpeta)) {
-            @mkdir($carpeta, 0775, true);
+    if (!is_dir($carpeta)) {
+        @mkdir($carpeta, 0775, true);
+    }
+
+    // Turno para convertir.
+    //
+    // Una página del catálogo pide una docena de fotos a la vez y, la primera
+    // vez, cada una dispara una conversión con GD. En hosting compartido eso
+    // supera el límite de procesos del servidor y devuelve 508: la foto no
+    // llega y el hueco queda vacío. Con el turno solo convierte una petición
+    // a la vez; las demás sirven el original, que pesa más pero se ve. En dos
+    // o tres visitas la caché queda completa y ya nadie convierte nada.
+    $turno = @fopen($carpeta . '/.turno', 'c');
+    $tengoTurno = $turno !== false && @flock($turno, LOCK_EX | LOCK_NB);
+
+    $reducida = $tengoTurno
+        ? transformar($pdo, $id, $ancho, (string)$meta['mime'], $salida)
+        : null;
+
+    if ($turno !== false) {
+        if ($tengoTurno) {
+            @flock($turno, LOCK_UN);
         }
+        @fclose($turno);
+    }
+
+    if ($reducida !== null) {
         // Se escribe con nombre temporal y se renombra: dos visitas a la vez no
         // pueden dejar un archivo a medias que luego se sirva roto.
         $temp = $cache . '.' . bin2hex(random_bytes(4));

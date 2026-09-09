@@ -73,7 +73,8 @@ a { color: inherit; }
   background: transparent; border: 1.5px solid var(--linea-fuerte); color: var(--tinta);
 }
 .btn-outline-dark:hover { background: var(--tinta); color: #fff; border-color: var(--tinta); }
-.btn-whatsapp { background: #25D366; color: #fff; }
+/* Verde oscuro de WhatsApp: con texto blanco el claro daba 1,98 de contraste. */
+.btn-whatsapp { background: #0E7A6D; color: #fff; }
 .btn-whatsapp:hover { background: #1ebc59; transform: translateY(-2px); }
 .btn-peligro { background: var(--alerta); color: #fff; }
 .btn-peligro:hover { background: #7c2932; }
@@ -213,7 +214,7 @@ a { color: inherit; }
   text-decoration: none; transition: transform var(--transicion), background var(--transicion);
 }
 .btn-cart-quick:hover { transform: scale(1.08); background: var(--rose-mid); }
-.btn-cart-quick--wa { background: #25D366; }
+.btn-cart-quick--wa { background: #0E7A6D; }
 .btn-cart-quick--wa:hover { background: #1ebc59; }
 
 /* --- Esqueletos de carga -------------------------------------------- */

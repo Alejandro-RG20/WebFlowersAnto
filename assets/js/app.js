@@ -168,9 +168,17 @@
     // clase en cada uno obliga al navegador a recalcular estilos todo el rato;
     // en un teléfono modesto eso se nota. Aquí se agrupa el trabajo en el
     // siguiente fotograma y solo se escribe cuando el estado cambia de verdad.
-    let fijada = window.scrollY > 40;
+    // La primera lectura se aplaza al siguiente fotograma. Leer `scrollY`
+    // aquí mismo, mientras el navegador todavía está montando la página,
+    // le obliga a calcular la geometría antes de tiempo; PageSpeed lo medía
+    // como 33 ms de reprocesamiento forzado. Esperando un fotograma se lee
+    // cuando el cálculo ya está hecho y no cuesta nada.
+    let fijada = false;
     let pedido = false;
-    navbar.classList.toggle('scrolled', fijada);
+    requestAnimationFrame(() => {
+      fijada = window.scrollY > 40;
+      navbar.classList.toggle('scrolled', fijada);
+    });
 
     const revisar = () => {
       pedido = false;

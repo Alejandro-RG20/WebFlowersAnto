@@ -73,6 +73,7 @@ function pintarEscenario() {
       <div class="hero-pieza" data-rol="${rolDe(i)}" data-indice="${i}">
         ${p.enlace ? `<a href="${esc(p.enlace)}" tabindex="-1" aria-hidden="true">` : ''}
         <img src="${esc(p.imagen)}" alt="${esc(p.nombre)}" draggable="false" decoding="async"
+             ${p.srcset ? `srcset="${esc(p.srcset)}" sizes="${SIZES_HERO}"` : ''}
              ${i === 0 ? 'fetchpriority="high"' : 'loading="lazy"'}>
         ${p.enlace ? '</a>' : ''}
       </div>`).join('');
@@ -82,6 +83,10 @@ function pintarEscenario() {
     <button type="button" data-indice="${i}" aria-pressed="${i === activo}"
             aria-label="Ver ${esc(p.nombre)}"></button>`).join('');
 }
+
+/* El mismo ancho anunciado para todas las piezas: el carrusel las va llevando
+   al centro, asi que todas acaban necesitando el archivo grande. */
+const SIZES_HERO = '(max-width: 640px) 86vw, 620px';
 
 function actualizarRoles() {
   escenario.querySelectorAll('.hero-pieza').forEach(el => {

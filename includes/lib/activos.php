@@ -81,6 +81,23 @@ final class Activos
             return null;
         }
 
+        // Copia comprimida junto al original. El hosting no está aplicando
+        // compresión —PageSpeed lo midió: la hoja viaja entera y tarda 2,5 s—
+        // así que se deja ya comprimida y el `.htaccess` la sirve a quien la
+        // acepte. Si esa regla no estuviera disponible se sirve la normal:
+        // por eso se escriben las dos.
+        if (function_exists('gzencode')) {
+            $gz = @gzencode($css, 9);
+            if ($gz !== false) {
+                $tempGz = $abs . '.gz.' . bin2hex(random_bytes(4));
+                if (@file_put_contents($tempGz, $gz) !== false) {
+                    if (!@rename($tempGz, $abs . '.gz')) {
+                        @unlink($tempGz);
+                    }
+                }
+            }
+        }
+
         self::limpiarViejos($carpeta, basename($abs));
         return $destino;
     }
@@ -123,8 +140,10 @@ final class Activos
     /** Deja solo el paquete en uso: los anteriores ya no los pide nadie. */
     private static function limpiarViejos(string $carpeta, string $actual): void
     {
-        foreach (@glob($carpeta . '/app-*.css') ?: [] as $viejo) {
-            if (basename($viejo) !== $actual && @filemtime($viejo) < time() - 3600) {
+        foreach (@glob($carpeta . '/app-*.css*') ?: [] as $viejo) {
+            $base = basename($viejo);
+            if ($base !== $actual && $base !== $actual . '.gz'
+                && @filemtime($viejo) < time() - 3600) {
                 @unlink($viejo);
             }
         }

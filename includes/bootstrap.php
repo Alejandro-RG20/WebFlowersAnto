@@ -97,7 +97,37 @@ if (PHP_SAPI !== 'cli') {
     $guion = (string)($_SERVER['SCRIPT_NAME'] ?? '');
     if (str_contains($guion, '/api/') || str_ends_with($guion, '/subir.php')) {
         ob_start();
+    } elseif (comprimir_salida()) {
+        ob_start('ob_gzhandler');
     }
+}
+
+/**
+ * ¿Conviene comprimir el HTML de esta petición?
+ *
+ * El hosting no está aplicando compresión —PageSpeed lo midió: el documento
+ * viaja entero y son unos 40 KB de más en cada visita—, así que la hace PHP.
+ * No se toca si el servidor ya la aplica, ni en descargas o imágenes, que
+ * salen en streaming y volverían a comprimirse sin ganar nada.
+ */
+function comprimir_salida(): bool
+{
+    if (headers_sent()) {
+        return false;
+    }
+    // No se mira `ob_get_level()`: casi todos los hostings traen
+    // `output_buffering` activado, así que siempre hay un búfer abierto y
+    // comprobarlo dejaba la compresión sin aplicar nunca. El manejador de
+    // gzip se apila encima sin problema.
+    // Si ya está activada por configuración, dejarla; hacerlo dos veces
+    // produce una respuesta que el navegador no puede leer.
+    if (filter_var((string)ini_get('zlib.output_compression'), FILTER_VALIDATE_BOOLEAN)) {
+        return false;
+    }
+    if (!extension_loaded('zlib') || !function_exists('ob_gzhandler')) {
+        return false;
+    }
+    return str_contains(strtolower((string)($_SERVER['HTTP_ACCEPT_ENCODING'] ?? '')), 'gzip');
 }
 
 // ---------------------------------------------------------------------

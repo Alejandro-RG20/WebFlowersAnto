@@ -169,22 +169,44 @@
   font-family:'Playfair Display',Georgia,serif;
   font-size:clamp(1.15rem, 3.6vw, 3rem);
   font-weight:600;line-height:1;letter-spacing:-.02em;
-  text-transform:uppercase;color:#fff;text-decoration:none;opacity:.94;
+  text-transform:uppercase;text-decoration:none;
+  /* Iba en blanco sin fondo. El del hero cambia con la temporada y suele ser
+     claro, así que «VER ARREGLOS» se quedaba en 1,27 de contraste: ilegible.
+     Con la pastilla el contraste es 13,1 pase lo que pase detrás, y de paso
+     el enlace pasa a tener aspecto de botón y altura suficiente para tocarlo.
+     La tipografía y el sitio no cambian. */
+  color:#fff;background:rgba(61,44,46,.92);
+  padding:12px 22px;border-radius:999px;
+  backdrop-filter:saturate(140%) blur(2px);
+  box-shadow:0 6px 18px rgba(40,26,30,.28);
+  opacity:1;
   transition:opacity 200ms ease, gap 200ms ease;
 }
-.hero-llamada:hover{opacity:1;gap:18px}
+.hero-llamada:hover{gap:18px;background:rgba(61,44,46,1)}
+.hero-llamada:focus-visible{outline:3px solid #fff;outline-offset:3px}
 .hero-llamada i{font-size:.5em}
 
 /* --------------------------------------------------------- indicadores */
 .hero-puntos{
   position:absolute;left:50%;bottom:26px;transform:translateX(-50%);z-index:30;
-  display:flex;gap:8px;
+  display:flex;gap:2px;
 }
+/* El punto se ve igual de pequeño, pero el botón mide 24 px para poder
+   tocarlo. El recuadro transparente rodea al punto sin ocupar hueco extra,
+   porque el margen negativo lo compensa. */
 .hero-puntos button{
-  width:7px;height:7px;padding:0;border-radius:50%;border:0;cursor:pointer;
-  background:rgba(255,255,255,.45);transition:width 300ms ease, background-color 300ms ease;
+  width:24px;height:24px;padding:0;border:0;cursor:pointer;background:none;
+  display:flex;align-items:center;justify-content:center;
 }
-.hero-puntos button[aria-current="true"]{width:26px;border-radius:6px;background:#fff}
+/* El punto es el pseudo-elemento; el botón que lo rodea mide 24 px para que
+   se pueda tocar. Antes el botón entero medía 7 px. */
+.hero-puntos button::before{
+  content:"";width:7px;height:7px;border-radius:50%;
+  background:rgba(255,255,255,.6);box-shadow:0 0 0 1px rgba(40,26,30,.3);
+  transition:width 300ms ease, background-color 300ms ease;
+}
+.hero-puntos button[aria-current="true"]::before{width:20px;border-radius:6px;background:#fff}
+.hero-puntos button:focus-visible{outline:2px solid #fff;outline-offset:3px}
 
 /* ============================ MÓVIL ============================
    No se comprime el escritorio: la composición se reordena para

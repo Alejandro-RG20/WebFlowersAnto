@@ -67,13 +67,21 @@ RedirectMatch 404 ^/(.*/)?\.git
   Header unset Server
 
   # HSTS: una vez que el navegador ha entrado por https, no vuelve a intentar
-  # http ni aunque escriban la dirección a mano. Se envía SOLO sobre https,
-  # que es lo que manda la especificación.
+  # http ni aunque escriban la dirección a mano.
+  #
+  # Iba con `env=HTTPS`, y en un hosting donde el certificado lo termina un
+  # proxy por delante —el caso de casi todos los compartidos— esa variable no
+  # llega nunca y la cabecera no salía. Se envía siempre: la especificación
+  # obliga al navegador a ignorarla si la recibe por http, así que no hay
+  # riesgo, y arriba ya se fuerza la redirección a https.
   #
   # Ojo: mientras esté puesto, el dominio queda atado a https durante un año
   # en los navegadores que ya lo hayan visto. Con el certificado en su sitio
   # —hoy lo dan gratis todos los hostings— no hay ningún problema.
-  Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains" env=HTTPS
+  #
+  # No se añade `preload`: entrar en esa lista es fácil y salir tarda meses.
+  # Es una decisión del dueño del dominio, no algo que deba activarse solo.
+  Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains"
 </IfModule>
 
 # --- Caché de estáticos ------------------------------------------------
@@ -94,6 +102,25 @@ RedirectMatch 404 ^/(.*/)?\.git
 </IfModule>
 
 # --- Compresión --------------------------------------------------------
+# El paquete de CSS se genera ya comprimido junto al normal. Si el navegador
+# acepta gzip y la copia existe, se le manda esa. Hace falta mod_headers para
+# anunciar la codificación, así que la regla entera vive dentro de su IfModule:
+# sin él no se reescribe nada y se sirve la hoja normal, que siempre está.
+<IfModule mod_headers.c>
+  <IfModule mod_rewrite.c>
+    RewriteCond %{HTTP:Accept-Encoding} gzip
+    RewriteCond %{DOCUMENT_ROOT}%{REQUEST_URI}.gz -f
+    RewriteRule ^(assets/dist/.+\.css)$ $1.gz [QSA,L]
+  </IfModule>
+  <FilesMatch "\.css\.gz$">
+    Header set Content-Encoding gzip
+    Header append Vary Accept-Encoding
+    # Sin esto el navegador recibiría el paquete como application/gzip y no
+    # lo aplicaría como hoja de estilos.
+    ForceType text/css
+  </FilesMatch>
+</IfModule>
+
 <IfModule mod_deflate.c>
   AddOutputFilterByType DEFLATE text/html text/css text/plain text/xml
   AddOutputFilterByType DEFLATE application/javascript application/json

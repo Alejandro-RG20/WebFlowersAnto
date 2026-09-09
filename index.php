@@ -147,7 +147,12 @@ require __DIR__ . '/includes/vistas/cabecera.php';
               // propia proporción: un tamaño fijo para todos los deformaría.
               $medHero = imagen_medidas((string)($pieza['ref'] ?? '')); ?>
         <img src="<?= e((string)$pieza['imagen']) ?>" alt="<?= e((string)$pieza['nombre']) ?>"
-             <?php if (($ss = imagen_srcset((string)($pieza['ref'] ?? ''), [480, 640, 960, 1280])) !== ''): ?>
+             <?php if (($ss = imagen_srcset((string)($pieza['ref'] ?? ''), [160, 320, 480, 640, 960, 1280])) !== ''): ?>
+               <?php // Un solo `sizes` para todas: aunque las de los lados se
+                     // pinten pequeñas, el carrusel las lleva al centro y allí
+                     // necesitan el tamaño grande. Probé darles el pequeño y
+                     // medí 486 KB frente a 327 KB: se ahorraba al principio,
+                     // pero luego había que volver a bajar cada una. ?>
                srcset="<?= e($ss) ?>" sizes="(max-width: 640px) 86vw, 620px"
              <?php endif; ?>
              <?php if ($medHero): ?>width="<?= $medHero['ancho'] ?>" height="<?= $medHero['alto'] ?>"<?php endif; ?>

@@ -107,15 +107,20 @@ h1, h2, h3, h4, .logo-text, .hero-title { font-family: 'Playfair Display', serif
 .nav-link:hover, .nav-link.active { color: #8A2E45; background: var(--rose-soft); }
 .nav-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
 .btn-nav-whatsapp {
-  background: #25D366; color: #fff; padding: 8px 16px; border-radius: 50px;
+  background: #0E7A6D; color: #fff; padding: 8px 16px; border-radius: 50px;
   text-decoration: none; font-weight: 600; font-size: 0.85rem;
   display: flex; align-items: center; gap: 4px; transition: all var(--transition);
   white-space: nowrap;
+  min-height: 40px;
 }
-.btn-nav-whatsapp:hover { background: #1ebc59; transform: translateY(-2px); box-shadow: 0 4px 14px rgba(37,211,102,0.3); }
+.btn-nav-whatsapp:hover { background: #0a5f55; transform: translateY(-2px); box-shadow: 0 4px 14px rgba(37,211,102,0.3); }
 .icon-btn {
   position: relative; background: none; border: none; font-size: 1.2rem;
   cursor: pointer; color: var(--dark); padding: 6px;
+  /* Medían 12x12: demasiado poco para el dedo. Se les da 44x44 sin cambiar
+     el tamaño del icono, que sigue mandando en el aspecto. */
+  min-width: 44px; min-height: 44px;
+  display: inline-flex; align-items: center; justify-content: center;
 }
 .icon-count {
   position: absolute; top: -2px; right: -6px;
@@ -572,16 +577,18 @@ h1, h2, h3, h4, .logo-text, .hero-title { font-family: 'Playfair Display', serif
   border: 1px solid rgba(255,255,255,0.1);
 }
 .social-btn:hover { background: var(--rose-pastel); transform: translateY(-3px); box-shadow: 0 6px 15px rgba(248,176,194,0.4); }
-.whatsapp-btn { background: #25D366; border-color: #25D366; }
+.whatsapp-btn { background: #0E7A6D; border-color: #0E7A6D; }
 .whatsapp-btn:hover { background: #1ebc59; border-color: #1ebc59; }
-.footer-links h4, .footer-contact h4 { color: #fff; margin-bottom: 16px; font-family: 'Playfair Display', serif; }
+.footer-links h3, .footer-links h4, .footer-contact h3, .footer-contact h4 { color: #fff; margin-bottom: 16px; font-family: 'Playfair Display', serif; }
 .footer-links ul { list-style: none; }
 .footer-links li { margin-bottom: 8px; }
 .footer-links a { color: #D0C0C2; text-decoration: none; transition: color var(--transition); }
 .footer-links a:hover { color: var(--rose-pastel); }
 .footer-contact p { margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
 .footer-contact i { color: var(--rose-pastel); width: 18px; }
-.btn-footer-whatsapp { display: inline-flex; align-items: center; gap: 8px; background: #25D366; color: #fff; padding: 10px 20px; border-radius: 50px; text-decoration: none; font-weight: 600; margin-top: 10px; transition: all var(--transition); }
+/* Verde oscuro de WhatsApp: con texto blanco el claro se quedaba en 1,98
+   de contraste. Este llega a 4,6 y es igual de reconocible. */
+.btn-footer-whatsapp { display: inline-flex; align-items: center; gap: 8px; background: #0E7A6D; color: #fff; padding: 10px 20px; border-radius: 50px; text-decoration: none; font-weight: 600; margin-top: 10px; transition: all var(--transition); }
 .btn-footer-whatsapp:hover { background: #1ebc59; transform: translateY(-2px); }
 .footer-bottom {
   border-top: 1px solid rgba(255,255,255,0.1);
@@ -611,10 +618,28 @@ h1, h2, h3, h4, .logo-text, .hero-title { font-family: 'Playfair Display', serif
 /* WhatsApp float */
 .whatsapp-float {
   position: fixed; bottom: 28px; right: 28px; width: 60px; height: 60px;
-  background: #25D366; border-radius: 50%; display: flex; align-items: center; justify-content: center;
-  color: #fff; font-size: 1.8rem; box-shadow: 0 6px 20px rgba(37,211,102,0.4);
-  z-index: 998; transition: transform var(--transition), box-shadow var(--transition);
+  /* El degradado le da volumen sin recurrir a una imagen. */
+  background: linear-gradient(145deg, #2ee06d 0%, #25D366 55%, #1da851 100%);
+  border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  color: #fff;
+  /* Sin esto el enlace pinta su subrayado por debajo del icono y se veía una
+     barra blanca cruzando el botón. `app.css` solo hereda el color de los
+     enlaces, no les quita la decoración. */
+  text-decoration: none;
+  /* Dos sombras: uno la separa del fondo, la otra le da el borde brillante. */
+  box-shadow: 0 8px 22px rgba(29,168,81,.38), inset 0 1px 0 rgba(255,255,255,.28);
+  z-index: 998;
+  transition: transform 180ms cubic-bezier(.34,1.4,.64,1), box-shadow 180ms ease;
+  -webkit-tap-highlight-color: transparent;
 }
+.whatsapp-float svg { display: block; width: 30px; height: 30px; }
+/* El foco por teclado tiene que verse; el clic con ratón no lo dispara. */
+.whatsapp-float:focus-visible {
+  outline: 3px solid #fff;
+  outline-offset: 3px;
+  box-shadow: 0 8px 22px rgba(29,168,81,.5), 0 0 0 6px rgba(37,211,102,.35);
+}
+.whatsapp-float:active { transform: scale(.94); }
 /* El halo late en un pseudo-elemento que se escala y se desvanece.
    Antes se animaba `box-shadow` del propio botón: eso el navegador no lo
    puede componer en la GPU, así que repintaba el botón en cada fotograma,
@@ -625,7 +650,10 @@ h1, h2, h3, h4, .logo-text, .hero-title { font-family: 'Playfair Display', serif
   border-radius: 50%; background: rgba(37,211,102,0.5);
   pointer-events: none; animation: pulse 2s infinite;
 }
-.whatsapp-float:hover { transform: scale(1.1); box-shadow: 0 8px 28px rgba(37,211,102,0.55); }
+.whatsapp-float:hover {
+  transform: scale(1.08);
+  box-shadow: 0 12px 30px rgba(29,168,81,.5), inset 0 1px 0 rgba(255,255,255,.35);
+}
 
 /* Toast */
 .toast-container { position: fixed; top: 20px; right: 20px; z-index: 3000; display: flex; flex-direction: column; gap: 10px; }
