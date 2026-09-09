@@ -15,6 +15,11 @@
  *   3. Tamaños. Con `?w=` se sirve una versión reducida, que es lo que se
  *      manda a un teléfono. La reducción se hace una vez y queda en disco;
  *      las siguientes visitas se sirven desde ahí sin tocar la base.
+ *   4. Formato. Al navegador que dice entender WebP se le manda WebP, aunque
+ *      en la base esté guardado como PNG o JPEG. Las fotos de producto son
+ *      recortes PNG con fondo transparente de más de un mega; en WebP pesan
+ *      una décima parte y la transparencia se conserva igual. El original no
+ *      se toca nunca: si el navegador no pide WebP, recibe lo de siempre.
  */
 
 declare(strict_types=1);
@@ -52,10 +57,29 @@ if ($ancho > 0 && (int)$meta['ancho'] > 0 && $ancho >= (int)$meta['ancho']) {
     $ancho = 0;
 }
 
-$etag = '"' . $meta['sha256'] . ($ancho ? '-' . $ancho : '') . '"';
+// ---------------------------------------------------------------------
+//  Formato de salida
+// ---------------------------------------------------------------------
+// Solo se transcodifica lo que se gana: una foto JPEG o PNG. El GIF queda
+// fuera a propósito, porque puede estar animado y GD lo aplastaría a un solo
+// fotograma; el SVG y el WEBP ya están bien como están.
+$aceptaWebp  = str_contains((string)($_SERVER['HTTP_ACCEPT'] ?? ''), 'image/webp');
+$convertible = in_array($meta['mime'], ['image/jpeg', 'image/png'], true)
+               && function_exists('imagewebp');
+$salida      = ($aceptaWebp && $convertible) ? 'image/webp' : (string)$meta['mime'];
 
-header('Content-Type: ' . $meta['mime']);
+// El sufijo distingue las copias en disco: sin él, la versión WebP y la
+// original de un mismo ancho compartirían archivo y se serviría una por otra.
+$sufijo = ($ancho > 0 ? '-' . $ancho : '-orig')
+        . ($salida !== $meta['mime'] ? '.webp' : '');
+
+$etag = '"' . $meta['sha256'] . $sufijo . '"';
+
+header('Content-Type: ' . $salida);
 header('Cache-Control: public, max-age=31536000, immutable');
+// La respuesta depende de lo que el navegador diga aceptar, así que ningún
+// intermediario debe reutilizar una copia para otro que pida algo distinto.
+header('Vary: Accept');
 header('ETag: ' . $etag);
 header('X-Content-Type-Options: nosniff');
 
@@ -66,11 +90,14 @@ if ($recibido !== '' && str_contains($recibido, trim($etag, '"'))) {
 }
 
 // ---------------------------------------------------------------------
-//  Versión reducida
+//  Versión reducida o convertida
 // ---------------------------------------------------------------------
-if ($ancho > 0 && function_exists('imagecreatefromstring')) {
+$hayQueTrabajar = ($ancho > 0 || $salida !== $meta['mime'])
+                  && function_exists('imagecreatefromstring');
+
+if ($hayQueTrabajar) {
     $carpeta = RAIZ . '/storage/cache/img';
-    $cache   = $carpeta . '/' . $meta['sha256'] . '-' . $ancho . '.bin';
+    $cache   = $carpeta . '/' . $meta['sha256'] . $sufijo . '.bin';
 
     if (is_file($cache)) {
         header('Content-Length: ' . (string)filesize($cache));
@@ -78,7 +105,7 @@ if ($ancho > 0 && function_exists('imagecreatefromstring')) {
         exit;
     }
 
-    $reducida = reducir($pdo, $id, $ancho, (string)$meta['mime']);
+    $reducida = transformar($pdo, $id, $ancho, (string)$meta['mime'], $salida);
     if ($reducida !== null) {
         if (!is_dir($carpeta)) {
             @mkdir($carpeta, 0775, true);
@@ -93,7 +120,12 @@ if ($ancho > 0 && function_exists('imagecreatefromstring')) {
         echo $reducida;
         exit;
     }
-    // Si no se pudo reducir, se sigue y se manda el original.
+    // Si no se pudo transformar se manda el original, y entonces la cabecera
+    // de tipo que se anunció arriba deja de ser cierta: hay que corregirla.
+    if ($salida !== $meta['mime']) {
+        header('Content-Type: ' . $meta['mime']);
+        header('ETag: "' . $meta['sha256'] . '-orig"');
+    }
 }
 
 // ---------------------------------------------------------------------
@@ -116,9 +148,13 @@ if (is_resource($flujo)) {
 }
 
 /**
- * Reduce la imagen al ancho pedido. Devuelve el binario, o null si no se pudo.
+ * Devuelve la imagen en el ancho y el formato pedidos, o null si no se pudo.
+ *
+ * Un ancho de 0 significa «no cambies el tamaño»: se usa cuando lo único que
+ * hace falta es cambiar de formato. La transparencia se conserva siempre; es
+ * lo que permite mandar en WebP los recortes de producto que están en PNG.
  */
-function reducir(PDO $pdo, int $id, int $ancho, string $mime): ?string
+function transformar(PDO $pdo, int $id, int $ancho, string $mimeOrigen, string $mimeSalida): ?string
 {
     $st = $pdo->prepare("SELECT datos FROM archivos WHERE id = ?");
     $st->execute([$id]);
@@ -142,28 +178,45 @@ function reducir(PDO $pdo, int $id, int $ancho, string $mime): ?string
 
     $anchoOriginal = imagesx($img);
     $altoOriginal  = imagesy($img);
-    if ($anchoOriginal <= 0 || $ancho >= $anchoOriginal) {
+    if ($anchoOriginal <= 0 || $altoOriginal <= 0) {
         imagedestroy($img);
         return null;
     }
 
-    $alto    = (int)round($altoOriginal * ($ancho / $anchoOriginal));
-    $destino = imagecreatetruecolor($ancho, max(1, $alto));
+    // Sin reducción posible y sin cambio de formato no hay nada que hacer:
+    // que el llamador mande el original tal cual, que siempre será mejor.
+    $reduce = $ancho > 0 && $ancho < $anchoOriginal;
+    if (!$reduce && $mimeSalida === $mimeOrigen) {
+        imagedestroy($img);
+        return null;
+    }
+
+    $anchoFinal = $reduce ? $ancho : $anchoOriginal;
+    $altoFinal  = $reduce
+        ? max(1, (int)round($altoOriginal * ($ancho / $anchoOriginal)))
+        : $altoOriginal;
+
+    $destino = imagecreatetruecolor($anchoFinal, $altoFinal);
 
     // Sin esto, un PNG o un WEBP con fondo transparente sale con fondo negro.
-    if ($mime === 'image/png' || $mime === 'image/webp' || $mime === 'image/gif') {
+    // Se mira el formato de origen y el de salida: basta con que uno de los
+    // dos maneje transparencia para tener que conservarla.
+    $conAlfa = in_array($mimeOrigen, ['image/png', 'image/webp', 'image/gif'], true)
+            || in_array($mimeSalida, ['image/png', 'image/webp'], true);
+    if ($conAlfa) {
         imagealphablending($destino, false);
         imagesavealpha($destino, true);
         imagefill($destino, 0, 0, imagecolorallocatealpha($destino, 0, 0, 0, 127));
     }
 
-    imagecopyresampled($destino, $img, 0, 0, 0, 0, $ancho, max(1, $alto), $anchoOriginal, $altoOriginal);
+    imagecopyresampled($destino, $img, 0, 0, 0, 0,
+        $anchoFinal, $altoFinal, $anchoOriginal, $altoOriginal);
     imagedestroy($img);
 
     ob_start();
-    $ok = match ($mime) {
+    $ok = match ($mimeSalida) {
+        'image/webp' => imagewebp($destino, null, 82),
         'image/png'  => imagepng($destino, null, 7),
-        'image/webp' => function_exists('imagewebp') ? imagewebp($destino, null, 82) : imagejpeg($destino, null, 82),
         'image/gif'  => imagegif($destino),
         default      => imagejpeg($destino, null, 82),
     };
