@@ -130,12 +130,25 @@ RedirectMatch 404 ^/(.*/)?\.git
 </IfModule>
 
 # --- Página de error 404 ------------------------------------------------
-# La ruta es absoluta desde la raíz del dominio, así que solo se puede
-# activar cuando se sabe dónde está instalado el sitio:
+# `ErrorDocument` necesita una ruta absoluta desde la raíz del DOMINIO, y esa
+# ruta cambia según dónde esté instalado el sitio (raíz del dominio, o una
+# subcarpeta tipo /webANTO en XAMPP). Puesta mal, el navegador enseña un error
+# doble bastante confuso, así que aquí no se usa.
 #
-#   en la raíz del dominio      ->  ErrorDocument 404 /404.php
-#   en htdocs/webANTO (XAMPP)   ->  ErrorDocument 404 /webANTO/404.php
-#
-# Descoméntala con la ruta que corresponda. Si se deja mal, el navegador
-# muestra un error doble bastante confuso, así que viene desactivada.
-# ErrorDocument 404 /404.php
+# La reescritura sí se resuelve relativa a la carpeta donde vive este archivo,
+# de modo que acierta en los dos casos sin tener que editarla al desplegar.
+# `404.php` manda su propio `http_response_code(404)`, así que el estado que
+# ven el navegador y Google sigue siendo un 404 de verdad, no un 200 disfrazado
+# con cara de error.
+<IfModule mod_rewrite.c>
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_FILENAME} !-d
+  # Un archivo estático que falta se queda con el 404 seco de Apache: no
+  # merece la pena arrancar PHP y abrir la base de datos para pintar una
+  # página que nadie va a leer. En un hosting compartido, un robot pidiendo
+  # rutas al azar se llevaría por delante el límite de procesos.
+  RewriteCond %{REQUEST_URI} !\.(css|js|map|json|xml|txt|png|jpe?g|gif|webp|avif|svg|ico|woff2?|ttf|eot|mp4|webm)$ [NC]
+  # Sin esta línea, si algún día falta 404.php la regla se llamaría a sí misma.
+  RewriteCond %{REQUEST_URI} !404\.php$
+  RewriteRule ^ 404.php [L]
+</IfModule>

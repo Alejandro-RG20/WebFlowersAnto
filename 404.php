@@ -1,7 +1,11 @@
 <?php
 /**
  * Página de error 404 amigable.
- * Se enlaza desde .htaccess con ErrorDocument.
+ *
+ * El .htaccess la sirve por reescritura, no con `ErrorDocument`: la ruta de
+ * `ErrorDocument` es absoluta desde la raíz del dominio y cambiaría según se
+ * instale el sitio en la raíz o en una subcarpeta. El estado 404 lo pone esta
+ * página, así que hay que dejar la línea de abajo donde está.
  */
 
 declare(strict_types=1);
