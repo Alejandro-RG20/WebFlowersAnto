@@ -175,6 +175,7 @@ try {
 // Módulos
 // ---------------------------------------------------------------------
 require_once __DIR__ . '/lib/utiles.php';
+require_once __DIR__ . '/lib/activos.php';
 require_once __DIR__ . '/lib/validacion.php';
 require_once __DIR__ . '/lib/seguridad.php';
 require_once __DIR__ . '/lib/ajustes.php';

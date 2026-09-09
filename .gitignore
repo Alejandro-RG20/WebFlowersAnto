@@ -52,3 +52,6 @@ desktop.ini
 *.log
 error_log
 php_errors.log
+
+# Paquete de CSS generado: se regenera solo, no se versiona.
+assets/dist/

@@ -122,11 +122,29 @@ $waGeneral = enlace_whatsapp(
      si el script principal no llega a cargarse. */
   document.documentElement.classList.add('js');
 </script>
-<link rel="stylesheet" href="<?= e(url_recurso('assets/css/estilos.css')) ?>">
-<link rel="stylesheet" href="<?= e(url_recurso('assets/css/app.css')) ?>">
-<?php if (!empty($cssExtra)): foreach ((array)$cssExtra as $hoja): ?>
+<?php
+  // Las hojas propias van en un solo archivo. El orden es la cascada: no se
+  // toca. `temporada.css` entra aquí y no después del <style> de abajo porque
+  // ese bloque solo declara variables en :root y esta hoja no declara
+  // ninguna, así que adelantarla no cambia qué regla gana.
+  $hojasPropias = ['assets/css/estilos.css', 'assets/css/app.css'];
+  foreach ((array)($cssExtra ?? []) as $hoja) {
+      $hojasPropias[] = $hoja;
+  }
+  if ($temaTemporada && $temaTemporada['estilo']) {
+      $hojasPropias[] = 'assets/css/temporada.css';
+  }
+  $paquete = Activos::css($hojasPropias);
+?>
+<?php if ($paquete !== null): ?>
+<link rel="stylesheet" href="<?= e(url_recurso($paquete)) ?>">
+<?php else: ?>
+<?php // Sin permiso de escritura se enlazan sueltas: la página carga más
+      // lenta, pero carga. ?>
+<?php foreach ($hojasPropias as $hoja): ?>
 <link rel="stylesheet" href="<?= e(url_recurso($hoja)) ?>">
-<?php endforeach; endif; ?>
+<?php endforeach; ?>
+<?php endif; ?>
 <link rel="icon" href="<?= e(url_imagen(Ajustes::texto('favicon_url', 'images/placeholders/logo.svg'))) ?>">
 <style>
   :root{
@@ -139,9 +157,6 @@ $waGeneral = enlace_whatsapp(
 <?php endforeach; endif; ?>
   }
 </style>
-<?php if ($temaTemporada && $temaTemporada['estilo']): ?>
-<link rel="stylesheet" href="<?= e(url_recurso('assets/css/temporada.css')) ?>">
-<?php endif; ?>
 <?php if (!empty($datosEstructurados)): ?>
 <script type="application/ld+json"><?= json_para_html($datosEstructurados) ?></script>
 <?php endif; ?>
