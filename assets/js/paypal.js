@@ -147,11 +147,24 @@
 
       onApprove: function (datos, acciones) {
         decir('Confirmando el pago con PayPal…');
+        // Aquí es donde se nota la espera: esta llamada captura el dinero,
+        // registra el pedido y manda el correo antes de responder, y después
+        // todavía queda cargar la página del pedido. La capa tapa la tienda
+        // durante todo ese rato —sin demora, porque se sabe que va a tardar—
+        // para que nadie vuelva a pulsar ni cierre la pestaña con el cobro ya
+        // hecho. No se retira al acabar: la quita la página nueva al cargar.
+        const espera = window.esperaFlowers;
+        if (espera) { espera.mostrar('Confirmando tu pago…'); }
+
         return pedir('capturar', { orden: datos.orderID }).then(function (r) {
           decir(r.mensaje || 'Pago confirmado.', 'bien');
+          if (espera) { espera.mostrar('Pago confirmado. Abriendo tu pedido…'); }
           // El pedido ya está registrado en el servidor: solo queda ir a verlo.
           window.location.assign(r.redirigir);
         }).catch(function (e) {
+          // La capa se retira sí o sí en el error: el cliente tiene que poder
+          // leer el aviso y volver a intentarlo.
+          if (espera) { espera.ocultar(); }
           // PayPal recomienda reintentar cuando el medio de pago se rechaza:
           // el comprador elige otra tarjeta sin empezar de cero.
           if (/INSTRUMENT_DECLINED/i.test(e.message) && acciones && acciones.restart) {

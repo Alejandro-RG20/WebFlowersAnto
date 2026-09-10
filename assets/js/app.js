@@ -909,4 +909,102 @@
       });
     });
   })();
+
+  // -------------------------------------------------------------------
+  // Capa de espera
+  // -------------------------------------------------------------------
+  /**
+   * Tapa la página mientras algo tarda, y la destapa al terminar.
+   *
+   * Sale de un caso muy concreto: entre que PayPal aprueba el cobro y la web
+   * abre el pedido pasan varios segundos —se captura el dinero, se registra
+   * el pedido, se manda el correo—. Sin nada en pantalla el cliente cree que
+   * se colgó, y entonces vuelve a pulsar o cierra la pestaña con el cobro ya
+   * hecho. La capa cubre la página entera, así que además del aviso resuelve
+   * el doble clic: no hay nada que pulsar por detrás.
+   *
+   * Tres seguros para que no se quede pegada nunca:
+   *   · un máximo de tiempo en pantalla, para una acción que no vuelve;
+   *   · se retira si el navegador devuelve la página desde su memoria, que
+   *     es lo que pasa al volver con «atrás» después de un envío;
+   *   · con `demora` solo aparece si la acción tarda de verdad, de modo que
+   *     lo que responde al instante no da un parpadeo.
+   *
+   * Se publica como `window.esperaFlowers` para poder usarla desde cualquier
+   * otro script de la tienda: `esperaFlowers.mostrar('Guardando…')`.
+   */
+  const espera = (function () {
+    const capa  = $('#capaEspera');
+    const texto = $('#capaEsperaTexto');
+    // Sin el marcado del pie no hay nada que enseñar, pero quien llame tiene
+    // que poder hacerlo sin comprobar nada.
+    if (!capa) { return { mostrar() {}, ocultar() {} }; }
+
+    const MAXIMO   = 30000;
+    const ORIGINAL = texto ? texto.textContent : 'Un momento…';
+    let alta = null, maximo = null, baja = null;
+
+    function pintar(mensaje) {
+      if (texto) { texto.textContent = mensaje || ORIGINAL; }
+      clearTimeout(baja);
+      capa.hidden = false;
+      // Un fotograma con el `hidden` ya quitado: sin esta espera el navegador
+      // se salta la transición y la capa entra de golpe.
+      requestAnimationFrame(() => capa.classList.add('visible'));
+
+      // Un botón que siguiera enfocado se puede volver a activar con Enter
+      // por detrás de la capa, que es justo lo que se quiere evitar.
+      const foco = document.activeElement;
+      if (foco && foco !== document.body && typeof foco.blur === 'function') {
+        try { foco.blur(); } catch (e) { /* da igual */ }
+      }
+      maximo = setTimeout(ocultar, MAXIMO);
+    }
+
+    function mostrar(mensaje, opciones) {
+      const demora = (opciones && opciones.demora) || 0;
+      clearTimeout(alta);
+      clearTimeout(maximo);
+      if (demora > 0) {
+        alta = setTimeout(() => pintar(mensaje), demora);
+        return;
+      }
+      pintar(mensaje);
+    }
+
+    function ocultar() {
+      clearTimeout(alta);
+      clearTimeout(maximo);
+      capa.classList.remove('visible');
+      // El `hidden` vuelve cuando acaba el fundido, no antes: si no, la capa
+      // desaparecería sin transición.
+      baja = setTimeout(() => {
+        if (!capa.classList.contains('visible')) { capa.hidden = true; }
+      }, menosMovimiento ? 0 : 280);
+    }
+
+    window.addEventListener('pageshow', (ev) => { if (ev.persisted) { ocultar(); } });
+
+    return { mostrar, ocultar };
+  })();
+  window.esperaFlowers = espera;
+
+  // -------------------------------------------------------------------
+  // Espera en los formularios que no admiten un segundo envío
+  // -------------------------------------------------------------------
+  // Este bloque va al final del archivo a propósito. Los manejadores de
+  // arriba son los que cancelan envíos —el carrito los manda por detrás,
+  // `data-confirmar` puede echarse atrás—, y al registrarse después de ellos
+  // aquí ya se sabe si el envío sigue en pie. Tapar la página en un envío
+  // cancelado la dejaría bloqueada sin que llegue ninguna página nueva.
+  //
+  // El mensaje se puede afinar por formulario con `data-espera="…"`.
+  document.addEventListener('submit', (ev) => {
+    const form = ev.target;
+    if (ev.defaultPrevented || !form || !form.matches || !form.matches('form[data-una-vez]')) { return; }
+    // Un envío que abre otra pestaña o baja un archivo no recarga esta
+    // página: no llegaría nada que retirase la capa.
+    if (form.target && form.target !== '_self') { return; }
+    espera.mostrar(form.dataset.espera, { demora: 220 });
+  });
 })();

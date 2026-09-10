@@ -924,3 +924,69 @@ body:has(.aviso-cookies:not([hidden])) .whatsapp-float { bottom: 132px; }
   border-color: rgba(158, 42, 53, .28); border-top-color: var(--alerta);
 }
 .aviso-verificar-nota { font-size: .85rem; opacity: .85; }
+
+/* -------------------------------------------------------------------
+   Capa de espera
+
+   Se pone delante de todo cuando una acción tarda de verdad —cobrar con
+   PayPal, confirmar el pedido, subir un comprobante— para que el cliente
+   vea que se está trabajando. Al tapar la página entera resuelve además
+   el problema de fondo: nadie vuelve a pulsar «pagar» ni cierra la
+   pestaña pensando que se quedó colgada.
+
+   El marcado nace con el atributo `hidden` puesto. Si esta hoja no
+   llegara a cargar, la capa sigue oculta y la tienda no queda bloqueada.
+   ------------------------------------------------------------------- */
+.capa-espera {
+  position: fixed; inset: 0;
+  /* Por encima de todo lo que ya existe: avisos (4000), visor y lightbox
+     (3000), modales (2000) y la barra (1000). Mientras espera, nada debe
+     poder recibir un clic. */
+  z-index: 5000;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 22px; padding: 28px; text-align: center;
+  background: rgba(48, 34, 37, .68);
+  opacity: 0; visibility: hidden;
+  transition: opacity .24s ease, visibility .24s ease;
+}
+/* Gana al `display:flex` de arriba por especificidad: sin esta línea el
+   atributo `hidden` no ocultaría nada. */
+.capa-espera[hidden] { display: none; }
+.capa-espera.visible { opacity: 1; visibility: visible; }
+
+/* El desenfoque es un adorno y va aparte: el navegador que no lo soporta
+   se queda con el fondo oscuro, que es lo que de verdad hace el trabajo. */
+@supports ((backdrop-filter: blur(4px)) or (-webkit-backdrop-filter: blur(4px))) {
+  .capa-espera { -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px); }
+}
+
+.capa-espera-texto {
+  font-family: 'Playfair Display', serif; font-size: 1.24rem; line-height: 1.4;
+  color: #fff; margin: 0;
+}
+.capa-espera-nota {
+  font-size: .88rem; line-height: 1.6; color: rgba(255,255,255,.84);
+  margin: 0; max-width: 21rem;
+}
+
+/* --- La flor que gira ----------------------------------------------- */
+.espera-flor { width: 94px; height: 94px; }
+/* El giro se aplica al grupo y no a cada pétalo: los pétalos ya usan el
+   atributo `transform` para colocarse en corona, y animarlos por CSS
+   encima pelearía con esa posición. */
+.espera-flor-petalos {
+  transform-box: view-box; transform-origin: 50px 50px;
+  animation: espera-girar 3.6s linear infinite;
+}
+.espera-petalo { fill: var(--rose-pastel); animation: espera-respirar 1.6s ease-in-out infinite; }
+.espera-petalo:nth-child(2) { animation-delay: .16s; }
+.espera-petalo:nth-child(3) { animation-delay: .32s; }
+.espera-petalo:nth-child(4) { animation-delay: .48s; }
+.espera-petalo:nth-child(5) { animation-delay: .64s; }
+.espera-flor-centro { fill: var(--gold); }
+
+@keyframes espera-girar { to { transform: rotate(360deg); } }
+/* Abre y cierra opaco a propósito: con «movimiento reducido» el navegador
+   deja la animación en su último fotograma, y así la flor se queda entera
+   en vez de con los pétalos a medio desvanecer. */
+@keyframes espera-respirar { 0%, 100% { opacity: 1; } 45% { opacity: .34; } }

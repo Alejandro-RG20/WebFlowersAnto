@@ -262,6 +262,7 @@ require __DIR__ . '/includes/vistas/cabecera.php';
           </div>
 
           <form method="post" enctype="multipart/form-data" data-una-vez
+                data-espera="Subiendo tu comprobante…"
                 action="<?= e(url('pedido.php?codigo=' . rawurlencode($codigo) . ($token !== '' ? '&t=' . rawurlencode($token) : ''))) ?>">
             <?= campoToken() ?>
             <input type="hidden" name="MAX_FILE_SIZE" value="<?= MAX_COMPROBANTE_BYTES ?>">

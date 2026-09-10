@@ -134,6 +134,29 @@ $devUrl    = Ajustes::texto('dev_url');
 <script src="<?= e(url_recurso('assets/js/temporada.js')) ?>" defer></script>
 <?php endif; ?>
 
+<?php
+// Capa de espera. Nace oculta y solo la levanta el JavaScript cuando una
+// acción tarda; el estilo y el comportamiento están en app.css y app.js.
+//
+// La flor va en SVG dentro del HTML, como el botón de WhatsApp: es lo único
+// que el cliente mira mientras aguanta la espera, así que no puede depender
+// de que la tipografía de iconos llegue a tiempo.
+?>
+<div class="capa-espera" id="capaEspera" hidden role="status" aria-live="polite">
+  <svg class="espera-flor" viewBox="0 0 100 100" aria-hidden="true" focusable="false">
+    <g class="espera-flor-petalos">
+      <ellipse class="espera-petalo" cx="50" cy="29" rx="12.5" ry="19"/>
+      <ellipse class="espera-petalo" cx="50" cy="29" rx="12.5" ry="19" transform="rotate(72 50 50)"/>
+      <ellipse class="espera-petalo" cx="50" cy="29" rx="12.5" ry="19" transform="rotate(144 50 50)"/>
+      <ellipse class="espera-petalo" cx="50" cy="29" rx="12.5" ry="19" transform="rotate(216 50 50)"/>
+      <ellipse class="espera-petalo" cx="50" cy="29" rx="12.5" ry="19" transform="rotate(288 50 50)"/>
+    </g>
+    <circle class="espera-flor-centro" cx="50" cy="50" r="10"/>
+  </svg>
+  <p class="capa-espera-texto" id="capaEsperaTexto">Un momento…</p>
+  <p class="capa-espera-nota">Estamos procesando tu solicitud. No cierres ni recargues esta página.</p>
+</div>
+
 <?php require __DIR__ . '/cookies.php'; ?>
 
 <script src="<?= e(url_recurso('assets/js/app.js')) ?>" defer></script>
