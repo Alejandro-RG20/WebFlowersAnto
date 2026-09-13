@@ -1,0 +1,14 @@
+# Copias de la base de datos: el archivo más sensible del proyecto entero.
+#
+# El .htaccess de storage/ ya deniega todo, y esta regla lo repite a
+# propósito. Una copia contiene los datos de todos los clientes y los hashes
+# de contraseña del personal: no puede quedar colgando de que el archivo del
+# directorio padre se haya subido bien, de que el hosting tenga AllowOverride
+# activado, o de que nadie afloje la regla de arriba dentro de seis meses.
+
+Require all denied
+<IfModule !mod_authz_core.c>
+ Deny from all
+</IfModule>
+
+Options -Indexes

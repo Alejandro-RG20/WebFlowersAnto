@@ -10,7 +10,9 @@
  * `config.local.php` está en .gitignore.
  */
 return [
-    'APP_ENTORNO'  => 'dev',
+    // «prod» oculta los errores; es lo que debe quedar en el servidor.
+    // «dev» solo se obedece desde la propia máquina o la red local.
+    'APP_ENTORNO'  => 'prod',
     'APP_BASE_URL' => '',
     'APP_URL'      => 'http://localhost/webANTO',
 

@@ -29,6 +29,18 @@ function hayPersonal(PDO $pdo): bool
 }
 
 $instalado = hayPersonal($pdo);
+
+// Con la tienda ya instalada esta página no puede hacer nada: el paso de
+// migrar y el de crear el administrador exigen los dos que NO haya personal.
+// Lo único que seguía haciendo era anunciarse en un dominio público y contar
+// si quedaban migraciones pendientes, que es información gratis para quien
+// husmea. Las migraciones posteriores se aplican desde el panel, en
+// admin/base-datos.php, que pide el permiso `sistema.migrar`.
+if ($instalado) {
+    require __DIR__ . '/404.php';
+    exit;
+}
+
 $errores   = [];
 $aviso     = '';
 $datos     = ['nombre' => '', 'apellido' => '', 'email' => '', 'telefono' => ''];

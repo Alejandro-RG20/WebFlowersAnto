@@ -12,13 +12,22 @@ uploads/*
 !uploads/.gitkeep
 !uploads/.htaccess
 
-# Comprobantes de pago, respaldos y registros
+# Comprobantes de pago, respaldos y registros.
+# Los .htaccess sí viajan: son la protección que impide descargarlos, y sin
+# ellos el proyecto se desplegaría con los respaldos al aire.
 storage/comprobantes/*
 !storage/comprobantes/.gitkeep
+!storage/comprobantes/.htaccess
 storage/respaldos/*
 !storage/respaldos/.gitkeep
+!storage/respaldos/.htaccess
 storage/logs/*
 !storage/logs/.gitkeep
+!storage/logs/.htaccess
+
+# Sesiones: solo se usa esta carpeta si no se puede escribir fuera del
+# directorio público. Son credenciales vivas, nunca se versionan.
+storage/sesiones/
 # Copias reducidas de las fotos: se regeneran solas, no se versionan.
 storage/cache/img/*
 !storage/cache/img/.gitkeep

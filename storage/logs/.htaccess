@@ -1,0 +1,12 @@
+# Registros de la aplicación.
+#
+# Llevan rutas del servidor, mensajes de error y correos de clientes: son un
+# mapa para quien quiera atacar el sitio. Se repite la denegación del
+# directorio padre por la misma razón que en respaldos/.
+
+Require all denied
+<IfModule !mod_authz_core.c>
+ Deny from all
+</IfModule>
+
+Options -Indexes

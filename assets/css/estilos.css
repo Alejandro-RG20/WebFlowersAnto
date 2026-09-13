@@ -16,7 +16,15 @@
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
-html { scroll-behavior: smooth; }
+html {
+  scroll-behavior: smooth;
+  /* Al final de la página, el rebote elástico de iOS separa el contenido del
+     borde y deja ver el lienzo, que es crema: sobre el pie oscuro se lee como
+     una franja blanca vacía de casi una pantalla. La maquetación es correcta
+     —el documento termina exactamente donde termina el pie—, así que lo que
+     se quita es el rebote, no altura de ninguna caja. */
+  overscroll-behavior-y: none;
+}
 body {
   font-family: 'Poppins', sans-serif;
   color: var(--text);
