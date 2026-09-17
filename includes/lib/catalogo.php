@@ -324,12 +324,38 @@ final class Catalogo
         )->fetchAll();
     }
 
+    /**
+     * Videos y reels de la portada.
+     *
+     * La columna `plataforma` la añade la migración 019. Subir el código a un
+     * servidor donde esa migración todavía no se ha aplicado tiraba la portada
+     * entera —y con ella la tienda— por culpa de una sección secundaria. Eso
+     * pasó de verdad, así que aquí se contempla.
+     *
+     * Solo se reintenta ante 42S22, que es «no existe esa columna». Cualquier
+     * otro fallo de base sube tal cual: una caída de verdad tiene que verse,
+     * no quedar disimulada por un reintento.
+     */
     public static function videos(PDO $pdo): array
     {
-        return $pdo->query(
-            "SELECT id, titulo, enlace_youtube, descripcion, plataforma FROM videos_youtube
-              WHERE activo = 1 ORDER BY fecha_subida DESC"
-        )->fetchAll();
+        try {
+            return $pdo->query(
+                "SELECT id, titulo, enlace_youtube, descripcion, plataforma FROM videos_youtube
+                  WHERE activo = 1 ORDER BY fecha_subida DESC"
+            )->fetchAll();
+        } catch (PDOException $e) {
+            if ($e->getCode() !== '42S22') {
+                throw $e;
+            }
+            error_log('Flowers Anto — falta la columna videos_youtube.plataforma: '
+                    . 'aplica las migraciones desde Panel → Base de datos.');
+            // Sin la columna, las filas son las de siempre: todas de YouTube.
+            return $pdo->query(
+                "SELECT id, titulo, enlace_youtube, descripcion, 'youtube' AS plataforma
+                   FROM videos_youtube
+                  WHERE activo = 1 ORDER BY fecha_subida DESC"
+            )->fetchAll();
+        }
     }
 
     /** ¿Se puede pedir este producto ahora mismo? */
