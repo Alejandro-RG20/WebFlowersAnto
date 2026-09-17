@@ -327,7 +327,7 @@ final class Catalogo
     public static function videos(PDO $pdo): array
     {
         return $pdo->query(
-            "SELECT id, titulo, enlace_youtube, descripcion FROM videos_youtube
+            "SELECT id, titulo, enlace_youtube, descripcion, plataforma FROM videos_youtube
               WHERE activo = 1 ORDER BY fecha_subida DESC"
         )->fetchAll();
     }

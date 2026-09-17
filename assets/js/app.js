@@ -426,9 +426,12 @@
       return cual;
     };
 
-    function pintar() {
+    // `forzada` marca una parada antes de llegar a ella. Se usa al pulsar: el
+    // usuario ya eligió el destino, así que el punto no tiene por qué esperar
+    // a que termine el viaje para reflejarlo.
+    function pintar(forzada) {
       const lista  = topes();
-      const actual = paradaActual(lista);
+      const actual = forzada === undefined ? paradaActual(lista) : forzada;
       puntos.forEach((punto, n) => {
         punto.hidden = n >= lista.length;
         punto.setAttribute('aria-current', n === actual ? 'true' : 'false');
@@ -440,24 +443,76 @@
       if (sig) { sig.disabled = pista.scrollLeft >= pista.scrollWidth - pista.clientWidth - 2; }
     }
 
+    // Mientras dura un viaje pedido con el dedo o el ratón, el punto ya marca
+    // el destino; leer la pista a mitad de camino solo haría parpadear el
+    // indicador por las paradas intermedias.
+    let viajandoA = null;
+
     function irA(n) {
       const lista = topes();
-      const destino = lista[Math.max(0, Math.min(lista.length - 1, n))];
-      pista.scrollTo({ left: destino, behavior: menosMovimiento ? 'auto' : 'smooth' });
+      const i = Math.max(0, Math.min(lista.length - 1, n));
+      viajandoA = i;
+      pintar(i);
+      pista.scrollTo({ left: lista[i], behavior: menosMovimiento ? 'auto' : 'smooth' });
     }
 
     ant && ant.addEventListener('click', () => irA(paradaActual(topes()) - 1));
     sig && sig.addEventListener('click', () => irA(paradaActual(topes()) + 1));
     puntos.forEach((punto, n) => punto.addEventListener('click', () => irA(n)));
 
-    let espera;
+    // Si el visitante toca la pista, manda su dedo: se abandona el destino.
+    pista.addEventListener('pointerdown', () => { viajandoA = null; }, { passive: true });
+
+    // Repintado por fotograma, no al soltar. Con un temporizador el indicador
+    // llegaba unos 400 ms después de la foto y se notaba como un retraso; así
+    // acompaña al arrastre mientras ocurre.
+    let pendiente = false;
     pista.addEventListener('scroll', () => {
-      clearTimeout(espera);
-      espera = setTimeout(pintar, 90);
+      if (pendiente) { return; }
+      pendiente = true;
+      requestAnimationFrame(() => {
+        pendiente = false;
+        if (viajandoA !== null) {
+          const lista = topes();
+          if (Math.abs(pista.scrollLeft - lista[viajandoA]) > 2) { return; }
+          viajandoA = null;
+        }
+        pintar();
+      });
     }, { passive: true });
-    window.addEventListener('resize', pintar);
+
+    window.addEventListener('resize', () => pintar());
 
     pintar();
+  });
+
+  // -------------------------------------------------------------------
+  // Multimedia de redes: el marco se pide al pulsar
+  //
+  // Instagram, Facebook y TikTok traen reproductores pesados. Mientras nadie
+  // los pida, la portada no contacta con esas webs: ni descarga, ni cookies,
+  // ni scripts suyos. La dirección la trae el servidor ya construida y
+  // comprobada, así que aquí solo se monta el marco.
+  // -------------------------------------------------------------------
+  $$('.media-cargar').forEach((portada) => {
+    portada.addEventListener('click', () => {
+      const marco = document.createElement('div');
+      marco.className = 'media-marco';
+      // Se hereda la proporción de la portada para que el hueco no cambie de
+      // tamaño al aparecer el video y la página no dé un salto.
+      marco.style.aspectRatio = portada.style.aspectRatio;
+
+      const cuadro = document.createElement('iframe');
+      cuadro.src = portada.dataset.mediaSrc;
+      cuadro.title = portada.dataset.mediaTitulo || '';
+      cuadro.setAttribute('allow', 'autoplay; encrypted-media; picture-in-picture; fullscreen');
+      cuadro.setAttribute('allowfullscreen', '');
+      cuadro.setAttribute('referrerpolicy', 'strict-origin-when-cross-origin');
+
+      marco.appendChild(cuadro);
+      portada.replaceWith(marco);
+      cuadro.focus();
+    }, { once: true });
   });
 
   // -------------------------------------------------------------------

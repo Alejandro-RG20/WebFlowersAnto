@@ -18,6 +18,33 @@
 * { margin: 0; padding: 0; box-sizing: border-box; }
 html {
   scroll-behavior: smooth;
+
+  /* La franja crema del final no es altura de más: medido, el documento
+     termina en el pie con 0,33 px de diferencia por redondeo, y el elemento
+     más bajo ES el pie. Lo que se ve ahí es el LIENZO, la superficie que el
+     navegador pinta por debajo y alrededor del documento, y que toma su color
+     del <body> mientras <html> no declare ninguno. Por eso sale crema sobre
+     un pie marrón.
+     No sirve pintarlo desde el pie: una sombra o un pseudo-elemento viven
+     dentro de la capa del documento, y esa franja queda fuera de ella —por
+     eso el intento anterior se veía bien al simularlo moviendo el documento,
+     pero no en el teléfono.
+     El degradado se coloca respecto a la caja de <html>, o sea al documento:
+     a doble altura y partido por la mitad, el corte cae justo en el final de
+     la página. Queda crema de la cabecera hacia arriba y marrón del pie hacia
+     abajo, que es lo que asoma con el rebote, con la barra del navegador o en
+     el hueco del indicador de inicio. No cambia la altura de nada. */
+  background-color: var(--cream);
+  background-image: linear-gradient(to bottom,
+                    var(--cream) 0 50%, var(--dark) 50% 100%);
+  background-repeat: no-repeat;
+  background-size: 100% 200%;
+  /* En una página corta —un aviso legal, un 404— la caja de <html> mide menos
+     que la pantalla, y sin esto el corte del degradado caería a media
+     pantalla y se vería el marrón en mitad del hueco. Con el mínimo a la
+     altura de la ventana el corte queda siempre en el borde inferior o por
+     debajo. No afecta a las páginas largas, que ya lo superan. */
+  min-height: 100%;
 }
 body {
   font-family: 'Poppins', sans-serif;
@@ -679,7 +706,11 @@ h1, h2, h3, h4, .logo-text, .hero-title { font-family: 'Playfair Display', serif
   width: 8px; height: 8px; padding: 0;
   border: 0; border-radius: 50%; cursor: pointer;
   background: var(--rose-light);
-  transition: width var(--transition), background var(--transition);
+  /* Transición propia y no la general del sitio: aquella dura 0,3 s y su
+     curva rebota al final (1.2), que en un indicador se lee como que va por
+     detrás de la foto. Con 0,18 s y una curva que frena al llegar sigue
+     habiendo animación, pero el punto acompaña al gesto en vez de seguirlo. */
+  transition: width .18s cubic-bezier(.2,.7,.3,1), background .18s cubic-bezier(.2,.7,.3,1);
 }
 .cf-punto:hover { background: var(--rose-mid); }
 .cf-punto[aria-current="true"] { width: 24px; border-radius: 4px; background: var(--rose-mid); }
@@ -689,17 +720,84 @@ h1, h2, h3, h4, .logo-text, .hero-title { font-family: 'Playfair Display', serif
   .cf-flecha:hover { transform: translateY(-50%); }
 }
 
+/* ----------------------------------------------------------------------
+   Área multimedia: YouTube, Instagram, Facebook y TikTok
+
+   Misma tarjeta, mismo radio y misma sombra que el resto de la portada: es
+   la continuación de las fotos de clientes, no un bloque aparte.
+
+   Lo único que cambia entre plataformas es cuándo se pide el contenido.
+   YouTube se incrusta igual que siempre. Las otras tres se dibujan primero
+   como una portada con el icono de su red, y hasta que no se pulsa no se
+   contacta con esa web: así se pueden añadir varios reels sin que la
+   portada cargue media docena de reproductores de terceros de golpe.
+   ---------------------------------------------------------------------- */
+.rejilla-media {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(258px, 1fr));
+  gap: 22px;
+}
+@media (max-width: 520px) { .rejilla-media { grid-template-columns: 1fr; } }
+
+.media-tarjeta { display: flex; flex-direction: column; }
+
+/* El marco reserva su hueco con `aspect-ratio` antes de que llegue nada, así
+   que la página no se mueve cuando el video aparece. La proporción la decide
+   la plataforma: los reels son verticales y los demás apaisados. */
+.media-marco {
+  position: relative;
+  width: 100%;
+  display: block;
+  padding: 0;
+  border: 0;
+  border-radius: 14px;
+  overflow: hidden;
+  background: var(--rose-soft);
+}
+.media-marco iframe {
+  position: absolute; inset: 0;
+  width: 100%; height: 100%;
+  border: 0;
+}
+
+.media-cargar {
+  cursor: pointer;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 12px;
+  background: linear-gradient(152deg, var(--rose-soft), var(--rose-light));
+  transition: transform var(--transition), box-shadow var(--transition);
+}
+.media-cargar:hover { transform: translateY(-2px); box-shadow: var(--shadow); }
+.media-cargar:focus-visible { outline: 2px solid var(--rose-mid); outline-offset: 3px; }
+
+.media-red {
+  width: 56px; height: 56px; border-radius: 50%;
+  display: grid; place-items: center;
+  font-size: 1.4rem; color: #fff;
+  box-shadow: 0 6px 18px rgba(0,0,0,.18);
+}
+.red-instagram { background: linear-gradient(45deg, #F09433, #DC2743, #BC1888); }
+.red-facebook  { background: #1877F2; }
+.red-tiktok    { background: #111; }
+.red-youtube   { background: #FF0000; }
+
+.media-aviso {
+  font-size: .85rem; font-weight: 600;
+  color: var(--text);
+  background: rgba(255,255,255,.72);
+  padding: 5px 14px; border-radius: 30px;
+}
+.media-titulo { font-size: 1.02rem; margin-top: 12px; }
+.media-desc   { color: var(--gray); font-size: .87rem; margin-top: 4px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .media-cargar:hover { transform: none; }
+}
+
 /* Footer */
 .footer { background: var(--dark); color: #E0D3D5; padding: 60px 0 20px; }
-/* El documento termina exactamente donde termina el pie: no sobra ni un píxel
-   de caja. Lo que se veía como una franja blanca al forzar el scroll en iOS
-   era el lienzo —que toma el crema del body porque <html> no lleva fondo—
-   asomando por el rebote elástico. La sombra pinta ese mismo marrón por
-   debajo del pie sin participar en la maquetación: `box-shadow` no entra en
-   el área de desplazamiento, así que la altura de la página no cambia y el
-   rebote sigue siendo el normal del sistema. El desplazamiento lateral cubre
-   además el recorte de las pantallas con esquinas redondeadas. */
-.footer { box-shadow: 0 50vh 0 50vh var(--dark); }
 .footer-grid { display: grid; grid-template-columns: 2fr 1fr 1.5fr; gap: 40px; margin-bottom: 40px; }
 .footer-brand .logo { margin-bottom: 14px; color: #fff; }
 .footer-brand .logo .logo-highlight { color: var(--rose-pastel); }

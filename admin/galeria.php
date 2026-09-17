@@ -57,24 +57,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $activo = casilla('activo');
 
             if ($titulo === '' || $enlace === '') {
-                flash('error', 'El título y un enlace de YouTube válido son obligatorios.');
+                flash('error', 'El título y el enlace del video son obligatorios.');
                 redirigir('admin/galeria.php');
             }
-            if (!preg_match('#(?:youtu\.be/|v=|embed/|shorts/)([A-Za-z0-9_-]{11})#', $enlace)) {
-                flash('error', 'Ese enlace no parece un video de YouTube.');
+            // No hay que elegir la plataforma en un desplegable: se deduce del
+            // enlace. Si no es de una red admitida, `reconocer` dice por qué
+            // en un mensaje que se entiende sin saber de esto.
+            $medio = Multimedia::reconocer($enlace);
+            if (!$medio['ok']) {
+                flash('error', $medio['error']);
                 redirigir('admin/galeria.php');
             }
+            // Se guarda la forma canónica que devuelve el reconocedor, no lo
+            // que se pegó: los enlaces de compartir traen parámetros de
+            // seguimiento y a veces el identificador repetido.
+            $enlace = $medio['enlace'];
+            $red    = $medio['plataforma'];
+
             if ($id > 0) {
-                $pdo->prepare("UPDATE videos_youtube SET titulo = ?, enlace_youtube = ?, descripcion = ?, activo = ? WHERE id = ?")
-                    ->execute([$titulo, $enlace, $desc, $activo, $id]);
+                $pdo->prepare("UPDATE videos_youtube SET titulo = ?, enlace_youtube = ?, descripcion = ?, activo = ?, plataforma = ? WHERE id = ?")
+                    ->execute([$titulo, $enlace, $desc, $activo, $red, $id]);
             } else {
-                $pdo->prepare("INSERT INTO videos_youtube (titulo, enlace_youtube, descripcion, activo) VALUES (?,?,?,?)")
-                    ->execute([$titulo, $enlace, $desc, $activo]);
+                $pdo->prepare("INSERT INTO videos_youtube (titulo, enlace_youtube, descripcion, activo, plataforma) VALUES (?,?,?,?,?)")
+                    ->execute([$titulo, $enlace, $desc, $activo, $red]);
                 $id = (int)$pdo->lastInsertId();
             }
             Auditoria::registrar($pdo, 'editar', 'productos', [
                 'recurso_tipo' => 'video', 'recurso_id' => (string)$id,
-                'descripcion'  => 'Video guardado: ' . $titulo,
+                'descripcion'  => 'Video de ' . Multimedia::nombre($red) . ' guardado: ' . $titulo,
             ]);
             flash('exito', 'Video guardado.');
             break;
@@ -153,14 +163,19 @@ require __DIR__ . '/_cabecera.php';
         <div class="vacio" style="padding:30px 12px;">
           <i class="fa-brands fa-youtube" aria-hidden="true"></i>
           <h3>No hay videos</h3>
-          <p>Pega la dirección de un video de YouTube y aparecerá en la web.</p>
+          <p>Pega la dirección de un video de YouTube, Instagram, Facebook o TikTok y aparecerá en la web.</p>
         </div>
       <?php else: ?>
         <?php foreach ($videos as $v): ?>
           <div class="linea-articulo">
             <div class="linea-articulo-datos">
-              <strong><?= e((string)$v['titulo']) ?></strong>
-              <small><?= e((string)$v['enlace_youtube']) ?></small>
+              <strong>
+                <i class="<?= e(Multimedia::icono((string)($v['plataforma'] ?? 'youtube'))) ?>"
+                   aria-hidden="true"></i>
+                <?= e((string)$v['titulo']) ?>
+              </strong>
+              <small><?= e(Multimedia::nombre((string)($v['plataforma'] ?? 'youtube'))) ?>
+                     · <?= e((string)$v['enlace_youtube']) ?></small>
             </div>
             <span class="estado-suave <?= (int)$v['activo'] ? 'si' : 'no' ?>">
               <?= (int)$v['activo'] ? 'Visible' : 'Oculto' ?></span>
@@ -227,7 +242,7 @@ require __DIR__ . '/_cabecera.php';
     <?= campoToken() ?>
     <input type="hidden" name="accion" value="guardar_video">
     <input type="hidden" name="id" value="0">
-    <div class="modal-cabecera"><h2>Video de YouTube</h2></div>
+    <div class="modal-cabecera"><h2>Video o reel</h2></div>
     <div class="modal-cuerpo">
       <div class="campo">
         <label for="v_titulo">Título *</label>
@@ -236,7 +251,10 @@ require __DIR__ . '/_cabecera.php';
       <div class="campo">
         <label for="v_enlace">Enlace del video *</label>
         <input type="url" id="v_enlace" name="enlace_youtube" required maxlength="255"
-               placeholder="https://www.youtube.com/watch?v=...">
+               placeholder="https://www.instagram.com/reel/...">
+        <p class="ayuda">Pega el enlace tal cual: reconocemos YouTube, Instagram,
+           Facebook y TikTok. De TikTok hace falta el enlace largo, el que
+           incluye <code>/video/</code> y una serie de números.</p>
       </div>
       <div class="campo">
         <label for="v_descripcion">Descripción</label>

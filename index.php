@@ -481,21 +481,41 @@ require __DIR__ . '/includes/vistas/cabecera.php';
       <div class="videos-header aparece" style="margin-top:38px;">
         <h3>Nuestro canal</h3>
       </div>
-      <div class="rejilla-productos aparece" style="grid-template-columns:repeat(auto-fill,minmax(280px,1fr));">
+      <div class="rejilla-media aparece">
         <?php foreach ($videos as $v):
-            preg_match('#(?:youtu\.be/|v=|embed/|shorts/)([A-Za-z0-9_-]{11})#', (string)$v['enlace_youtube'], $m);
-            $idVideo = $m[1] ?? '';
-            if ($idVideo === '') { continue; }
+            $red    = (string)($v['plataforma'] ?? 'youtube');
+            $marco  = Multimedia::urlIncrustada($red, (string)$v['enlace_youtube']);
+            // Una fila que ya no cuadra —enlace editado a mano en la base, red
+            // retirada— no pinta un marco vacío: simplemente no sale.
+            if ($marco === '') { continue; }
+            $titulo = (string)$v['titulo'];
         ?>
-          <div class="tarjeta">
-            <div style="position:relative; aspect-ratio:16/9; border-radius:10px; overflow:hidden;">
-              <iframe src="https://www.youtube-nocookie.com/embed/<?= e($idVideo) ?>"
-                      title="<?= e((string)$v['titulo']) ?>" loading="lazy" allowfullscreen
-                      style="position:absolute; inset:0; width:100%; height:100%; border:0;"></iframe>
-            </div>
-            <h3 style="font-size:1.02rem; margin-top:12px;"><?= e((string)$v['titulo']) ?></h3>
+          <div class="tarjeta media-tarjeta">
+            <?php if ($red === 'youtube'): ?>
+              <?php // YouTube se queda como estaba: el marco se pide ya, y el
+                    // navegador lo retrasa solo con loading="lazy". ?>
+              <div class="media-marco" style="aspect-ratio: <?= e(Multimedia::proporcion($red)) ?>;">
+                <iframe src="<?= e($marco) ?>" title="<?= e($titulo) ?>"
+                        loading="lazy" allowfullscreen
+                        referrerpolicy="strict-origin-when-cross-origin"></iframe>
+              </div>
+            <?php else: ?>
+              <?php // Instagram, Facebook y TikTok pesan bastante más, así que
+                    // hasta que no se pulsa no se pide nada a esas webs: la
+                    // portada no arrastra su carga ni sus cookies. ?>
+              <button type="button" class="media-marco media-cargar"
+                      style="aspect-ratio: <?= e(Multimedia::proporcion($red)) ?>;"
+                      data-media-src="<?= e($marco) ?>"
+                      data-media-titulo="<?= e($titulo) ?>"
+                      aria-label="Cargar el video de <?= e(Multimedia::nombre($red)) ?>: <?= e($titulo) ?>">
+                <span class="media-red red-<?= e($red) ?>">
+                  <i class="<?= e(Multimedia::icono($red)) ?>" aria-hidden="true"></i></span>
+                <span class="media-aviso">Ver en <?= e(Multimedia::nombre($red)) ?></span>
+              </button>
+            <?php endif; ?>
+            <h3 class="media-titulo"><?= e($titulo) ?></h3>
             <?php if ($v['descripcion']): ?>
-              <p style="color:var(--suave); font-size:.87rem; margin-top:4px;"><?= e(recortar((string)$v['descripcion'], 110)) ?></p>
+              <p class="media-desc"><?= e(recortar((string)$v['descripcion'], 110)) ?></p>
             <?php endif; ?>
           </div>
         <?php endforeach; ?>
