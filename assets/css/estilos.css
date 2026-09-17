@@ -18,12 +18,6 @@
 * { margin: 0; padding: 0; box-sizing: border-box; }
 html {
   scroll-behavior: smooth;
-  /* Al final de la página, el rebote elástico de iOS separa el contenido del
-     borde y deja ver el lienzo, que es crema: sobre el pie oscuro se lee como
-     una franja blanca vacía de casi una pantalla. La maquetación es correcta
-     —el documento termina exactamente donde termina el pie—, así que lo que
-     se quita es el rebote, no altura de ninguna caja. */
-  overscroll-behavior-y: none;
 }
 body {
   font-family: 'Poppins', sans-serif;
@@ -595,8 +589,117 @@ h1, h2, h3, h4, .logo-text, .hero-title { font-family: 'Playfair Display', serif
   }
 }
 
+/* ----------------------------------------------------------------------
+   Carrusel de fotos de clientes
+
+   El desplazamiento es del navegador, no de JavaScript: con `scroll-snap`
+   el dedo arrastra con la inercia nativa del sistema y el teclado también
+   funciona, así que no entra ninguna librería. El script solo sincroniza
+   las flechas y los puntos.
+
+   Cuántas fotos se ven a la vez lo decide el ancho de `.cf-item`: es el
+   único sitio donde hay que tocar si mañana se quiere otra proporción, y
+   el carrusel se adapta solo a cuántas fotos haya.
+   ---------------------------------------------------------------------- */
+.carrusel-fotos { position: relative; }
+
+.cf-pista {
+  display: flex;
+  gap: 16px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+  /* La barra se oculta porque ya están los puntos y las flechas; el
+     desplazamiento sigue siendo el normal, solo deja de pintarse. */
+  scrollbar-width: none;
+  padding-bottom: 2px;
+}
+.cf-pista::-webkit-scrollbar { display: none; }
+.cf-pista:focus-visible { outline: 2px solid var(--rose-mid); outline-offset: 4px; border-radius: 16px; }
+
+.cf-item {
+  /* En móvil se asoma parte de la siguiente foto: es lo que cuenta que hay
+     más y que se puede deslizar, sin tener que explicarlo. */
+  flex: 0 0 clamp(200px, 72vw, 260px);
+  scroll-snap-align: center;
+  margin: 0;
+}
+@media (min-width: 620px)  { .cf-item { flex-basis: calc((100% - 16px) / 2); scroll-snap-align: start; } }
+@media (min-width: 900px)  { .cf-item { flex-basis: calc((100% - 32px) / 3); } }
+@media (min-width: 1200px) { .cf-item { flex-basis: calc((100% - 48px) / 4); } }
+
+/* El marco fija la proporción: reserva el hueco antes de que baje la foto
+   —así la página no da el salto al cargar— y recorta en vez de estirar,
+   que en fotos de personas es la diferencia entre encuadrar y deformar. */
+.cf-marco {
+  aspect-ratio: 4 / 5;
+  border-radius: 16px;
+  overflow: hidden;
+  background: var(--rose-soft);
+  box-shadow: var(--shadow);
+}
+.cf-item img {
+  width: 100%; height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.cf-pie {
+  margin-top: 10px;
+  text-align: center;
+  font-size: 0.88rem;
+  color: var(--gray);
+  line-height: 1.45;
+}
+
+.cf-flecha {
+  position: absolute;
+  top: 50%; transform: translateY(-50%);
+  width: 44px; height: 44px;
+  border: 0; border-radius: 50%; cursor: pointer;
+  background: rgba(255,255,255,0.94);
+  color: var(--dark);
+  display: none; place-items: center;
+  box-shadow: var(--shadow);
+  z-index: 2;
+  transition: opacity var(--transition), transform var(--transition);
+}
+.cf-flecha:hover { transform: translateY(-50%) scale(1.08); }
+.cf-flecha[disabled] { opacity: 0; pointer-events: none; }
+.cf-flecha.anterior  { left: -10px; }
+.cf-flecha.siguiente { right: -10px; }
+/* En el móvil no salen: taparían la foto y ahí el gesto es deslizar. */
+@media (min-width: 620px) { .cf-flecha { display: grid; } }
+
+.cf-puntos {
+  display: flex; flex-wrap: wrap; justify-content: center;
+  gap: 8px; margin-top: 18px;
+}
+.cf-punto {
+  width: 8px; height: 8px; padding: 0;
+  border: 0; border-radius: 50%; cursor: pointer;
+  background: var(--rose-light);
+  transition: width var(--transition), background var(--transition);
+}
+.cf-punto:hover { background: var(--rose-mid); }
+.cf-punto[aria-current="true"] { width: 24px; border-radius: 4px; background: var(--rose-mid); }
+
+@media (prefers-reduced-motion: reduce) {
+  .cf-pista { scroll-behavior: auto; }
+  .cf-flecha:hover { transform: translateY(-50%); }
+}
+
 /* Footer */
 .footer { background: var(--dark); color: #E0D3D5; padding: 60px 0 20px; }
+/* El documento termina exactamente donde termina el pie: no sobra ni un píxel
+   de caja. Lo que se veía como una franja blanca al forzar el scroll en iOS
+   era el lienzo —que toma el crema del body porque <html> no lleva fondo—
+   asomando por el rebote elástico. La sombra pinta ese mismo marrón por
+   debajo del pie sin participar en la maquetación: `box-shadow` no entra en
+   el área de desplazamiento, así que la altura de la página no cambia y el
+   rebote sigue siendo el normal del sistema. El desplazamiento lateral cubre
+   además el recorte de las pantallas con esquinas redondeadas. */
+.footer { box-shadow: 0 50vh 0 50vh var(--dark); }
 .footer-grid { display: grid; grid-template-columns: 2fr 1fr 1.5fr; gap: 40px; margin-bottom: 40px; }
 .footer-brand .logo { margin-bottom: 14px; color: #fff; }
 .footer-brand .logo .logo-highlight { color: var(--rose-pastel); }

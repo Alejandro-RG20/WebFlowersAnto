@@ -378,6 +378,89 @@
   }
 
   // -------------------------------------------------------------------
+  // Carrusel de fotos de clientes
+  //
+  // El desplazamiento y el gesto táctil los hace el navegador con
+  // `scroll-snap`; aquí solo se leen las flechas y los puntos para que
+  // reflejen dónde está el carrusel. Por eso no hay nada que recalcular
+  // por fotograma ni ninguna librería detrás.
+  // -------------------------------------------------------------------
+  $$('[data-carrusel-fotos]').forEach((carrusel) => {
+    const pista  = $('.cf-pista', carrusel);
+    const fotos  = $$('.cf-item', carrusel);
+    const ant    = $('.cf-flecha.anterior', carrusel);
+    const sig    = $('.cf-flecha.siguiente', carrusel);
+    const puntos = $$('.cf-punto', carrusel);
+    if (!pista || fotos.length === 0) { return; }
+
+    // Posición de una foto dentro de la pista. Se mide con el rectángulo y no
+    // con offsetLeft porque el ascendiente posicionado es el carrusel, no la
+    // pista, y offsetLeft daría otra referencia.
+    const posicion = (foto) =>
+      foto.getBoundingClientRect().left - pista.getBoundingClientRect().left + pista.scrollLeft;
+
+    // Un punto por parada real del carrusel, no por foto.
+    //
+    // La diferencia importa cuando se ven varias a la vez: con cinco fotos y
+    // cuatro en pantalla solo quedan dos paradas, así que cinco puntos serían
+    // tres que no llevan a ninguna parte. Las paradas se sacan de dónde puede
+    // quedar cada foto sin pasarse del final, y las que caen casi encima se
+    // funden en una. En el móvil, con una foto por pantalla, sale justo un
+    // punto por foto; y cuando se suban más, el número se recalcula solo.
+    function topes() {
+      const max = Math.max(0, pista.scrollWidth - pista.clientWidth);
+      const lista = [];
+      fotos.forEach((foto) => {
+        const x = Math.min(posicion(foto), max);
+        if (!lista.length || x - lista[lista.length - 1] > 8) { lista.push(x); }
+      });
+      return lista.length ? lista : [0];
+    }
+
+    const paradaActual = (lista) => {
+      let cual = 0, menor = Infinity;
+      lista.forEach((x, i) => {
+        const d = Math.abs(x - pista.scrollLeft);
+        if (d < menor) { menor = d; cual = i; }
+      });
+      return cual;
+    };
+
+    function pintar() {
+      const lista  = topes();
+      const actual = paradaActual(lista);
+      puntos.forEach((punto, n) => {
+        punto.hidden = n >= lista.length;
+        punto.setAttribute('aria-current', n === actual ? 'true' : 'false');
+        punto.setAttribute('aria-label', 'Ver la posición ' + (n + 1) + ' de ' + lista.length);
+      });
+      // El final se compara con holgura: el desplazamiento da decimales y sin
+      // margen la flecha de avanzar se quedaba activa al llegar.
+      if (ant) { ant.disabled = pista.scrollLeft <= 2; }
+      if (sig) { sig.disabled = pista.scrollLeft >= pista.scrollWidth - pista.clientWidth - 2; }
+    }
+
+    function irA(n) {
+      const lista = topes();
+      const destino = lista[Math.max(0, Math.min(lista.length - 1, n))];
+      pista.scrollTo({ left: destino, behavior: menosMovimiento ? 'auto' : 'smooth' });
+    }
+
+    ant && ant.addEventListener('click', () => irA(paradaActual(topes()) - 1));
+    sig && sig.addEventListener('click', () => irA(paradaActual(topes()) + 1));
+    puntos.forEach((punto, n) => punto.addEventListener('click', () => irA(n)));
+
+    let espera;
+    pista.addEventListener('scroll', () => {
+      clearTimeout(espera);
+      espera = setTimeout(pintar, 90);
+    }, { passive: true });
+    window.addEventListener('resize', pintar);
+
+    pintar();
+  });
+
+  // -------------------------------------------------------------------
   // Botones «copiar» de los datos bancarios
   // -------------------------------------------------------------------
   $$('[data-copiar]').forEach((boton) => {

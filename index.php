@@ -420,21 +420,60 @@ require __DIR__ . '/includes/vistas/cabecera.php';
     </div>
 
     <?php if ($fotos): ?>
-      <div class="rejilla-productos aparece" style="grid-template-columns:repeat(auto-fill,minmax(160px,1fr));">
-        <?php foreach ($fotos as $foto): ?>
-          <figure class="tarjeta-producto" style="cursor:default;">
-            <div class="tarjeta-imagen">
-              <img src="<?= e(url_imagen((string)$foto['imagen'])) ?>"
-                   alt="<?= e((string)($foto['titulo'] ?? 'Entrega de ' . $tienda)) ?>"
-                   width="600" height="700" loading="lazy" decoding="async">
-            </div>
-            <?php if ($foto['titulo']): ?>
-              <figcaption class="tarjeta-cuerpo" style="padding:11px 13px;">
-                <span class="tarjeta-categoria"><?= e((string)$foto['titulo']) ?></span>
-              </figcaption>
-            <?php endif; ?>
-          </figure>
-        <?php endforeach; ?>
+      <?php
+        // Las fotos van en carrusel y no en rejilla: se irán añadiendo más y
+        // una rejilla crecería hacia abajo hasta empujar el resto de la
+        // portada. El desplazamiento lo lleva el navegador con `scroll-snap`,
+        // así que el gesto táctil es el nativo y no hace falta ninguna
+        // librería; app.js solo mueve las flechas y los puntos.
+        //
+        // Anchos de `srcset`: son los que archivo.php sabe servir. Cada foto
+        // se pinta como mucho a 280 px, así que en un móvil se baja la copia
+        // de 480 en lugar del original de 1600.
+        $anchosFoto = [320, 480, 640, 960];
+        $medidasFoto = 'sizes="(min-width: 1200px) 280px, (min-width: 900px) 30vw, (min-width: 620px) 45vw, 72vw"';
+      ?>
+      <div class="carrusel-fotos aparece" data-carrusel-fotos>
+        <div class="cf-pista" tabindex="0" role="group"
+             aria-roledescription="carrusel" aria-label="Fotos de entregas reales">
+          <?php foreach ($fotos as $i => $foto): ?>
+            <?php
+              $ref   = (string)$foto['imagen'];
+              $pie   = trim((string)($foto['titulo'] ?? ''));
+              $med   = imagen_medidas($ref);
+              $juego = [];
+              foreach ($anchosFoto as $w) {
+                  $juego[] = e(url_imagen($ref, 'images/placeholders/logo.svg', $w)) . ' ' . $w . 'w';
+              }
+            ?>
+            <figure class="cf-item" role="group" aria-roledescription="diapositiva"
+                    aria-label="<?= $i + 1 ?> de <?= count($fotos) ?>">
+              <div class="cf-marco">
+                <img src="<?= e(url_imagen($ref, 'images/placeholders/logo.svg', 640)) ?>"
+                     srcset="<?= implode(', ', $juego) ?>" <?= $medidasFoto ?>
+                     alt="<?= e($pie !== '' ? $pie : 'Entrega de ' . $tienda) ?>"
+                     <?php if ($med): ?>width="<?= $med['ancho'] ?>" height="<?= $med['alto'] ?>"<?php endif; ?>
+                     loading="lazy" decoding="async">
+              </div>
+              <?php if ($pie !== ''): ?>
+                <figcaption class="cf-pie"><?= e($pie) ?></figcaption>
+              <?php endif; ?>
+            </figure>
+          <?php endforeach; ?>
+        </div>
+
+        <?php if (count($fotos) > 1): ?>
+          <button type="button" class="cf-flecha anterior" aria-label="Fotos anteriores">
+            <i class="fa-solid fa-chevron-left" aria-hidden="true"></i></button>
+          <button type="button" class="cf-flecha siguiente" aria-label="Fotos siguientes">
+            <i class="fa-solid fa-chevron-right" aria-hidden="true"></i></button>
+          <div class="cf-puntos" role="group" aria-label="Ir a una foto">
+            <?php foreach ($fotos as $i => $foto): ?>
+              <button type="button" class="cf-punto" aria-label="Ver la posición <?= $i + 1 ?>"
+                      aria-current="<?= $i === 0 ? 'true' : 'false' ?>"></button>
+            <?php endforeach; ?>
+          </div>
+        <?php endif; ?>
       </div>
     <?php endif; ?>
 
