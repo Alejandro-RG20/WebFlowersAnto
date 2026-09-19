@@ -478,48 +478,77 @@ require __DIR__ . '/includes/vistas/cabecera.php';
     <?php endif; ?>
 
     <?php if ($videos): ?>
-      <div class="videos-header aparece" style="margin-top:38px;">
-        <h3>Nuestro canal</h3>
-      </div>
-      <div class="rejilla-media aparece">
-        <?php foreach ($videos as $v):
-            $red    = (string)($v['plataforma'] ?? 'youtube');
-            $marco  = Multimedia::urlIncrustada($red, (string)$v['enlace_youtube']);
+      <?php
+        // Dos bloques, no uno: primero el canal y después las redes. Se graban
+        // distinto —YouTube apaisado, los reels verticales— y mezclarlos en la
+        // misma rejilla obligaba a una proporción de compromiso que dejaba
+        // franjas negras en unos y en otros.
+        //
+        // Cada video se incrusta ya, igual que ha hecho siempre el de YouTube:
+        // el reproductor está puesto y se toca para reproducir, sin un paso
+        // previo. Lo que evita cargarlos todos de golpe es `loading="lazy"`,
+        // que es cosa del navegador y no cuesta ni una línea de JavaScript.
+        $canal = [];
+        $redes = [];
+        foreach ($videos as $v) {
+            $red   = (string)($v['plataforma'] ?? 'youtube');
+            $marco = Multimedia::urlIncrustada($red, (string)$v['enlace_youtube']);
             // Una fila que ya no cuadra —enlace editado a mano en la base, red
             // retirada— no pinta un marco vacío: simplemente no sale.
             if ($marco === '') { continue; }
-            $titulo = (string)$v['titulo'];
-        ?>
-          <div class="tarjeta media-tarjeta">
-            <?php if ($red === 'youtube'): ?>
-              <?php // YouTube se queda como estaba: el marco se pide ya, y el
-                    // navegador lo retrasa solo con loading="lazy". ?>
-              <div class="media-marco" style="aspect-ratio: <?= e(Multimedia::proporcion($red)) ?>;">
-                <iframe src="<?= e($marco) ?>" title="<?= e($titulo) ?>"
+            $v['_red'] = $red;
+            $v['_marco'] = $marco;
+            if (Multimedia::esRed($red)) { $redes[] = $v; } else { $canal[] = $v; }
+        }
+      ?>
+
+      <?php if ($canal): ?>
+        <div class="videos-header aparece" style="margin-top:38px;">
+          <h3>Nuestro canal</h3>
+        </div>
+        <div class="rejilla-media rejilla-canal aparece">
+          <?php foreach ($canal as $v): ?>
+            <div class="tarjeta media-tarjeta">
+              <div class="media-marco" style="aspect-ratio: <?= e(Multimedia::proporcion($v['_red'])) ?>;">
+                <iframe src="<?= e($v['_marco']) ?>" title="<?= e((string)$v['titulo']) ?>"
                         loading="lazy" allowfullscreen
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                         referrerpolicy="strict-origin-when-cross-origin"></iframe>
               </div>
-            <?php else: ?>
-              <?php // Instagram, Facebook y TikTok pesan bastante más, así que
-                    // hasta que no se pulsa no se pide nada a esas webs: la
-                    // portada no arrastra su carga ni sus cookies. ?>
-              <button type="button" class="media-marco media-cargar"
-                      style="aspect-ratio: <?= e(Multimedia::proporcion($red)) ?>;"
-                      data-media-src="<?= e($marco) ?>"
-                      data-media-titulo="<?= e($titulo) ?>"
-                      aria-label="Cargar el video de <?= e(Multimedia::nombre($red)) ?>: <?= e($titulo) ?>">
-                <span class="media-red red-<?= e($red) ?>">
-                  <i class="<?= e(Multimedia::icono($red)) ?>" aria-hidden="true"></i></span>
-                <span class="media-aviso">Ver en <?= e(Multimedia::nombre($red)) ?></span>
-              </button>
-            <?php endif; ?>
-            <h3 class="media-titulo"><?= e($titulo) ?></h3>
-            <?php if ($v['descripcion']): ?>
-              <p class="media-desc"><?= e(recortar((string)$v['descripcion'], 110)) ?></p>
-            <?php endif; ?>
-          </div>
-        <?php endforeach; ?>
-      </div>
+              <h3 class="media-titulo"><?= e((string)$v['titulo']) ?></h3>
+              <?php if ($v['descripcion']): ?>
+                <p class="media-desc"><?= e(recortar((string)$v['descripcion'], 110)) ?></p>
+              <?php endif; ?>
+            </div>
+          <?php endforeach; ?>
+        </div>
+      <?php endif; ?>
+
+      <?php if ($redes): ?>
+        <div class="videos-header aparece" style="margin-top:38px;">
+          <h3>Síguenos en redes</h3>
+        </div>
+        <div class="rejilla-media rejilla-redes aparece">
+          <?php foreach ($redes as $v): ?>
+            <div class="tarjeta media-tarjeta">
+              <div class="media-marco" style="aspect-ratio: <?= e(Multimedia::proporcion($v['_red'])) ?>;">
+                <iframe src="<?= e($v['_marco']) ?>" title="<?= e((string)$v['titulo']) ?>"
+                        loading="lazy" allowfullscreen
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                        referrerpolicy="strict-origin-when-cross-origin"></iframe>
+              </div>
+              <h3 class="media-titulo">
+                <i class="<?= e(Multimedia::icono($v['_red'])) ?> media-icono" aria-hidden="true"></i>
+                <?= e((string)$v['titulo']) ?>
+              </h3>
+              <?php if ($v['descripcion']): ?>
+                <p class="media-desc"><?= e(recortar((string)$v['descripcion'], 110)) ?></p>
+              <?php endif; ?>
+            </div>
+          <?php endforeach; ?>
+        </div>
+      <?php endif; ?>
+
     <?php endif; ?>
   </div>
 </section>

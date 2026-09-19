@@ -19,32 +19,21 @@
 html {
   scroll-behavior: smooth;
 
-  /* La franja crema del final no es altura de más: medido, el documento
-     termina en el pie con 0,33 px de diferencia por redondeo, y el elemento
-     más bajo ES el pie. Lo que se ve ahí es el LIENZO, la superficie que el
-     navegador pinta por debajo y alrededor del documento, y que toma su color
-     del <body> mientras <html> no declare ninguno. Por eso sale crema sobre
-     un pie marrón.
-     No sirve pintarlo desde el pie: una sombra o un pseudo-elemento viven
-     dentro de la capa del documento, y esa franja queda fuera de ella —por
-     eso el intento anterior se veía bien al simularlo moviendo el documento,
-     pero no en el teléfono.
-     El degradado se coloca respecto a la caja de <html>, o sea al documento:
-     a doble altura y partido por la mitad, el corte cae justo en el final de
-     la página. Queda crema de la cabecera hacia arriba y marrón del pie hacia
-     abajo, que es lo que asoma con el rebote, con la barra del navegador o en
-     el hueco del indicador de inicio. No cambia la altura de nada. */
-  background-color: var(--cream);
-  background-image: linear-gradient(to bottom,
-                    var(--cream) 0 50%, var(--dark) 50% 100%);
-  background-repeat: no-repeat;
-  background-size: 100% 200%;
-  /* En una página corta —un aviso legal, un 404— la caja de <html> mide menos
-     que la pantalla, y sin esto el corte del degradado caería a media
-     pantalla y se vería el marrón en mitad del hueco. Con el mínimo a la
-     altura de la ventana el corte queda siempre en el borde inferior o por
-     debajo. No afecta a las páginas largas, que ya lo superan. */
-  min-height: 100%;
+  /* El lienzo es la superficie que el navegador pinta por debajo y alrededor
+     del documento: es lo que asoma con el rebote de iOS, con la barra del
+     navegador y en el hueco del indicador de inicio. Mientras <html> no
+     declare fondo, lo toma del <body> —crema— y por eso salía una franja
+     clara bajo un pie marrón.
+     Aquí iba un degradado partido en el final de la página, para que arriba
+     saliera crema y abajo marrón. Sobre el papel era más fino; en el teléfono
+     no funcionó, porque el área sobre la que se coloca el fondo del elemento
+     raíz no se calcula igual en todos los navegadores y el color de respaldo
+     acababa siendo el crema otra vez.
+     Así que el lienzo es marrón y punto. Es el mecanismo más elemental que
+     hay y se comporta igual en todas partes. El crema de la página lo sigue
+     pintando el <body>, que cubre el documento entero, de modo que lo único
+     que cambia es lo que se ve MÁS ALLÁ del documento: justo la franja. */
+  background-color: var(--dark);
 }
 body {
   font-family: 'Poppins', sans-serif;
@@ -721,35 +710,34 @@ h1, h2, h3, h4, .logo-text, .hero-title { font-family: 'Playfair Display', serif
 }
 
 /* ----------------------------------------------------------------------
-   Área multimedia: YouTube, Instagram, Facebook y TikTok
+   Área multimedia: el canal y las redes
 
    Misma tarjeta, mismo radio y misma sombra que el resto de la portada: es
    la continuación de las fotos de clientes, no un bloque aparte.
 
-   Lo único que cambia entre plataformas es cuándo se pide el contenido.
-   YouTube se incrusta igual que siempre. Las otras tres se dibujan primero
-   como una portada con el icono de su red, y hasta que no se pulsa no se
-   contacta con esa web: así se pueden añadir varios reels sin que la
-   portada cargue media docena de reproductores de terceros de golpe.
+   Van en dos rejillas porque se graban distinto. Arriba el canal, apaisado
+   como se ve en YouTube. Debajo las redes, verticales como se graban los
+   reels. Cada reproductor se incrusta ya —se toca y reproduce, sin pasos
+   intermedios—; de no cargarlos todos a la vez se encarga `loading="lazy"`.
    ---------------------------------------------------------------------- */
-.rejilla-media {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(258px, 1fr));
-  gap: 22px;
+/* Las columnas tienen tope de ancho y la rejilla se centra: con un solo
+   video, estirarlo a todo el ancho lo deja desproporcionado, y dejarlo en una
+   columna sin centrar lo deja descolgado a la izquierda con un hueco al lado.
+   Así una tarjeta sola queda centrada y varias se reparten igual. */
+.rejilla-media { display: grid; gap: 22px; justify-content: center; }
+.rejilla-canal { grid-template-columns: repeat(auto-fill, minmax(292px, 420px)); }
+.rejilla-redes { grid-template-columns: repeat(auto-fill, minmax(232px, 300px)); }
+@media (max-width: 560px) {
+  .rejilla-canal, .rejilla-redes { grid-template-columns: minmax(0, 1fr); }
 }
-@media (max-width: 520px) { .rejilla-media { grid-template-columns: 1fr; } }
 
 .media-tarjeta { display: flex; flex-direction: column; }
 
 /* El marco reserva su hueco con `aspect-ratio` antes de que llegue nada, así
-   que la página no se mueve cuando el video aparece. La proporción la decide
-   la plataforma: los reels son verticales y los demás apaisados. */
+   que la página no se mueve cuando el video aparece. */
 .media-marco {
   position: relative;
   width: 100%;
-  display: block;
-  padding: 0;
-  border: 0;
   border-radius: 14px;
   overflow: hidden;
   background: var(--rose-soft);
@@ -759,42 +747,13 @@ h1, h2, h3, h4, .logo-text, .hero-title { font-family: 'Playfair Display', serif
   width: 100%; height: 100%;
   border: 0;
 }
+/* Un reel a todo el ancho del móvil se come la pantalla de alto; acotado
+   sigue viéndose grande y deja ver que debajo continúa la página. */
+.rejilla-redes .media-marco { max-width: 300px; margin-inline: auto; }
 
-.media-cargar {
-  cursor: pointer;
-  display: grid;
-  place-content: center;
-  justify-items: center;
-  gap: 12px;
-  background: linear-gradient(152deg, var(--rose-soft), var(--rose-light));
-  transition: transform var(--transition), box-shadow var(--transition);
-}
-.media-cargar:hover { transform: translateY(-2px); box-shadow: var(--shadow); }
-.media-cargar:focus-visible { outline: 2px solid var(--rose-mid); outline-offset: 3px; }
-
-.media-red {
-  width: 56px; height: 56px; border-radius: 50%;
-  display: grid; place-items: center;
-  font-size: 1.4rem; color: #fff;
-  box-shadow: 0 6px 18px rgba(0,0,0,.18);
-}
-.red-instagram { background: linear-gradient(45deg, #F09433, #DC2743, #BC1888); }
-.red-facebook  { background: #1877F2; }
-.red-tiktok    { background: #111; }
-.red-youtube   { background: #FF0000; }
-
-.media-aviso {
-  font-size: .85rem; font-weight: 600;
-  color: var(--text);
-  background: rgba(255,255,255,.72);
-  padding: 5px 14px; border-radius: 30px;
-}
 .media-titulo { font-size: 1.02rem; margin-top: 12px; }
+.media-icono  { color: var(--rose-mid); margin-right: 5px; }
 .media-desc   { color: var(--gray); font-size: .87rem; margin-top: 4px; }
-
-@media (prefers-reduced-motion: reduce) {
-  .media-cargar:hover { transform: none; }
-}
 
 /* Footer */
 .footer { background: var(--dark); color: #E0D3D5; padding: 60px 0 20px; }

@@ -196,17 +196,23 @@ final class Multimedia
     }
 
     /**
-     * Proporción del marco: la misma para todas, y la misma que las fotos.
+     * Proporción del marco, según cómo se graba en cada sitio.
      *
-     * La tentación es dar a cada red su forma natural —vertical los reels,
-     * apaisado YouTube—, pero mezcladas en una rejilla dejan las tarjetas con
-     * alturas muy distintas y la sección se ve sin terminar. Con una sola
-     * proporción las filas cuadran y el bloque se lee como la continuación
-     * del carrusel de fotos, que usa esta misma. Cada reproductor ajusta su
-     * video dentro: encuadra, no lo deforma.
+     * YouTube va apaisado y las redes verticales. Antes iban todas a la misma
+     * proporción para que las filas cuadraran, pero eso dejaba franjas negras
+     * arriba y abajo en los reels y a los lados en YouTube. Se pintan en dos
+     * bloques separados —primero el canal, después las redes—, así que cada
+     * uno puede llevar su forma y dentro de cada bloque las filas siguen
+     * cuadrando.
      */
     public static function proporcion(string $plataforma): string
     {
-        return '4 / 5';
+        return $plataforma === 'youtube' ? '16 / 9' : '9 / 16';
+    }
+
+    /** ¿Va en el bloque de redes sociales, debajo del canal? */
+    public static function esRed(string $plataforma): bool
+    {
+        return $plataforma !== 'youtube' && self::valida($plataforma);
     }
 }

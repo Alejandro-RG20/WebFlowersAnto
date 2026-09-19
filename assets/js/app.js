@@ -487,35 +487,6 @@
   });
 
   // -------------------------------------------------------------------
-  // Multimedia de redes: el marco se pide al pulsar
-  //
-  // Instagram, Facebook y TikTok traen reproductores pesados. Mientras nadie
-  // los pida, la portada no contacta con esas webs: ni descarga, ni cookies,
-  // ni scripts suyos. La dirección la trae el servidor ya construida y
-  // comprobada, así que aquí solo se monta el marco.
-  // -------------------------------------------------------------------
-  $$('.media-cargar').forEach((portada) => {
-    portada.addEventListener('click', () => {
-      const marco = document.createElement('div');
-      marco.className = 'media-marco';
-      // Se hereda la proporción de la portada para que el hueco no cambie de
-      // tamaño al aparecer el video y la página no dé un salto.
-      marco.style.aspectRatio = portada.style.aspectRatio;
-
-      const cuadro = document.createElement('iframe');
-      cuadro.src = portada.dataset.mediaSrc;
-      cuadro.title = portada.dataset.mediaTitulo || '';
-      cuadro.setAttribute('allow', 'autoplay; encrypted-media; picture-in-picture; fullscreen');
-      cuadro.setAttribute('allowfullscreen', '');
-      cuadro.setAttribute('referrerpolicy', 'strict-origin-when-cross-origin');
-
-      marco.appendChild(cuadro);
-      portada.replaceWith(marco);
-      cuadro.focus();
-    }, { once: true });
-  });
-
-  // -------------------------------------------------------------------
   // Botones «copiar» de los datos bancarios
   // -------------------------------------------------------------------
   $$('[data-copiar]').forEach((boton) => {
