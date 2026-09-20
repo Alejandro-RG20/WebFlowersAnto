@@ -98,7 +98,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Productos asociados a la campaña
     $pdo->prepare("DELETE FROM temporada_productos WHERE temporada_id = ?")->execute([$id]);
     $ins = $pdo->prepare("INSERT IGNORE INTO temporada_productos (temporada_id, producto_id, orden) VALUES (?,?,?)");
-    foreach (array_slice((array)($_POST['productos'] ?? []), 0, 12) as $orden => $productoId) {
+    foreach (array_slice((array)($_POST['productos'] ?? []), 0, Temporadas::TOPE_PRODUCTOS) as $orden => $productoId) {
         $productoId = (int)$productoId;
         if ($productoId > 0) {
             $ins->execute([$id, $productoId, $orden]);
@@ -121,9 +121,6 @@ $productos  = $pdo->query(
       WHERE p.activo = 1
       ORDER BY p.nombre"
 )->fetchAll();
-
-/** Tope de productos por campaña; el guardado corta ahí y la interfaz avisa. */
-const TOPE_PRODUCTOS = 12;
 
 $asociados = [];
 foreach ($pdo->query("SELECT temporada_id, producto_id FROM temporada_productos ORDER BY orden")->fetchAll() as $fila) {
@@ -315,11 +312,11 @@ require __DIR__ . '/_cabecera.php';
       <div class="campo">
         <label>Productos de la campaña</label>
         <div class="selector-productos" data-destino="productos" data-multi
-             data-tope="<?= TOPE_PRODUCTOS ?>">
+             data-tope="<?= Temporadas::TOPE_PRODUCTOS ?>">
           <div class="selector-barra">
             <input type="search" class="selector-buscar" placeholder="Buscar por nombre o categoría…"
                    aria-label="Buscar productos">
-            <span class="selector-cuenta" aria-live="polite">0 de <?= TOPE_PRODUCTOS ?></span>
+            <span class="selector-cuenta" aria-live="polite">0 de <?= Temporadas::TOPE_PRODUCTOS ?></span>
           </div>
           <?php if (!$productos): ?>
             <p class="ayuda">Todavía no hay productos activos que enlazar.</p>
@@ -342,8 +339,8 @@ require __DIR__ . '/_cabecera.php';
             <p class="selector-vacio" hidden>Ningún producto coincide con esa búsqueda.</p>
           <?php endif; ?>
         </div>
-        <p class="ayuda">Se muestran en la portada y en la sección de temporada.
-          Máximo <?= TOPE_PRODUCTOS ?>.</p>
+        <p class="ayuda">En la portada se enseñan los primeros, con un enlace al
+          catálogo para ver el resto. Máximo <?= Temporadas::TOPE_PRODUCTOS ?>.</p>
       </div>
       <div class="interruptor">
         <input type="checkbox" id="t_activo" name="activo" value="1" checked>

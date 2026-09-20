@@ -21,6 +21,24 @@ $filtros = [
     'solo_disponibles' => casilla('disponibles', $_GET),
 ];
 
+// La campaña vigente es un eje aparte de la categoría: un mismo arreglo puede
+// estar en «Girasoles» y, a la vez, dentro de la campaña de septiembre. Por eso
+// no entra en el desplegable de categorías y tiene su propio acceso.
+//
+// En la dirección se escribe «vigente» y no el número de la campaña: así el
+// enlace se puede compartir y sigue valiendo cuando entre la campaña siguiente.
+// Se acepta también el número por si alguien guardó una dirección antigua.
+$temporadaVigente = Catalogo::temporadaVigente($pdo);
+$temporadaPedida  = texto('temporada', 20, $_GET);
+$filtros['temporada'] = 0;
+if ($temporadaVigente && $temporadaPedida !== ''
+    && ($temporadaPedida === 'vigente' || (int)$temporadaPedida === (int)$temporadaVigente['id'])) {
+    $filtros['temporada'] = (int)$temporadaVigente['id'];
+}
+$totalTemporada = $temporadaVigente
+    ? Catalogo::totalDeTemporada($pdo, (int)$temporadaVigente['id'])
+    : 0;
+
 $resultado    = Catalogo::buscar($pdo, $filtros);
 $categorias   = Catalogo::categorias($pdo);
 $tiposFlor    = Catalogo::tiposDeFlor($pdo);
@@ -36,6 +54,7 @@ function urlFiltro(array $cambios): string
         'flor'        => $filtros['flor'],
         'orden'       => $filtros['orden'] === 'destacados' ? '' : $filtros['orden'],
         'disponibles' => $filtros['solo_disponibles'] ? '1' : '',
+        'temporada'   => $filtros['temporada'] ? 'vigente' : '',
     ];
     $params = array_filter(array_merge($base, $cambios), fn($v) => $v !== '' && $v !== null);
     return url('productos.php' . ($params ? '?' . http_build_query($params) : ''));
@@ -48,11 +67,29 @@ foreach ($categorias as $c) {
     }
 }
 
-$tituloPagina = $categoriaActual
-    ? $categoriaActual['nombre'] . ' — ' . Ajustes::texto('nombre_tienda', 'Flowers Anto')
-    : 'Todos los arreglos — ' . Ajustes::texto('nombre_tienda', 'Flowers Anto');
-$descripcionPagina = $categoriaActual
-    ? (string)($categoriaActual['descripcion'] ?: 'Arreglos de la categoría ' . $categoriaActual['nombre'])
+// Lo que la persona está mirando manda sobre el título: si vino por la
+// campaña, el encabezado tiene que decir la campaña; si filtró por categoría,
+// la categoría. La campaña gana porque es el motivo por el que entró.
+$enCampana   = $filtros['temporada'] > 0 && $temporadaVigente;
+$nombreTienda = Ajustes::texto('nombre_tienda', 'Flowers Anto');
+
+if ($enCampana) {
+    $tituloCatalogo = (string)($temporadaVigente['titulo'] ?: $temporadaVigente['nombre']);
+    $bajadaCatalogo = trim((string)($temporadaVigente['subtitulo'] ?? '')) !== ''
+        ? (string)$temporadaVigente['subtitulo']
+        : 'Todos los arreglos de la campaña.';
+} elseif ($categoriaActual) {
+    $tituloCatalogo = (string)$categoriaActual['nombre'];
+    $bajadaCatalogo = (string)($categoriaActual['descripcion']
+        ?: 'Arreglos de la categoría ' . $categoriaActual['nombre']);
+} else {
+    $tituloCatalogo = 'Todos los arreglos';
+    $bajadaCatalogo = 'Busca por nombre, filtra por categoría o por el tipo de flor que tienes en mente.';
+}
+
+$tituloPagina      = $tituloCatalogo . ' — ' . $nombreTienda;
+$descripcionPagina = $enCampana || $categoriaActual
+    ? $bajadaCatalogo
     : 'Catálogo completo de ramos, arreglos y cajas de flores. Filtra por categoría, tipo de flor y precio.';
 $paginaActiva = 'productos';
 
@@ -84,9 +121,9 @@ require __DIR__ . '/includes/vistas/cabecera.php';
   <nav class="migas" aria-label="Ruta">
     <ol>
       <li><a href="<?= e(url()) ?>">Inicio</a></li>
-      <?php if ($categoriaActual): ?>
+      <?php if ($enCampana || $categoriaActual): ?>
         <li><a href="<?= e(url('productos.php')) ?>">Arreglos</a></li>
-        <li aria-current="page"><?= e((string)$categoriaActual['nombre']) ?></li>
+        <li aria-current="page"><?= e($tituloCatalogo) ?></li>
       <?php else: ?>
         <li aria-current="page">Arreglos</li>
       <?php endif; ?>
@@ -94,11 +131,36 @@ require __DIR__ . '/includes/vistas/cabecera.php';
   </nav>
 
   <header class="pagina-cabecera">
-    <h1><?= e($categoriaActual ? (string)$categoriaActual['nombre'] : 'Todos los arreglos') ?></h1>
-    <p><?= e($categoriaActual && $categoriaActual['descripcion']
-             ? (string)$categoriaActual['descripcion']
-             : 'Busca por nombre, filtra por categoría o por el tipo de flor que tienes en mente.') ?></p>
+    <h1><?= e($tituloCatalogo) ?></h1>
+    <p><?= e($bajadaCatalogo) ?></p>
   </header>
+
+  <?php if ($temporadaVigente && $totalTemporada > 0): ?>
+    <?php
+      // Acceso a la campaña. Va antes de los filtros y no dentro del
+      // desplegable de categorías porque no es una categoría: es un corte
+      // transversal que puede tocar varias. Se pinta como un botón grande
+      // porque durante la campaña es lo que más gente busca.
+      $nombreCampana = (string)($temporadaVigente['titulo'] ?: $temporadaVigente['nombre']);
+    ?>
+    <div class="acceso-campana">
+      <?php if ($enCampana): ?>
+        <span class="campana-chip activo">
+          <i class="fa-solid fa-seedling" aria-hidden="true"></i>
+          <?= e($nombreCampana) ?>
+          <span class="campana-cuenta"><?= $totalTemporada ?></span>
+        </span>
+        <a class="campana-quitar" href="<?= e(urlFiltro(['temporada' => '', 'pagina' => ''])) ?>">
+          <i class="fa-solid fa-xmark" aria-hidden="true"></i> Ver todo el catálogo</a>
+      <?php else: ?>
+        <a class="campana-chip" href="<?= e(urlFiltro(['temporada' => 'vigente', 'pagina' => ''])) ?>">
+          <i class="fa-solid fa-seedling" aria-hidden="true"></i>
+          Ver los arreglos de <?= e($nombreCampana) ?>
+          <span class="campana-cuenta"><?= $totalTemporada ?></span>
+        </a>
+      <?php endif; ?>
+    </div>
+  <?php endif; ?>
 
   <form class="barra-filtros" method="get" action="<?= e(url('productos.php')) ?>" role="search">
     <div class="filtros-fila">
@@ -142,6 +204,11 @@ require __DIR__ . '/includes/vistas/cabecera.php';
 
     <?php if ($filtros['flor'] !== ''): ?>
       <input type="hidden" name="flor" value="<?= e($filtros['flor']) ?>">
+    <?php endif; ?>
+    <?php // Sin esto, buscar algo estando dentro de la campaña te sacaba de
+          // ella: el formulario es GET y solo envía lo que lleva dentro. ?>
+    <?php if ($enCampana): ?>
+      <input type="hidden" name="temporada" value="vigente">
     <?php endif; ?>
 
     <div class="campo-casilla" style="margin:14px 0 0;">

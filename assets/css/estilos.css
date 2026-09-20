@@ -755,6 +755,51 @@ h1, h2, h3, h4, .logo-text, .hero-title { font-family: 'Playfair Display', serif
 .media-icono  { color: var(--rose-mid); margin-right: 5px; }
 .media-desc   { color: var(--gray); font-size: .87rem; margin-top: 4px; }
 
+/* ----------------------------------------------------------------------
+   Acceso a la campaña desde el catálogo
+
+   Durante una temporada es lo que más gente busca, así que va como un botón
+   grande encima de los filtros y no escondido en el desplegable de
+   categorías: la campaña no es una categoría, es un corte que las cruza.
+
+   El color lo pone la propia campaña a través de `--temporada-color`, que ya
+   define temporada.css; sin campaña vigente este bloque ni se pinta, así que
+   el reserva solo actúa si algún día se usa fuera de ese contexto.
+   ---------------------------------------------------------------------- */
+.temporada-ver-todos { display: flex; justify-content: center; margin-top: 26px; }
+.temporada-ver-todos .btn { display: inline-flex; align-items: center; gap: 10px; }
+
+.acceso-campana {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 12px;
+  margin: 0 0 20px;
+}
+.campana-chip {
+  display: inline-flex; align-items: center; gap: 10px;
+  padding: 11px 20px; border-radius: 50px;
+  font-weight: 600; text-decoration: none;
+  color: var(--dark);
+  background: var(--temporada-suave, var(--rose-soft));
+  border: 2px solid var(--temporada-color, var(--rose-pastel));
+  transition: transform var(--transition), box-shadow var(--transition);
+}
+a.campana-chip:hover { transform: translateY(-2px); box-shadow: var(--shadow); }
+.campana-chip.activo { background: var(--temporada-color, var(--rose-pastel)); }
+.campana-cuenta {
+  display: inline-grid; place-items: center;
+  min-width: 26px; height: 26px; padding: 0 8px;
+  border-radius: 30px; font-size: .82rem;
+  background: rgba(255,255,255,.75); color: var(--dark);
+}
+.campana-quitar {
+  display: inline-flex; align-items: center; gap: 7px;
+  font-size: .88rem; color: var(--gray); text-decoration: none;
+}
+.campana-quitar:hover { color: var(--dark); text-decoration: underline; }
+
+@media (prefers-reduced-motion: reduce) {
+  a.campana-chip:hover { transform: none; }
+}
+
 /* Footer */
 .footer { background: var(--dark); color: #E0D3D5; padding: 60px 0 20px; }
 .footer-grid { display: grid; grid-template-columns: 2fr 1fr 1.5fr; gap: 40px; margin-bottom: 40px; }

@@ -18,6 +18,23 @@ declare(strict_types=1);
 final class Temporadas
 {
     /**
+     * Cuántos productos puede llevar una campaña como mucho.
+     *
+     * Vive aquí, y no en la página del panel, porque hacen falta en dos
+     * sitios: el formulario que avisa del tope y el guardado que lo aplica.
+     * Estaba escrito por separado en cada uno —una constante en la vista y un
+     * `12` suelto dentro del guardado—, así que el aviso y el recorte podían
+     * decir cosas distintas sin que nadie se enterara: subir el de la vista
+     * habría dejado al guardado tirando los productos sobrantes en silencio.
+     * Con un único valor eso ya no puede pasar.
+     *
+     * Cuántos se enseñan en la portada es otra cosa y se decide aparte: la
+     * campaña puede tener cuarenta arreglos y la portada seguir mostrando una
+     * muestra, con el enlace al catálogo filtrado para verlos todos.
+     */
+    public const TOPE_PRODUCTOS = 40;
+
+    /**
      * Estilos disponibles.
      *
      * - `nombre`  lo que se lee en el panel

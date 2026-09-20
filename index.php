@@ -206,6 +206,18 @@ require __DIR__ . '/includes/vistas/cabecera.php';
                 require __DIR__ . '/includes/vistas/tarjeta_producto.php';
             } ?>
     </div>
+
+    <?php // La portada enseña cuatro; si la campaña tiene más, hay que poder
+          // llegar al resto. Sin este enlace los demás quedaban solo al
+          // alcance de quien acertara a filtrar por su cuenta. ?>
+    <?php if ((int)($temporada['total_productos'] ?? 0) > 4): ?>
+      <div class="temporada-ver-todos">
+        <a class="btn btn-primary" href="<?= e(url('productos.php?temporada=vigente')) ?>">
+          Ver los <?= (int)$temporada['total_productos'] ?> arreglos de la campaña
+          <i class="fa-solid fa-arrow-right" aria-hidden="true"></i>
+        </a>
+      </div>
+    <?php endif; ?>
   </div>
 </section>
 <?php endif; ?>

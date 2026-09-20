@@ -76,7 +76,7 @@ final class Catalogo
     /**
      * Catálogo con filtros, búsqueda, orden y paginación.
      *
-     * @param array $f  categoria, flor, q, orden, pagina, por_pagina, solo_disponibles
+     * @param array $f  categoria, flor, q, orden, pagina, por_pagina, solo_disponibles, temporada
      * @return array{items: array, total: int, paginas: int, pagina: int}
      */
     public static function buscar(PDO $pdo, array $f = []): array
@@ -96,6 +96,14 @@ final class Catalogo
             $termino  = '%' . str_replace(['%', '_'], ['\%', '\_'], (string)$f['q']) . '%';
             $where[]  = '(p.nombre LIKE ? OR p.descripcion LIKE ? OR p.flores LIKE ? OR c.nombre LIKE ?)';
             array_push($params, $termino, $termino, $termino, $termino);
+        }
+        if (!empty($f['temporada'])) {
+            // `EXISTS` y no un JOIN: un JOIN con la tabla de enlace duplicaría
+            // filas si un producto llegara a estar dos veces en la campaña, y
+            // eso descuadraría el total y la paginación.
+            $where[]  = 'EXISTS (SELECT 1 FROM temporada_productos tp
+                                  WHERE tp.producto_id = p.id AND tp.temporada_id = ?)';
+            $params[] = (int)$f['temporada'];
         }
         if (!empty($f['solo_disponibles'])) {
             $where[] = 'p.disponible = 1 AND (p.controla_stock = 0 OR p.stock > 0)';
@@ -305,7 +313,35 @@ final class Catalogo
         );
         $st->execute([$fila['id']]);
         $fila['productos'] = self::conPortada($pdo, $st->fetchAll());
+
+        // La portada enseña una muestra, no la campaña entera: con cuarenta
+        // arreglos la página se haría eterna. El total va aparte para poder
+        // ofrecer el enlace que lleva a verlos todos en el catálogo.
+        $fila['total_productos'] = self::totalDeTemporada($pdo, (int)$fila['id']);
+
         return $fila;
+    }
+
+    /**
+     * Cuántos arreglos activos tiene una campaña.
+     *
+     * Lo piden la portada —para el enlace de «ver todos»— y el catálogo, para
+     * el número del acceso a la campaña. Está aquí para que la cuenta sea la
+     * misma en los dos sitios.
+     */
+    public static function totalDeTemporada(PDO $pdo, int $temporadaId): int
+    {
+        if ($temporadaId <= 0) {
+            return 0;
+        }
+        $st = $pdo->prepare(
+            "SELECT COUNT(*)
+               FROM temporada_productos tp
+               JOIN productos p ON p.id = tp.producto_id
+              WHERE tp.temporada_id = ? AND p.activo = 1"
+        );
+        $st->execute([$temporadaId]);
+        return (int)$st->fetchColumn();
     }
 
     /** Productos del carrusel de portada: temporada > destacados > recientes. */
