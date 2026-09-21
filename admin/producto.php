@@ -27,7 +27,8 @@ if (!$categorias) {
 // --- Datos actuales ----------------------------------------------------
 $producto = [
     'nombre' => '', 'slug' => '', 'descripcion' => '', 'resumen' => '',
-    'precio' => 0, 'precio_usd' => 0, 'categoria_id' => (int)$categorias[0]['id'],
+    'precio' => 0, 'precio_usd' => 0, 'descuento_pct' => 0,
+    'categoria_id' => (int)$categorias[0]['id'],
     'flores' => '', 'color_acento' => '#EFD9DE', 'destacado' => 0, 'orden_hero' => 0,
     'orden' => 0, 'disponible' => 1, 'activo' => 1, 'stock' => 0, 'controla_stock' => 0,
     'imagen_hero' => '',
@@ -60,6 +61,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $producto['resumen']      = texto('resumen', 200);
     $producto['precio']       = decimal('precio');
     $producto['precio_usd']   = decimal('precio_usd');
+    // El descuento se guarda aparte del precio: `precio` sigue siendo el de
+    // siempre y nunca se pisa con el rebajado, así que quitar la oferta es
+    // volver a poner cero y el precio original sigue ahí intacto.
+    $pctPedido = Precios::normalizarPct(crudo('descuento_pct'));
+    if ($pctPedido === null) {
+        $errores['descuento_pct'] = 'El descuento va de 0 a ' . Precios::TOPE_PCT . '.';
+        $pctPedido = (int)($producto['descuento_pct'] ?? 0);
+    }
+    $producto['descuento_pct'] = $pctPedido;
     $producto['categoria_id'] = identificador('categoria_id');
     $producto['flores']       = mb_strtolower(texto('flores', 255));
     $producto['color_acento'] = colorHex('color_acento');
@@ -133,7 +143,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $producto['destacado'], $producto['orden_hero'], $producto['orden'],
                 $producto['disponible'], $producto['activo'],
                 $producto['controla_stock'], $producto['stock'],
-                $producto['imagen_hero'],
+                $producto['imagen_hero'], $producto['descuento_pct'],
             ];
 
             if ($esNuevo) {
@@ -141,8 +151,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     "INSERT INTO productos
                         (nombre, slug, descripcion, resumen, precio, precio_usd, imagen, categoria_id,
                          flores, color_acento, destacado, orden_hero, orden, disponible, activo,
-                         controla_stock, stock, imagen_hero)
-                     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
+                         controla_stock, stock, imagen_hero, descuento_pct)
+                     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
                 )->execute($campos);
                 $id = (int)$pdo->lastInsertId();
             } else {
@@ -152,7 +162,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             precio = ?, precio_usd = ?, imagen = ?, categoria_id = ?, flores = ?,
                             color_acento = ?, destacado = ?, orden_hero = ?, orden = ?,
                             disponible = ?, activo = ?, controla_stock = ?, stock = ?,
-                            imagen_hero = ?
+                            imagen_hero = ?, descuento_pct = ?
                       WHERE id = ?"
                 )->execute($campos);
             }
@@ -348,6 +358,24 @@ require __DIR__ . '/_cabecera.php';
                    value="<?= e(number_format((float)$producto['precio_usd'], 2, '.', '')) ?>">
             <p class="ayuda">Solo informativo. Se muestra si está activado en Configuración.</p>
           </div>
+        </div>
+
+        <div class="campo<?= isset($errores['descuento_pct']) ? ' con-error' : '' ?>">
+          <label for="descuento_pct">Descuento (%)</label>
+          <input type="number" id="descuento_pct" name="descuento_pct" min="0"
+                 max="<?= Precios::TOPE_PCT ?>" step="1"
+                 value="<?= (int)$producto['descuento_pct'] ?>">
+          <?php if (isset($errores['descuento_pct'])): ?>
+            <p class="error-campo"><?= e($errores['descuento_pct']) ?></p>
+          <?php endif; ?>
+          <?php if (Precios::enOferta($producto)): ?>
+            <p class="ayuda">Se vende a <strong><?= e(dinero(Precios::efectivo($producto))) ?></strong>
+               en vez de <?= e(dinero(Precios::base($producto))) ?>
+               (<?= e(dinero(Precios::ahorro($producto))) ?> menos).</p>
+          <?php else: ?>
+            <p class="ayuda">Cero es sin oferta. El precio de arriba no se toca: es el que
+               se tacha en la web cuando pones un descuento.</p>
+          <?php endif; ?>
         </div>
       </section>
 

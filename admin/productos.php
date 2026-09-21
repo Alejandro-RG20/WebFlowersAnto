@@ -10,6 +10,107 @@ $seccion = 'productos';
 Rbac::exigirPanel();
 Rbac::exigir('productos.ver');
 
+// --- Acciones sobre varios productos ----------------------------------
+//
+// Van antes de las acciones de una sola fila porque no llevan `id`: reciben
+// una lista de casillas marcadas. Cada una es una operación puntual que se
+// ejecuta al pulsar, no un estado que se vuelva a aplicar al dibujar la
+// página; por eso un aumento de precio no puede sumarse solo dos veces.
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && crudo('accion_masiva') !== '') {
+    exigirToken(false, 'admin/productos.php');
+    Rbac::exigir('productos.editar');
+
+    $ids = array_values(array_unique(array_filter(
+        array_map('intval', (array)($_POST['ids'] ?? [])),
+        static fn(int $v): bool => $v > 0
+    )));
+    if (!$ids) {
+        flash('error', 'Marca al menos un arreglo antes de aplicar la acción.');
+        redirigir('admin/productos.php');
+    }
+    // Se acota lo que puede llegar de golpe: una lista enorme dejaría la
+    // consulta y la auditoría fuera de control.
+    $ids = array_slice($ids, 0, 200);
+    $huecos = implode(',', array_fill(0, count($ids), '?'));
+
+    switch (opcion('accion_masiva', ['oferta', 'quitar_oferta', 'aumentar'], '')) {
+        case 'oferta':
+            $pct = Precios::normalizarPct(crudo('descuento_pct'));
+            if ($pct === null) {
+                flash('error', 'El descuento tiene que ser un número entre 0 y ' . Precios::TOPE_PCT . '.');
+                redirigir('admin/productos.php');
+            }
+            $pdo->prepare("UPDATE productos SET descuento_pct = ? WHERE id IN ($huecos)")
+                ->execute(array_merge([$pct], $ids));
+            Auditoria::registrar($pdo, 'editar', 'productos', [
+                'recurso_tipo' => 'producto', 'recurso_id' => implode(',', $ids),
+                'descripcion'  => $pct > 0
+                    ? "Oferta del {$pct}% aplicada a " . count($ids) . ' arreglo(s).'
+                    : 'Oferta retirada de ' . count($ids) . ' arreglo(s).',
+            ]);
+            flash('exito', $pct > 0
+                ? 'Descuento del ' . $pct . '% aplicado a ' . count($ids) . ' arreglo(s).'
+                : 'Descuento retirado de ' . count($ids) . ' arreglo(s).');
+            break;
+
+        case 'quitar_oferta':
+            $pdo->prepare("UPDATE productos SET descuento_pct = 0 WHERE id IN ($huecos)")
+                ->execute($ids);
+            Auditoria::registrar($pdo, 'editar', 'productos', [
+                'recurso_tipo' => 'producto', 'recurso_id' => implode(',', $ids),
+                'descripcion'  => 'Oferta retirada de ' . count($ids) . ' arreglo(s).',
+            ]);
+            flash('exito', 'Los arreglos vuelven a su precio de siempre.');
+            break;
+
+        case 'aumentar':
+            $monto = (float)str_replace(',', '', crudo('monto'));
+            if ($monto <= 0 || $monto > Precios::TOPE_AUMENTO) {
+                flash('error', 'Escribe cuánto subir, entre 1 y ' . dinero(Precios::TOPE_AUMENTO) . '.');
+                redirigir('admin/productos.php');
+            }
+            // Sube el precio de siempre, no el rebajado: si el arreglo está en
+            // oferta, el porcentaje se sigue aplicando sobre el precio nuevo.
+            //
+            // La cuenta se hace aquí y no dentro del UPDATE porque el dólar
+            // depende del precio, y en una sola sentencia MySQL ya habría
+            // cambiado la columna antes de leerla para la segunda asignación:
+            // la tasa saldría del precio nuevo y el resultado sería otro. Cada
+            // arreglo conserva su propia tasa en lugar de imponerles una común,
+            // que es lo que ya hacía el catálogo.
+            $lee = $pdo->prepare("SELECT id, precio, precio_usd FROM productos WHERE id IN ($huecos)");
+            $lee->execute($ids);
+            $sube = $pdo->prepare("UPDATE productos SET precio = ?, precio_usd = ? WHERE id = ?");
+
+            $pdo->beginTransaction();
+            try {
+                foreach ($lee->fetchAll() as $fila) {
+                    $viejo = (float)$fila['precio'];
+                    $usd   = (float)$fila['precio_usd'];
+                    $nuevo = round($viejo + $monto, 2);
+                    $tasa  = ($viejo > 0 && $usd > 0) ? $viejo / $usd : 0.0;
+                    $sube->execute([$nuevo, $tasa > 0 ? round($nuevo / $tasa, 2) : 0.0, $fila['id']]);
+                }
+                $pdo->commit();
+            } catch (PDOException $ex) {
+                $pdo->rollBack();
+                error_log('Flowers Anto — no se pudo subir el precio: ' . $ex->getMessage());
+                flash('error', 'No se pudo aplicar el aumento. Vuelve a intentarlo.');
+                redirigir('admin/productos.php');
+            }
+            Auditoria::registrar($pdo, 'editar', 'productos', [
+                'recurso_tipo' => 'producto', 'recurso_id' => implode(',', $ids),
+                'descripcion'  => 'Precio subido ' . dinero($monto) . ' en ' . count($ids) . ' arreglo(s).',
+            ]);
+            flash('exito', 'Precio subido ' . dinero($monto) . ' en ' . count($ids) . ' arreglo(s).');
+            break;
+
+        default:
+            flash('error', 'Acción no reconocida.');
+    }
+    redirigir('admin/productos.php');
+}
+
 // --- Acciones rápidas -------------------------------------------------
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     exigirToken(false, 'admin/productos.php');
@@ -167,15 +268,48 @@ require __DIR__ . '/_cabecera.php';
       <?php endif; ?>
     </div>
   <?php else: ?>
+    <?php if (Rbac::puede('productos.editar')): ?>
+    <form method="post" action="<?= e(url('admin/productos.php')) ?>" id="formMasivo">
+      <?= campoToken() ?>
+      <div class="barra-masiva" data-barra-masiva hidden>
+        <span class="masiva-cuenta"><strong data-masiva-n>0</strong> seleccionados</span>
+        <label class="masiva-campo">
+          <span>Descuento</span>
+          <select name="descuento_pct">
+            <?php foreach (Precios::SUGERIDOS as $sug): ?>
+              <option value="<?= $sug ?>"><?= $sug ?>%</option>
+            <?php endforeach; ?>
+          </select>
+        </label>
+        <button type="submit" name="accion_masiva" value="oferta" class="boton boton-principal">
+          Aplicar oferta</button>
+        <button type="submit" name="accion_masiva" value="quitar_oferta" class="boton boton-claro">
+          Quitar oferta</button>
+        <label class="masiva-campo">
+          <span>Subir precio</span>
+          <input type="number" name="monto" min="1" max="<?= (int)Precios::TOPE_AUMENTO ?>"
+                 step="1" placeholder="200" inputmode="numeric">
+        </label>
+        <button type="submit" name="accion_masiva" value="aumentar" class="boton boton-claro"
+                data-confirmar="¿Subir el precio de los arreglos seleccionados?">Aplicar aumento</button>
+      </div>
+    <?php endif; ?>
     <div class="tabla-envoltura">
       <table class="tabla">
         <thead>
-          <tr><th></th><th>Producto</th><th>Categoría</th><th class="num">Precio</th>
+          <tr><?php if (Rbac::puede('productos.editar')): ?>
+                <th><input type="checkbox" data-masiva-todos aria-label="Seleccionar todos"></th>
+              <?php endif; ?>
+              <th></th><th>Producto</th><th>Categoría</th><th class="num">Precio</th>
               <th>Disponibilidad</th><th>Estado</th><th></th></tr>
         </thead>
         <tbody>
           <?php foreach ($productos as $p): ?>
             <tr>
+              <?php if (Rbac::puede('productos.editar')): ?>
+                <td><input type="checkbox" name="ids[]" value="<?= (int)$p['id'] ?>" form="formMasivo"
+                           data-masiva-item aria-label="Seleccionar <?= e((string)$p['nombre']) ?>"></td>
+              <?php endif; ?>
               <td><img class="miniatura" src="<?= e(url_imagen((string)$p['imagen'])) ?>" alt="" loading="lazy"></td>
               <td>
                 <span class="celda-principal"><?= e((string)$p['nombre']) ?></span>
@@ -185,7 +319,15 @@ require __DIR__ . '/_cabecera.php';
                 <br><span class="celda-sub"><?= e((string)$p['slug']) ?></span>
               </td>
               <td><?= e((string)$p['categoria_nombre']) ?></td>
-              <td class="num"><?= e(dinero($p['precio'])) ?></td>
+              <td class="num">
+                <?php if (Precios::enOferta($p)): ?>
+                  <s class="precio-antes"><?= e(dinero(Precios::base($p))) ?></s><br>
+                  <strong><?= e(dinero(Precios::efectivo($p))) ?></strong>
+                  <span class="estado-suave oferta"><?= Precios::porcentaje($p) ?>% OFF</span>
+                <?php else: ?>
+                  <?= e(dinero(Precios::base($p))) ?>
+                <?php endif; ?>
+              </td>
               <td>
                 <?php if ((int)$p['disponible'] === 0): ?>
                   <span class="estado-suave aviso">Sobre pedido</span>
@@ -244,6 +386,7 @@ require __DIR__ . '/_cabecera.php';
         </tbody>
       </table>
     </div>
+    <?php if (Rbac::puede('productos.editar')): ?></form><?php endif; ?>
 
     <?php if ($paginas > 1): ?>
       <nav class="paginacion">

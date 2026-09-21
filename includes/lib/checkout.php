@@ -119,7 +119,8 @@ final class Checkout
             $base     = Carrito::detalle($pdo, $zona, $datos['entrega_tipo']);
             $revision = Cupones::revisar(
                 $pdo, $datos['cupon'], $base['subtotal'], $base['envio'],
-                Auth::id(), $datos['cliente_email'] ?: (string)($usuario['email'] ?? '')
+                Auth::id(), $datos['cliente_email'] ?: (string)($usuario['email'] ?? ''),
+                $base['base_cupon'] ?? null
             );
             $cupon = $revision['ok'] ? $revision['cupon'] : null;
         }

@@ -61,8 +61,14 @@ final class Cupones
         float $subtotal,
         float $envio = 0.0,
         ?int $usuarioId = null,
-        string $email = ''
+        string $email = '',
+        ?float $baseCupon = null
     ): array {
+        // `$baseCupon` es la parte del pedido que un cupón puede rebajar: la
+        // suma de las líneas que NO están ya en oferta. Un arreglo rebajado no
+        // se rebaja dos veces. Sin ese dato se asume que todo el pedido cuenta,
+        // que es como se comportaba antes de que existieran las ofertas.
+        $base = $baseCupon ?? $subtotal;
         $no = static fn(string $error): array
             => ['ok' => false, 'cupon' => null, 'descuento' => 0.0, 'error' => $error];
 
@@ -108,7 +114,15 @@ final class Cupones
                 : 'Ya usaste este cupón el máximo de veces permitido.');
         }
 
-        $descuento = self::calcular($cupon, $subtotal, $envio);
+        // Este aviso va después de comprobar que el cupón existe y está
+        // vigente: decirle a alguien que «sus arreglos ya tienen descuento»
+        // cuando además tecleó un código inventado sería confundirlo.
+        if ($base <= 0) {
+            return $no('Los arreglos de tu pedido ya tienen descuento, y un descuento '
+                     . 'no se puede combinar con un cupón.');
+        }
+
+        $descuento = self::calcular($cupon, $base, $envio);
         if ($descuento <= 0) {
             return $no('Este cupón no aplica a tu pedido.');
         }

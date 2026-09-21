@@ -125,6 +125,38 @@
     });
   });
   // -------------------------------------------------------------------
+  // Acciones sobre varios productos
+  //
+  // La barra solo aparece cuando hay algo marcado: enseñarla siempre vacía
+  // invita a pulsar botones que no harían nada. El formulario se envía
+  // entero, así que quien manda es el servidor; esto solo decide qué se ve.
+  // -------------------------------------------------------------------
+  (function () {
+    const barra = $('[data-barra-masiva]');
+    if (!barra) { return; }
+    const casillas = $$('[data-masiva-item]');
+    const todos    = $('[data-masiva-todos]');
+    const cuenta   = $('[data-masiva-n]', barra);
+
+    function refrescar() {
+      const n = casillas.filter((c) => c.checked).length;
+      barra.hidden = n === 0;
+      if (cuenta) { cuenta.textContent = String(n); }
+      if (todos) {
+        todos.checked = n > 0 && n === casillas.length;
+        todos.indeterminate = n > 0 && n < casillas.length;
+      }
+    }
+
+    casillas.forEach((c) => c.addEventListener('change', refrescar));
+    todos && todos.addEventListener('change', () => {
+      casillas.forEach((c) => { c.checked = todos.checked; });
+      refrescar();
+    });
+    refrescar();
+  })();
+
+  // -------------------------------------------------------------------
   // Selector visual de productos: buscar, contar y respetar el tope
   // -------------------------------------------------------------------
   $$('[data-multi][data-tope]').forEach((selector) => {

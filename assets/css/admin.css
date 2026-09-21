@@ -524,3 +524,32 @@ dialog.modal .modal-pie {
 .salud-fila p { margin: 3px 0 0; font-size: .87rem; line-height: 1.55; color: var(--p-suave, #7A6B6E); }
 .salud-fila .salud-arreglo { margin-top: 5px; color: var(--p-texto, #4A3B3D); }
 .salud-fila .salud-arreglo::before { content: "→ "; opacity: .55; }
+
+/* ----------------------------------------------------------------------
+   Acciones sobre varios productos
+
+   La barra solo se pinta cuando hay algo marcado —lo decide admin.js— y se
+   queda pegada arriba al desplazar, porque la lista es larga y si no habría
+   que volver al principio para aplicar la acción.
+   ---------------------------------------------------------------------- */
+.barra-masiva {
+  position: sticky; top: 0; z-index: 5;
+  display: flex; flex-wrap: wrap; align-items: end; gap: 14px;
+  padding: 14px 16px; margin-bottom: 14px;
+  background: var(--panel-suave, #FDF3F5);
+  border: 1px solid var(--panel-borde, #F0E0E4);
+  border-radius: 12px;
+}
+/* `display: flex` de la regla de arriba le gana al `display: none` que el
+   navegador aplica por el atributo `hidden`, así que la barra se veía aunque
+   no hubiera nada marcado. Se le devuelve la última palabra al atributo. */
+.barra-masiva[hidden] { display: none; }
+
+.masiva-cuenta { font-size: .9rem; align-self: center; }
+.masiva-campo { display: flex; flex-direction: column; gap: 4px; font-size: .8rem; }
+.masiva-campo select, .masiva-campo input { min-width: 110px; }
+.estado-suave.oferta { background: #F8B0C2; color: #3D2C2E; font-weight: 600; }
+@media (max-width: 640px) {
+  .barra-masiva { position: static; }
+  .masiva-campo, .barra-masiva .boton { flex: 1 1 auto; }
+}

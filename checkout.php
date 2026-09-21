@@ -64,7 +64,8 @@ if ($cuponesActivos && $codigoCupon !== '') {
     $baseCupon = Carrito::detalle($pdo, $zonaElegida, $tipoEntregaActual);
     $revision  = Cupones::revisar(
         $pdo, $codigoCupon, $baseCupon['subtotal'], $baseCupon['envio'],
-        Auth::id(), (string)($usuario['email'] ?? correoValido('cliente_email'))
+        Auth::id(), (string)($usuario['email'] ?? correoValido('cliente_email')),
+        $baseCupon['base_cupon'] ?? null
     );
     if ($revision['ok']) {
         $cuponAplicado = $revision['cupon'];

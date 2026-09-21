@@ -136,7 +136,8 @@ final class Carrito
     ): array {
         $lineas = self::lineas();
         if (!$lineas) {
-            return ['items' => [], 'subtotal' => 0.0, 'envio' => 0.0, 'descuento' => 0.0,
+            return ['items' => [], 'subtotal' => 0.0, 'base_cupon' => 0.0, 'ahorro' => 0.0,
+                    'envio' => 0.0, 'descuento' => 0.0,
                     'cupon' => null, 'total' => 0.0, 'unidades' => 0, 'avisos' => []];
         }
 
@@ -144,6 +145,7 @@ final class Carrito
         $items     = [];
         $avisos    = [];
         $subtotal  = 0.0;
+        $baseCupon = 0.0;
         $cambio    = false;
 
         foreach ($lineas as $id => $cantidad) {
@@ -168,20 +170,35 @@ final class Carrito
                 $avisos[] = 'Ajustamos «' . $p['nombre'] . '» a ' . $maximo . ' unidades por disponibilidad.';
             }
 
-            $precio = (float)$p['precio'];
-            $linea  = round($precio * $cantidad, 2);
+            // El precio sale de `Precios`, que es quien sabe si el arreglo
+            // está rebajado. `precio` es el de siempre —el que se tacha— y
+            // `precio_base` viaja junto para poder enseñar los dos.
+            $base      = Precios::base($p);
+            $precio    = Precios::efectivo($p);
+            $pct       = Precios::porcentaje($p);
+            $enOferta  = Precios::enOferta($p);
+            $linea     = round($precio * $cantidad, 2);
             $subtotal += $linea;
+            if (!$enOferta) {
+                // Lo que un cupón puede descontar: las líneas que NO están ya
+                // rebajadas. Se acumula aquí para no recorrer otra vez.
+                $baseCupon += $linea;
+            }
 
             $items[] = [
-                'producto_id' => (int)$id,
-                'nombre'      => $p['nombre'],
-                'slug'        => $p['slug'],
-                'imagen'      => $p['portada'] ?? $p['imagen'],
-                'precio'      => $precio,
-                'precio_usd'  => (float)$p['precio_usd'],
-                'cantidad'    => $cantidad,
-                'subtotal'    => $linea,
-                'maximo'      => $maximo,
+                'producto_id'   => (int)$id,
+                'nombre'        => $p['nombre'],
+                'slug'          => $p['slug'],
+                'imagen'        => $p['portada'] ?? $p['imagen'],
+                'precio'        => $precio,
+                'precio_base'   => $base,
+                'descuento_pct' => $pct,
+                'en_oferta'     => $enOferta,
+                'ahorro'        => round(($base - $precio) * $cantidad, 2),
+                'precio_usd'    => (float)$p['precio_usd'],
+                'cantidad'      => $cantidad,
+                'subtotal'      => $linea,
+                'maximo'        => $maximo,
             ];
         }
 
@@ -192,18 +209,26 @@ final class Carrito
 
         $envio     = Envios::costo($zona, $subtotal, $tipoEntrega);
         $subtotal  = round($subtotal, 2);
+        $baseCupon = round($baseCupon, 2);
 
         // El descuento se recalcula aquí con el cupón que venga; nunca se
         // arrastra un importe guardado antes, porque el carrito ha podido
         // cambiar entre que se aplicó el cupón y ahora.
-        $descuento = $cupon ? Cupones::calcular($cupon, $subtotal, $envio) : 0.0;
+        //
+        // Y se calcula sobre `$baseCupon`, no sobre el subtotal: lo que ya
+        // está rebajado no vuelve a rebajarse. En un carrito con unos arreglos
+        // en oferta y otros no, el cupón actúa solo sobre los segundos; si todo
+        // está en oferta, la base es cero y el cupón no descuenta nada.
+        $descuento = $cupon ? Cupones::calcular($cupon, $baseCupon, $envio) : 0.0;
 
         return [
-            'items'     => $items,
-            'subtotal'  => $subtotal,
-            'envio'     => $envio,
-            'descuento' => $descuento,
-            'cupon'     => $cupon,
+            'items'      => $items,
+            'subtotal'   => $subtotal,
+            'base_cupon' => $baseCupon,
+            'ahorro'     => round(array_sum(array_column($items, 'ahorro')), 2),
+            'envio'      => $envio,
+            'descuento'  => $descuento,
+            'cupon'      => $cupon,
             // Nunca por debajo de cero: un cupón grande deja el pedido en cero,
             // no en negativo.
             'total'     => round(max(0, $subtotal - $descuento + $envio), 2),

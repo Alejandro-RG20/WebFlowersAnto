@@ -198,9 +198,29 @@ final class Facturas
                  VALUES (?,?,?,?,?)"
             );
             foreach ($items as $it) {
+                // Cuando la línea se compró rebajada, la factura lo dice: el
+                // precio de siempre, el porcentaje y lo que se descontó. Una
+                // factura que enseñara solo el precio final dejaría al cliente
+                // sin forma de comprobar el descuento que le prometimos, y a la
+                // floristería sin constancia de haberlo hecho.
+                //
+                // Los tres datos salen del pedido, no del catálogo de hoy: si
+                // mañana sube el precio o se retira la oferta, esta factura
+                // sigue contando lo que pasó aquel día.
+                $desc = mb_substr((string)$it['nombre'], 0, 200);
+                $pct  = (int)($it['descuento_pct'] ?? 0);
+                $baseU = round((float)($it['precio_base'] ?? $it['precio_unitario']), 2);
+                if ($pct > 0 && $baseU > 0) {
+                    $rebaja = round(($baseU - (float)$it['precio_unitario']) * (int)$it['cantidad'], 2);
+                    $desc = mb_substr(
+                        $desc . ' — antes ' . dinero($baseU) . ', ' . $pct . '% de descuento ('
+                        . dinero($rebaja) . ' menos)',
+                        0, 200
+                    );
+                }
                 $li->execute([
                     $facturaId,
-                    mb_substr((string)$it['nombre'], 0, 200),
+                    $desc,
                     (int)$it['cantidad'],
                     round((float)$it['precio_unitario'], 2),
                     round((float)$it['subtotal'], 2),

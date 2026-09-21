@@ -68,7 +68,8 @@ $revision = Cupones::revisar(
     $base['subtotal'],
     $base['envio'],
     Auth::id(),
-    $correo
+    $correo,
+    $base['base_cupon'] ?? null
 );
 
 if (!$revision['ok']) {

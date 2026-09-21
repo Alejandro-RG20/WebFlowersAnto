@@ -13,7 +13,8 @@ final class Catalogo
     /** Columnas públicas. Se listan una a una para no exponer nada de más. */
     private const COLS = 'p.id, p.nombre, p.slug, p.descripcion, p.resumen, p.precio, p.precio_usd,
                           p.imagen, p.imagen_hero, p.categoria_id, p.flores, p.color_acento, p.destacado,
-                          p.orden_hero, p.orden, p.disponible, p.stock, p.controla_stock, p.created_at';
+                          p.orden_hero, p.orden, p.disponible, p.stock, p.controla_stock, p.created_at,
+                          p.descuento_pct';
 
     /** Un producto por su slug (o por id, para los enlaces antiguos). */
     public static function producto(PDO $pdo, string $slug): ?array
@@ -169,6 +170,9 @@ final class Catalogo
         $st->execute();
         $filas = $st->fetchAll();
         if (!$filas) {
+            // Último recurso, y solo cuando no hay NINGUNO marcado: una portada
+            // sin un solo arreglo se ve rota. En cuanto se marca el primero,
+            // esto deja de actuar y manda lo que diga el panel.
             $filas = $pdo->query(
                 "SELECT " . self::COLS . ", c.nombre AS categoria_nombre, c.slug AS categoria_slug
                    FROM productos p JOIN categorias c ON c.id = p.categoria_id
@@ -344,12 +348,22 @@ final class Catalogo
         return (int)$st->fetchColumn();
     }
 
-    /** Productos del carrusel de portada: temporada > destacados > recientes. */
-    public static function hero(PDO $pdo, ?array $temporada): array
+    /**
+     * Productos del carrusel de portada.
+     *
+     * Salen de una sola cosa: la casilla «destacado» del producto, en el orden
+     * que marca `orden_hero`. Antes mandaba la campaña vigente y solo se caía a
+     * los destacados cuando no había campaña, con el resultado de que el panel
+     * decía una cosa y la portada enseñaba otra: entraban arreglos que nadie
+     * había marcado —los primeros de la campaña— y al ocultar uno aparecía el
+     * siguiente por su cuenta. Con cuatro productos en campaña casi no se
+     * notaba; con cuarenta quedó a la vista.
+     *
+     * Quien quiera un arreglo de la campaña en la portada lo marca como
+     * destacado, que es lo que esa casilla significa.
+     */
+    public static function hero(PDO $pdo): array
     {
-        if ($temporada && !empty($temporada['productos'])) {
-            return array_slice($temporada['productos'], 0, 5);
-        }
         return array_slice(self::destacados($pdo, 5), 0, 5);
     }
 

@@ -24,7 +24,12 @@ $portada    = $p['portada'] ?? $p['imagen'];
            srcset="<?= e($ss) ?>" sizes="(max-width: 640px) 46vw, (max-width: 1024px) 30vw, 320px"
          <?php endif; ?>
          width="600" height="700" loading="lazy" decoding="async">
-    <?php if ((int)$p['destacado'] === 1 && $disponible): ?>
+    <?php // La oferta manda sobre «Destacado»: un porcentaje se ve desde lejos
+          // y es lo que hace parar el ojo. Solo una etiqueta por tarjeta, que
+          // dos superpuestas no se leen. ?>
+    <?php if (Precios::enOferta($p) && $disponible): ?>
+      <span class="etiqueta etiqueta-oferta"><?= Precios::porcentaje($p) ?>% OFF</span>
+    <?php elseif ((int)$p['destacado'] === 1 && $disponible): ?>
       <span class="etiqueta etiqueta-destacado">Destacado</span>
     <?php endif; ?>
     <?php if (!$disponible): ?>
@@ -46,9 +51,14 @@ $portada    = $p['portada'] ?? $p['imagen'];
 
     <div class="tarjeta-pie">
       <div class="tarjeta-precio">
-        <strong><?= e(dinero($p['precio'])) ?></strong>
+        <?php // Con oferta se enseñan los dos números: el de siempre tachado y
+              // el rebajado. Un precio rebajado a secas no se lee como oferta. ?>
+        <?php if (Precios::enOferta($p)): ?>
+          <s class="precio-antes"><?= e(dinero(Precios::base($p))) ?></s>
+        <?php endif; ?>
+        <strong><?= e(dinero(Precios::efectivo($p))) ?></strong>
         <?php if (Ajustes::activo('mostrar_usd', true) && (float)$p['precio_usd'] > 0): ?>
-          <small>≈ $<?= number_format((float)$p['precio_usd'], 2) ?></small>
+          <small>≈ $<?= number_format(Precios::efectivoUsd($p), 2) ?></small>
         <?php endif; ?>
       </div>
 

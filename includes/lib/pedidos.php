@@ -101,7 +101,8 @@ final class Pedidos
             $base     = Carrito::detalle($pdo, $zona, $entrega);
             $revision = Cupones::revisar(
                 $pdo, $codigoCupon, $base['subtotal'], $base['envio'],
-                Auth::id(), (string)($datos['cliente_email'] ?? '')
+                Auth::id(), (string)($datos['cliente_email'] ?? ''),
+                $base['base_cupon'] ?? null
             );
             if ($revision['ok']) {
                 $cupon = $revision['cupon'];
@@ -207,9 +208,15 @@ final class Pedidos
             $pedidoId = (int)$pdo->lastInsertId();
 
             $insItem = $pdo->prepare(
+                // Se guardan los tres números, no solo el que se cobró: el
+                // precio de siempre, el descuento que había y lo que se pagó.
+                // Con eso la factura puede explicar la rebaja meses después,
+                // aunque el arreglo haya cambiado de precio o ya no esté en
+                // oferta. El pedido deja de depender del catálogo de hoy.
                 "INSERT INTO pedido_items
-                    (pedido_id, producto_id, nombre, imagen, precio_unitario, cantidad, subtotal)
-                 VALUES (?,?,?,?,?,?,?)"
+                    (pedido_id, producto_id, nombre, imagen, precio_unitario, cantidad, subtotal,
+                     precio_base, descuento_pct)
+                 VALUES (?,?,?,?,?,?,?,?,?)"
             );
             // La condición `stock >= ?` va dentro del propio UPDATE, no en una
             // consulta previa: así el motor decide, y dos compradores que
@@ -224,6 +231,7 @@ final class Pedidos
                 $insItem->execute([
                     $pedidoId, $i['producto_id'], $i['nombre'], $i['imagen'],
                     $i['precio'], $i['cantidad'], $i['subtotal'],
+                    $i['precio_base'] ?? $i['precio'], (int)($i['descuento_pct'] ?? 0),
                 ]);
                 $bajarStock->execute([
                     $i['cantidad'], $i['cantidad'], $i['producto_id'], $i['cantidad'],

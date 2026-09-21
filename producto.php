@@ -151,11 +151,18 @@ require __DIR__ . '/includes/vistas/cabecera.php';
       <?php endif; ?>
 
       <div class="ficha-precio">
-        <strong><?= e(dinero($producto['precio'])) ?></strong>
+        <?php if (Precios::enOferta($producto)): ?>
+          <s class="precio-antes"><?= e(dinero(Precios::base($producto))) ?></s>
+        <?php endif; ?>
+        <strong><?= e(dinero(Precios::efectivo($producto))) ?></strong>
         <?php if (Ajustes::activo('mostrar_usd', true) && (float)$producto['precio_usd'] > 0): ?>
-          <span>≈ $<?= number_format((float)$producto['precio_usd'], 2) ?> USD</span>
+          <span>≈ $<?= number_format(Precios::efectivoUsd($producto), 2) ?> USD</span>
         <?php endif; ?>
       </div>
+      <?php if (Precios::enOferta($producto)): ?>
+        <p class="ficha-ahorro">Te ahorras <?= e(dinero(Precios::ahorro($producto))) ?>
+           con el <?= Precios::porcentaje($producto) ?>% de descuento.</p>
+      <?php endif; ?>
 
       <p class="ficha-descripcion"><?= nl2br(e((string)$producto['descripcion'])) ?></p>
 

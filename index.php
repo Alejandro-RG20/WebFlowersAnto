@@ -11,7 +11,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/includes/bootstrap.php';
 
 $temporada    = Catalogo::temporadaActiva($pdo);
-$hero         = Catalogo::hero($pdo, $temporada);
+$hero         = Catalogo::hero($pdo);
 $destacados   = Catalogo::destacados($pdo, 8);
 $recientes    = Catalogo::recientes($pdo, 4);
 $categorias   = Catalogo::categorias($pdo);
