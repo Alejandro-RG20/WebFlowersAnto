@@ -399,8 +399,16 @@ function campoImagen(string $nombre, string $etiqueta, string $valor, string $ay
     $falta = $valor !== '' && !imagen_disponible($valor);
     $verPrevia = $valor !== '' && !$falta;
     ?>
+    <?php
+      // La etiqueta apuntaba a la nada: no llevaba `for` y el único control
+      // visible —el selector de archivo— no tenía `id`. Quien navega con
+      // lector de pantalla oía «botón, examinar» sin saber de qué imagen se
+      // trataba, y pulsar el texto no abría el selector.
+      $idArchivo = 'archivo_' . preg_replace('/[^a-z0-9_]/i', '_', $nombre);
+      $idAyuda   = $ayuda !== '' ? $idArchivo . '_ayuda' : '';
+    ?>
     <div class="campo" data-imagen-simple>
-      <label><?= e($etiqueta) ?></label>
+      <label for="<?= e($idArchivo) ?>"><?= e($etiqueta) ?></label>
       <input type="hidden" name="<?= e($nombre) ?>" value="<?= e($valor) ?>">
       <?php // Sin `src` cuando no hay imagen: uno vacío hace que el navegador
             // vuelva a pedir la propia página. ?>
@@ -412,8 +420,12 @@ function campoImagen(string $nombre, string $etiqueta, string $valor, string $ay
           El archivo guardado («<?= e($valor) ?>») ya no está en el servidor.
           Sube la imagen otra vez para que vuelva a verse.</p>
       <?php endif; ?>
-      <input type="file" accept="image/jpeg,image/png,image/webp,image/svg+xml">
-      <?php if ($ayuda !== ''): ?><p class="ayuda"><?= e($ayuda) ?></p><?php endif; ?>
+      <input type="file" id="<?= e($idArchivo) ?>"
+             accept="image/jpeg,image/png,image/webp,image/svg+xml"
+             <?= $idAyuda !== '' ? 'aria-describedby="' . e($idAyuda) . '"' : '' ?>>
+      <?php if ($ayuda !== ''): ?>
+        <p class="ayuda" id="<?= e($idAyuda) ?>"><?= e($ayuda) ?></p>
+      <?php endif; ?>
     </div>
     <?php
 }

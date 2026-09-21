@@ -80,7 +80,8 @@ if (Rbac::puede('pedidos.ver')) {
 
 <aside class="barra-lateral" id="barraLateral">
   <div class="marca">
-    <img src="<?= e(url_imagen(Ajustes::texto('logo_url', 'images/placeholders/logo.svg'))) ?>" alt="" width="36" height="36">
+    <img src="<?= e(url_imagen(Ajustes::texto('logo_url', 'images/placeholders/logo.svg'), 'images/placeholders/logo.svg', 160)) ?>"
+         alt="" width="36" height="36" decoding="async">
     <div>
       <strong><?= e($tienda) ?></strong>
       <small>Panel de administración</small>
@@ -156,7 +157,16 @@ if (Rbac::puede('pedidos.ver')) {
   </header>
 
   <?php if ($mensaje): ?>
-    <div class="caja-aviso <?= e((string)$mensaje['tipo']) ?>" role="status">
+    <!--
+      Un error se anuncia, un acierto se cuenta.
+
+      `role="status"` espera a que el lector de pantalla termine lo que está
+      leyendo, que está bien para «listo, guardado» y está mal para «no se
+      pudo guardar»: quien no ve la pantalla se entera tarde de que su cambio
+      no entró. Los errores pasan a `role="alert"`, que interrumpe.
+    -->
+    <div class="caja-aviso <?= e((string)$mensaje['tipo']) ?>"
+         role="<?= $mensaje['tipo'] === 'error' ? 'alert' : 'status' ?>">
       <i class="fa-solid <?= $mensaje['tipo'] === 'error' ? 'fa-circle-exclamation'
           : ($mensaje['tipo'] === 'exito' ? 'fa-circle-check' : 'fa-circle-info') ?>" aria-hidden="true"></i>
       <span><?= e((string)$mensaje['mensaje']) ?></span>

@@ -65,8 +65,16 @@
   // -------------------------------------------------------------------
   // Confirmaciones
   // -------------------------------------------------------------------
+  // El aviso puede estar en el formulario o en el botón que lo envía. Lo
+  // segundo hace falta cuando un mismo formulario tiene varias acciones y solo
+  // una necesita preguntar: la barra de acciones sobre varios arreglos manda
+  // ofertas, quita ofertas y sube precios con el mismo `<form>`, y solo subir
+  // el precio toca el precio guardado. Mirando únicamente el formulario, ese
+  // aviso no llegaba a aparecer nunca.
   document.addEventListener('submit', (ev) => {
-    const mensaje = ev.target.dataset && ev.target.dataset.confirmar;
+    const emisor  = ev.submitter || null;
+    const mensaje = (emisor && emisor.dataset && emisor.dataset.confirmar)
+                 || (ev.target.dataset && ev.target.dataset.confirmar);
     if (mensaje && !window.confirm(mensaje)) {
       ev.preventDefault();
       return;
@@ -137,15 +145,82 @@
     const casillas = $$('[data-masiva-item]');
     const todos    = $('[data-masiva-todos]');
     const cuenta   = $('[data-masiva-n]', barra);
+    const palabra  = $('[data-masiva-palabra]', barra);
+    const vista    = $('[data-masiva-vista]', barra);
+    const pct      = $('[data-masiva-pct]', barra);
+    const monto    = $('[data-masiva-monto]', barra);
+    const simbolo  = barra.dataset.moneda || 'C$';
+    const TOPE_PCT = 95;
+
+    /** Mismo formato que `dinero()` en el servidor, para que no canten. */
+    function importe(v) {
+      return simbolo + (Math.round(v * 100) / 100)
+        .toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    }
+
+    /** Lo que se cobra: el precio de siempre menos su porcentaje. */
+    function efectivo(base, p) {
+      const n = Math.max(0, Math.min(TOPE_PCT, p));
+      return n <= 0 || base <= 0 ? base : Math.round(base * (100 - n)) / 100;
+    }
+
+    function marcadas() {
+      return casillas.filter((c) => c.checked);
+    }
+
+    /**
+     * El renglón que dice en qué queda la acción.
+     *
+     * Se calculan las tres a la vez —oferta, retirada y aumento— porque
+     * cualquiera de los tres botones está a un clic, y enseñar solo una
+     * obligaría a adivinar las otras. Se escribe con `textContent`: los
+     * nombres de los arreglos los teclea una persona y aquí no se convierten
+     * en HTML.
+     */
+    function repintarVista() {
+      if (!vista) { return; }
+      const sel = marcadas();
+      if (!sel.length) { vista.textContent = ''; return; }
+
+      let ahora = 0, siOferta = 0, siQuita = 0, siSube = 0, enOferta = 0;
+      const nuevoPct = pct ? parseInt(pct.value, 10) || 0 : 0;
+      const sube     = monto ? parseFloat(monto.value) || 0 : 0;
+
+      sel.forEach((c) => {
+        const base = parseFloat(c.dataset.precio) || 0;
+        const p    = parseInt(c.dataset.pct, 10) || 0;
+        if (p > 0) { enOferta++; }
+        ahora    += efectivo(base, p);
+        siOferta += efectivo(base, nuevoPct);
+        siQuita  += base;
+        siSube   += efectivo(base + Math.max(0, sube), p);
+      });
+
+      const partes = ['Ahora suman ' + importe(ahora) + '.'];
+      if (nuevoPct > 0) {
+        partes.push('Con el ' + nuevoPct + '%: ' + importe(siOferta) +
+                    ' (' + importe(ahora - siOferta) + ' menos).');
+      }
+      if (enOferta > 0) {
+        partes.push('Quitando la oferta de ' + enOferta +
+                    (enOferta === 1 ? ' arreglo' : ' arreglos') + ': ' + importe(siQuita) + '.');
+      }
+      if (sube > 0) {
+        partes.push('Subiendo ' + importe(sube) + ' cada uno: ' + importe(siSube) + '.');
+      }
+      vista.textContent = partes.join(' ');
+    }
 
     function refrescar() {
-      const n = casillas.filter((c) => c.checked).length;
+      const n = marcadas().length;
       barra.hidden = n === 0;
-      if (cuenta) { cuenta.textContent = String(n); }
+      if (cuenta)  { cuenta.textContent = String(n); }
+      if (palabra) { palabra.textContent = n === 1 ? 'arreglo' : 'arreglos'; }
       if (todos) {
         todos.checked = n > 0 && n === casillas.length;
         todos.indeterminate = n > 0 && n < casillas.length;
       }
+      repintarVista();
     }
 
     casillas.forEach((c) => c.addEventListener('change', refrescar));
@@ -153,7 +228,90 @@
       casillas.forEach((c) => { c.checked = todos.checked; });
       refrescar();
     });
+    pct   && pct.addEventListener('change', repintarVista);
+    monto && monto.addEventListener('input', repintarVista);
+
+    /**
+     * Lo que se pregunta antes de tocar nada.
+     *
+     * Subir el precio cambia el precio guardado y no hay botón para
+     * deshacerlo, así que se nombra la cifra concreta en lugar de un «¿seguro?»
+     * genérico. Quitar la oferta y ponerla se ven al instante en la tabla y se
+     * rehacen en dos clics: ahí basta con el renglón de la vista previa.
+     *
+     * Las tres comprobaciones de aquí abajo existen también en el servidor;
+     * esta copia solo evita un viaje y un mensaje de error.
+     */
+    const formulario = barra.closest('form');
+    formulario && formulario.addEventListener('submit', (ev) => {
+      const emisor = ev.submitter;
+      const accion = emisor && emisor.dataset ? emisor.dataset.masivaAccion : '';
+      if (!accion) { return; }
+
+      const sel = marcadas();
+      if (!sel.length) {
+        ev.preventDefault();
+        aviso('Marca al menos un arreglo antes de aplicar la acción.', 'error');
+        return;
+      }
+      if (accion !== 'aumentar') { return; }
+
+      const cifra = monto ? parseFloat(monto.value) : NaN;
+      if (!(cifra > 0)) {
+        ev.preventDefault();
+        aviso('Escribe cuánto quieres subir el precio.', 'error');
+        monto && monto.focus();
+        return;
+      }
+      const texto = 'Vas a subir ' + importe(cifra) + ' el precio de siempre de ' +
+        sel.length + (sel.length === 1 ? ' arreglo' : ' arreglos') +
+        '. No hay forma de deshacerlo desde aquí. ¿Seguimos?';
+      if (!window.confirm(texto)) { ev.preventDefault(); }
+    });
+
     refrescar();
+  })();
+
+  // -------------------------------------------------------------------
+  // Ficha de producto: en qué queda el precio con el descuento puesto
+  //
+  // El servidor ya deja escrito el resumen con lo guardado; esto lo rehace
+  // mientras se teclea, para no tener que guardar y volver a mirar. Es la
+  // misma cuenta que hace `Precios::efectivo()`, y el servidor la repite al
+  // guardar: aquí no se decide ningún precio, solo se enseña.
+  // -------------------------------------------------------------------
+  (function () {
+    const caja = $('[data-resumen-precio]');
+    if (!caja) { return; }
+    const precio = $('#precio');
+    const pct    = $('#descuento_pct');
+    if (!precio || !pct) { return; }
+
+    const simbolo = caja.dataset.moneda || 'C$';
+    const tope    = parseInt(caja.dataset.tope, 10) || 95;
+    const elBase   = $('[data-resumen-base]', caja);
+    const elFinal  = $('[data-resumen-final]', caja);
+    const elAhorro = $('[data-resumen-ahorro]', caja);
+
+    function importe(v) {
+      return simbolo + (Math.round(v * 100) / 100)
+        .toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    }
+
+    function repintar() {
+      const base = parseFloat(precio.value) || 0;
+      const n    = Math.max(0, Math.min(tope, parseInt(pct.value, 10) || 0));
+      if (n <= 0 || base <= 0) { caja.hidden = true; return; }
+      const final = Math.round(base * (100 - n)) / 100;
+      caja.hidden = false;
+      if (elBase)   { elBase.textContent   = importe(base); }
+      if (elFinal)  { elFinal.textContent  = importe(final); }
+      if (elAhorro) { elAhorro.textContent = 'El cliente se ahorra ' + importe(base - final) + '.'; }
+    }
+
+    precio.addEventListener('input', repintar);
+    pct.addEventListener('input', repintar);
+    repintar();
   })();
 
   // -------------------------------------------------------------------

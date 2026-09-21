@@ -358,24 +358,47 @@ require __DIR__ . '/_cabecera.php';
                    value="<?= e(number_format((float)$producto['precio_usd'], 2, '.', '')) ?>">
             <p class="ayuda">Solo informativo. Se muestra si está activado en Configuración.</p>
           </div>
-        </div>
 
-        <div class="campo<?= isset($errores['descuento_pct']) ? ' con-error' : '' ?>">
-          <label for="descuento_pct">Descuento (%)</label>
-          <input type="number" id="descuento_pct" name="descuento_pct" min="0"
-                 max="<?= Precios::TOPE_PCT ?>" step="1"
-                 value="<?= (int)$producto['descuento_pct'] ?>">
-          <?php if (isset($errores['descuento_pct'])): ?>
-            <p class="error-campo"><?= e($errores['descuento_pct']) ?></p>
-          <?php endif; ?>
-          <?php if (Precios::enOferta($producto)): ?>
-            <p class="ayuda">Se vende a <strong><?= e(dinero(Precios::efectivo($producto))) ?></strong>
-               en vez de <?= e(dinero(Precios::base($producto))) ?>
-               (<?= e(dinero(Precios::ahorro($producto))) ?> menos).</p>
-          <?php else: ?>
-            <p class="ayuda">Cero es sin oferta. El precio de arriba no se toca: es el que
-               se tacha en la web cuando pones un descuento.</p>
-          <?php endif; ?>
+          <!--
+            El descuento vivía fuera de `.panel-cuerpo`, pegado al borde de la
+            tarjeta y sin el relleno de los demás campos. Aquí dentro sigue al
+            precio, que es de lo que depende.
+          -->
+          <div class="campo<?= isset($errores['descuento_pct']) ? ' con-error' : '' ?>">
+            <label for="descuento_pct">Descuento (%)</label>
+            <input type="number" id="descuento_pct" name="descuento_pct" min="0"
+                   max="<?= Precios::TOPE_PCT ?>" step="1" inputmode="numeric"
+                   aria-describedby="ayudaDescuento"
+                   value="<?= (int)$producto['descuento_pct'] ?>">
+            <?php if (isset($errores['descuento_pct'])): ?>
+              <p class="error-campo"><?= e($errores['descuento_pct']) ?></p>
+            <?php endif; ?>
+            <p class="ayuda" id="ayudaDescuento">Cero es sin oferta. El precio de arriba no se
+               toca nunca: es el que se tacha en la web cuando pones un descuento.</p>
+          </div>
+
+          <!--
+            El resultado de las dos casillas de arriba, ya sumado.
+
+            El servidor lo escribe con lo que hay guardado, así que se lee
+            igual sin JavaScript; con él encima se recalcula mientras se
+            teclea, que es cuando de verdad hace falta ver en qué queda.
+          -->
+          <div class="resumen-precio" data-resumen-precio
+               data-moneda="<?= e(Ajustes::texto('moneda_local', 'C$')) ?>"
+               data-tope="<?= Precios::TOPE_PCT ?>"
+               <?= Precios::enOferta($producto) ? '' : 'hidden' ?>>
+            <p class="resumen-linea">
+              <span>Precio de siempre</span>
+              <s data-resumen-base><?= e(dinero(Precios::base($producto))) ?></s>
+            </p>
+            <p class="resumen-linea resumen-total">
+              <span>Se cobra</span>
+              <strong data-resumen-final><?= e(dinero(Precios::efectivo($producto))) ?></strong>
+            </p>
+            <p class="resumen-nota" data-resumen-ahorro>
+              El cliente se ahorra <?= e(dinero(Precios::ahorro($producto))) ?>.</p>
+          </div>
         </div>
       </section>
 

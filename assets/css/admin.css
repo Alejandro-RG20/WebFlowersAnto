@@ -34,6 +34,15 @@ body {
 }
 img { max-width: 100%; display: block; }
 a { color: inherit; }
+/*
+ * Nunca `transition: all`.
+ *
+ * `all` incluye el `outline`, así que el anillo de foco que dibuja
+ * `:focus-visible` se desvanecía durante la transición en lugar de aparecer:
+ * al llegar con el tabulador, justo el momento en que hay que ver dónde se
+ * está, el indicador tardaba en dibujarse. Nombrando las propiedades, el
+ * anillo sale al instante y lo demás sigue animándose igual.
+ */
 :focus-visible { outline: 2px solid var(--p-rosa); outline-offset: 2px; border-radius: 4px; }
 
 .saltar-contenido {
@@ -177,7 +186,14 @@ table.tabla .acciones { text-align: right; white-space: nowrap; }
   display: inline-flex; align-items: center; justify-content: center; gap: 8px;
   padding: 9px 17px; border: 1px solid transparent; border-radius: 9px;
   font: inherit; font-size: .87rem; font-weight: 600; text-decoration: none; cursor: pointer;
-  transition: all var(--p-trans); white-space: nowrap;
+  white-space: nowrap;
+  /* Se nombran las propiedades en lugar de `all`. Con `all`, el navegador
+     animaba también el `outline` del foco, así que el anillo tardaba .18s en
+     dibujarse al llegar con el tabulador: justo el momento en que hace falta
+     verlo al instante. Además `all` obliga a vigilar cada propiedad que
+     cambie, la mayoría de las cuales no queremos animar. */
+  transition: background-color var(--p-trans), border-color var(--p-trans),
+              color var(--p-trans), box-shadow var(--p-trans);
 }
 .boton-principal { background: var(--p-tinta); color: #fff; }
 .boton-principal:hover { background: #443539; }
@@ -213,7 +229,7 @@ table.tabla .acciones { text-align: right; white-space: nowrap; }
 .boton-icono {
   width: 32px; height: 32px; padding: 0; border-radius: 8px; border: 1px solid var(--p-linea2);
   background: var(--p-papel); color: var(--p-suave); display: inline-grid; place-items: center;
-  cursor: pointer; transition: all var(--p-trans);
+  cursor: pointer; transition: background-color var(--p-trans), border-color var(--p-trans), color var(--p-trans), box-shadow var(--p-trans), transform var(--p-trans), opacity var(--p-trans), filter var(--p-trans);
 }
 .boton-icono:hover { border-color: var(--p-tinta); color: var(--p-tinta); }
 .boton-icono.peligro:hover { border-color: var(--p-alerta); color: var(--p-alerta); background: var(--p-alerta-bg); }
@@ -226,16 +242,19 @@ table.tabla .acciones { text-align: right; white-space: nowrap; }
 }
 .campo input[type="text"], .campo input[type="email"], .campo input[type="tel"],
 .campo input[type="password"], .campo input[type="number"], .campo input[type="date"],
-.campo input[type="search"], .campo input[type="url"], .campo select, .campo textarea {
+.campo input[type="search"], .campo input[type="url"], .campo select, .campo textarea,
+.masiva-campo select, .masiva-campo input {
   width: 100%; padding: 10px 13px; border: 1.5px solid var(--p-linea);
   border-radius: 9px; font: inherit; font-size: 16px; background: var(--p-papel); color: var(--p-tinta);
   transition: border-color var(--p-trans), box-shadow var(--p-trans);
 }
 @media (min-width: 700px) {
-  .campo input, .campo select, .campo textarea { font-size: .92rem; }
+  .campo input, .campo select, .campo textarea,
+  .masiva-campo select, .masiva-campo input { font-size: .92rem; }
 }
 .campo textarea { min-height: 92px; resize: vertical; }
-.campo input:focus, .campo select:focus, .campo textarea:focus {
+.campo input:focus, .campo select:focus, .campo textarea:focus,
+.masiva-campo select:focus, .masiva-campo input:focus {
   outline: none; border-color: var(--p-rosa); box-shadow: 0 0 0 3px rgba(196,120,143,.14);
 }
 .campo input[type="color"] { width: 54px; height: 38px; padding: 3px; border: 1.5px solid var(--p-linea); border-radius: 8px; }
@@ -278,7 +297,7 @@ table.tabla .acciones { text-align: right; white-space: nowrap; }
 .pestanas a {
   padding: 8px 15px; border-radius: 9px; color: var(--p-suave); text-decoration: none;
   font-size: .87rem; font-weight: 500; white-space: nowrap; border: 1px solid transparent;
-  transition: all var(--p-trans);
+  transition: background-color var(--p-trans), border-color var(--p-trans), color var(--p-trans), box-shadow var(--p-trans), transform var(--p-trans), opacity var(--p-trans), filter var(--p-trans);
 }
 .pestanas a:hover { background: var(--p-rosa-sw); color: var(--p-tinta); }
 .pestanas a.activa { background: var(--p-tinta); color: #fff; }
@@ -290,7 +309,7 @@ table.tabla .acciones { text-align: right; white-space: nowrap; }
   min-width: 34px; height: 34px; padding: 0 10px; border-radius: 8px;
   display: inline-flex; align-items: center; justify-content: center;
   border: 1px solid var(--p-linea); background: var(--p-papel); color: var(--p-suave);
-  text-decoration: none; font-size: .85rem; transition: all var(--p-trans);
+  text-decoration: none; font-size: .85rem; transition: background-color var(--p-trans), border-color var(--p-trans), color var(--p-trans), box-shadow var(--p-trans), transform var(--p-trans), opacity var(--p-trans), filter var(--p-trans);
 }
 .paginacion a:hover { border-color: var(--p-rosa); color: var(--p-rosa); }
 .paginacion .actual { background: var(--p-tinta); border-color: var(--p-tinta); color: #fff; }
@@ -306,6 +325,26 @@ table.tabla .acciones { text-align: right; white-space: nowrap; }
 .rejilla-detalle { display: grid; gap: 20px; align-items: start; }
 @media (min-width: 1000px) { .rejilla-detalle { grid-template-columns: 1.55fr 1fr; } }
 
+/*
+ * Las columnas pueden ser más estrechas que lo que llevan dentro.
+ *
+ * Una casilla de rejilla nace con `min-width: auto`, que no significa cero
+ * sino «nunca más angosta que su contenido». Dentro de estas columnas hay
+ * tablas que declaran 620px a propósito, para que se deslicen de lado dentro
+ * de su propia envoltura en una pantalla pequeña. Con el mínimo automático
+ * esos 620px no se quedan en la envoltura: suben a la columna, de ahí al
+ * contenido del panel y de ahí al documento, y en un teléfono de 390px la
+ * página entera acababa midiendo 638px y moviéndose en horizontal. La
+ * envoltura nunca llegaba a desplazarse porque jamás era más angosta que la
+ * tabla.
+ *
+ * Poniendo el mínimo a cero la columna se ajusta a la pantalla y el sobrante
+ * vuelve a caer donde se diseñó que cayera: dentro de `.tabla-envoltura`, que
+ * para eso tiene `overflow-x: auto`. No se oculta nada ni se recorta nada; se
+ * devuelve el desbordamiento a la caja que sabe gestionarlo.
+ */
+.rejilla-detalle > * { min-width: 0; }
+
 .lista-datos { display: grid; gap: 9px; font-size: .89rem; }
 .lista-datos > div { display: flex; justify-content: space-between; gap: 16px; }
 .lista-datos dt { color: var(--p-suave); flex-shrink: 0; }
@@ -315,7 +354,22 @@ table.tabla .acciones { text-align: right; white-space: nowrap; }
 .linea-articulo:last-child { border-bottom: 0; }
 .linea-articulo img { width: 46px; height: 56px; border-radius: 7px; object-fit: cover; background: var(--p-rosa-sw); }
 .linea-articulo-datos { flex: 1; min-width: 0; }
-.linea-articulo-datos strong { display: block; font-size: .9rem; font-weight: 600; }
+/*
+ * Una sola línea por dato, con puntos suspensivos si no cabe.
+ *
+ * Aquí debajo se imprimen direcciones de video, y una dirección es una sola
+ * palabra larguísima sin sitios donde partirla: el navegador no puede hacer
+ * nada con ella y la saca de la caja aunque la caja pueda encogerse. Cortarla
+ * con puntos suspensivos mantiene la ficha en una línea y deja ver lo que de
+ * verdad identifica la fila —la plataforma y el principio del enlace—; el
+ * enlace entero sigue estando en el `title` y, completo y editable, en la
+ * ventana de edición.
+ */
+.linea-articulo-datos strong,
+.linea-articulo-datos small {
+  display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.linea-articulo-datos strong { font-size: .9rem; font-weight: 600; }
 .linea-articulo-datos small { color: var(--p-tenue); font-size: .8rem; }
 
 .historial { position: relative; padding-left: 24px; }
@@ -545,11 +599,61 @@ dialog.modal .modal-pie {
    no hubiera nada marcado. Se le devuelve la última palabra al atributo. */
 .barra-masiva[hidden] { display: none; }
 
-.masiva-cuenta { font-size: .9rem; align-self: center; }
+.masiva-cuenta { font-size: .9rem; align-self: center; font-weight: 500; }
 .masiva-campo { display: flex; flex-direction: column; gap: 4px; font-size: .8rem; }
+.masiva-campo > span {
+  font-size: .77rem; font-weight: 600; letter-spacing: .04em;
+  text-transform: uppercase; color: var(--p-suave);
+}
 .masiva-campo select, .masiva-campo input { min-width: 110px; }
+
+/* Cada acción con su campo al lado: así se ve qué número alimenta a qué
+   botón, en vez de una fila de controles sueltos donde el descuento parecía
+   valer también para el aumento. */
+.masiva-grupo { display: flex; align-items: end; gap: 9px; flex-wrap: wrap; }
+
+/* El renglón de «en qué queda esto». Ocupa la fila entera para que no empuje
+   a los botones y se lea de corrido. */
+.masiva-vista {
+  flex: 1 0 100%; margin: 0; font-size: .84rem; line-height: 1.5;
+  color: var(--p-suave); font-variant-numeric: tabular-nums;
+}
+.masiva-vista:empty { display: none; }
+
+/* Precio en la tabla: el de siempre arriba y pequeño, el que se cobra abajo
+   con el peso. Apilados no compiten por la misma línea y la columna sigue
+   cuadrando aunque uno de los dos falte. */
+.precio-pila { display: inline-flex; flex-direction: column; align-items: flex-end; gap: 1px; }
+/* `.precio-antes` viene de la hoja de la tienda y pinta con `--gray`, que en
+   el panel no está declarado: la declaración se descarta y el precio tachado
+   heredaba el mismo color que el vigente, sin ninguna jerarquía. Se le da el
+   gris del panel. */
+.precio-pila .precio-antes { margin: 0; font-size: .78rem; color: var(--p-suave); }
+.precio-pila .precio-ahora { font-size: .92rem; font-weight: 600; }
 .estado-suave.oferta { background: #F8B0C2; color: #3D2C2E; font-weight: 600; }
+
+/* Resumen del precio en la ficha del arreglo: el de siempre arriba, tachado,
+   y debajo el que se cobra. Dos renglones y una nota, para que la pregunta
+   «¿y entonces cuánto paga el cliente?» tenga respuesta sin hacer cuentas. */
+.resumen-precio {
+  margin-top: 4px; padding: 12px 14px; border-radius: 10px;
+  background: var(--panel-suave, #FDF3F5); border: 1px solid var(--panel-borde, #F0E0E4);
+  font-variant-numeric: tabular-nums;
+}
+.resumen-precio[hidden] { display: none; }
+.resumen-linea { display: flex; justify-content: space-between; gap: 14px; font-size: .86rem; }
+.resumen-linea span { color: var(--p-suave); }
+/* Sobre el rosa claro de la caja, `--p-tenue` se queda en 3.0 de contraste.
+   El gris medio llega a 5.9 y sigue leyéndose como secundario frente al
+   precio final, que va en negrita y a mayor tamaño. */
+.resumen-linea s { color: var(--p-suave); }
+.resumen-total { margin-top: 4px; }
+.resumen-total strong { font-size: 1.05rem; }
+.resumen-nota { margin-top: 6px; font-size: .8rem; color: var(--p-suave); }
+
 @media (max-width: 640px) {
-  .barra-masiva { position: static; }
-  .masiva-campo, .barra-masiva .boton { flex: 1 1 auto; }
+  .barra-masiva { position: static; gap: 16px; }
+  .masiva-grupo { flex: 1 1 100%; }
+  .masiva-campo { flex: 1 1 100%; }
+  .barra-masiva .boton { flex: 1 1 130px; }
 }

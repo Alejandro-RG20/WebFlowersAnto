@@ -127,7 +127,7 @@ h1, h2, h3, h4, .logo-text, .hero-title { font-family: 'Playfair Display', serif
 .nav-menu { display: flex; list-style: none; gap: 4px; flex-shrink: 1; }
 .nav-link {
   text-decoration: none; color: var(--gray); font-weight: 500;
-  padding: 6px 12px; border-radius: 30px; transition: all var(--transition);
+  padding: 6px 12px; border-radius: 30px; transition: background-color var(--transition), border-color var(--transition), color var(--transition), box-shadow var(--transition), transform var(--transition), opacity var(--transition), filter var(--transition);
   font-size: 0.9rem;
 }
 /* El rosa pastel sobre blanco da 1.75:1: el enlace de la página en la que
@@ -139,7 +139,7 @@ h1, h2, h3, h4, .logo-text, .hero-title { font-family: 'Playfair Display', serif
 .btn-nav-whatsapp {
   background: #0E7A6D; color: #fff; padding: 8px 16px; border-radius: 50px;
   text-decoration: none; font-weight: 600; font-size: 0.85rem;
-  display: flex; align-items: center; gap: 4px; transition: all var(--transition);
+  display: flex; align-items: center; gap: 4px; transition: background-color var(--transition), border-color var(--transition), color var(--transition), box-shadow var(--transition), transform var(--transition), opacity var(--transition), filter var(--transition);
   white-space: nowrap;
   min-height: 40px;
 }
@@ -187,7 +187,7 @@ h1, h2, h3, h4, .logo-text, .hero-title { font-family: 'Playfair Display', serif
 .hero-title { font-size: 3.2rem; font-weight: 700; line-height: 1.2; margin-bottom: 18px; text-shadow: 0 2px 10px rgba(0,0,0,0.3); }
 .hero-subtitle { font-size: 1.15rem; opacity: 0.9; margin-bottom: 32px; }
 .hero-buttons { display: flex; gap: 16px; flex-wrap: wrap; justify-content: center; }
-.btn { display: inline-flex; align-items: center; gap: 8px; padding: 14px 30px; border-radius: 50px; font-weight: 600; text-decoration: none; transition: all var(--transition); cursor: pointer; border: none; font-size: 1rem; }
+.btn { display: inline-flex; align-items: center; gap: 8px; padding: 14px 30px; border-radius: 50px; font-weight: 600; text-decoration: none; transition: background-color var(--transition), border-color var(--transition), color var(--transition), box-shadow var(--transition), transform var(--transition), opacity var(--transition), filter var(--transition); cursor: pointer; border: none; font-size: 1rem; }
 /* Tinta oscura sobre el rosa, no blanco: en blanco el contraste era 1.75:1,
    muy por debajo del 4.5:1 que hace falta para leerse, y en un móvil a pleno
    sol el texto del botón principal desaparecía. El rosa de la marca se
@@ -256,7 +256,7 @@ h1, h2, h3, h4, .logo-text, .hero-title { font-family: 'Playfair Display', serif
   color: var(--gray);
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.3s ease;
+  transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease, box-shadow 0.3s ease, transform 0.3s ease, opacity 0.3s ease, filter 0.3s ease;
   font-size: 0.9rem;
   white-space: nowrap;
 }
@@ -845,7 +845,7 @@ a.campana-chip:hover { transform: translateY(-2px); box-shadow: var(--shadow); }
 .social-btn {
   width: 40px; height: 40px; background: rgba(255,255,255,0.08);
   border-radius: 50%; display: flex; align-items: center; justify-content: center;
-  color: #fff; transition: all var(--transition);
+  color: #fff; transition: background-color var(--transition), border-color var(--transition), color var(--transition), box-shadow var(--transition), transform var(--transition), opacity var(--transition), filter var(--transition);
   border: 1px solid rgba(255,255,255,0.1);
   /* Mismo caso que `.whatsapp-float`: son enlaces, y sin esto el subrayado
      del navegador cruzaba por debajo del icono dentro del círculo. */
@@ -864,7 +864,7 @@ a.campana-chip:hover { transform: translateY(-2px); box-shadow: var(--shadow); }
 .footer-contact i { color: var(--rose-pastel); width: 18px; }
 /* Verde oscuro de WhatsApp: con texto blanco el claro se quedaba en 1,98
    de contraste. Este llega a 4,6 y es igual de reconocible. */
-.btn-footer-whatsapp { display: inline-flex; align-items: center; gap: 8px; background: #0E7A6D; color: #fff; padding: 10px 20px; border-radius: 50px; text-decoration: none; font-weight: 600; margin-top: 10px; transition: all var(--transition); }
+.btn-footer-whatsapp { display: inline-flex; align-items: center; gap: 8px; background: #0E7A6D; color: #fff; padding: 10px 20px; border-radius: 50px; text-decoration: none; font-weight: 600; margin-top: 10px; transition: background-color var(--transition), border-color var(--transition), color var(--transition), box-shadow var(--transition), transform var(--transition), opacity var(--transition), filter var(--transition); }
 .btn-footer-whatsapp:hover { background: #1ebc59; transform: translateY(-2px); }
 .footer-bottom {
   border-top: 1px solid rgba(255,255,255,0.1);
@@ -991,7 +991,7 @@ a.campana-chip:hover { transform: translateY(-2px); box-shadow: var(--shadow); }
 .modal-gallery .gallery-nav { position: absolute; bottom: 15px; left: 0; right: 0; display: flex; justify-content: center; gap: 8px; }
 .gallery-dot {
   width: 8px; height: 8px; border-radius: 20px; background: rgba(255,255,255,0.5);
-  border: none; cursor: pointer; transition: all 0.3s ease;
+  border: none; cursor: pointer; transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease, box-shadow 0.3s ease, transform 0.3s ease, opacity 0.3s ease, filter 0.3s ease;
 }
 .gallery-dot.active { width: 30px; background: #fff; }
 .modal-info { padding: 24px; }
@@ -1144,6 +1144,15 @@ a.campana-chip:hover { transform: translateY(-2px); box-shadow: var(--shadow); }
 }
 
 /* --------------------------------------------------- foco visible */
+/*
+ * Nunca `transition: all`.
+ *
+ * `all` incluye el `outline`, así que el anillo de foco que dibuja
+ * `:focus-visible` se desvanecía durante la transición en lugar de aparecer:
+ * al llegar con el tabulador, justo el momento en que hay que ver dónde se
+ * está, el indicador tardaba en dibujarse. Nombrando las propiedades, el
+ * anillo sale al instante y lo demás sigue animándose igual.
+ */
 a:focus-visible, button:focus-visible, input:focus-visible,
 select:focus-visible, textarea:focus-visible{
   outline:2px solid var(--dark);

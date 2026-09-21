@@ -309,7 +309,8 @@ require __DIR__ . '/_cabecera.php';
       <div class="panel-cuerpo">
         <?php foreach ($pedido['items'] as $i): ?>
           <div class="linea-articulo">
-            <img src="<?= e(url_imagen((string)$i['imagen'])) ?>" alt="" loading="lazy">
+            <img src="<?= e(url_imagen((string)$i['imagen'], 'images/placeholders/logo.svg', 160)) ?>"
+                 alt="" width="46" height="56" loading="lazy" decoding="async">
             <div class="linea-articulo-datos">
               <strong><?= e((string)$i['nombre']) ?></strong>
               <small><?= (int)$i['cantidad'] ?> × <?= e((string)$pedido['moneda'] . number_format((float)$i['precio_unitario'], 2)) ?></small>

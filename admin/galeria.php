@@ -132,7 +132,8 @@ require __DIR__ . '/_cabecera.php';
         <div class="rejilla-imagenes">
           <?php foreach ($fotos as $f): ?>
             <div class="casilla-imagen">
-              <img src="<?= e(url_imagen((string)$f['imagen'])) ?>" alt="<?= e((string)$f['titulo']) ?>" loading="lazy">
+              <img src="<?= e(url_imagen((string)$f['imagen'], 'images/placeholders/logo.svg', 320)) ?>"
+                   alt="<?= e((string)$f['titulo']) ?>" loading="lazy" decoding="async">
               <form method="post" action="<?= e(url('admin/galeria.php')) ?>"
                     data-confirmar="¿Eliminar esta foto de la galería?" style="position:absolute; top:6px; right:6px;">
                 <?= campoToken() ?>
@@ -174,7 +175,7 @@ require __DIR__ . '/_cabecera.php';
                    aria-hidden="true"></i>
                 <?= e((string)$v['titulo']) ?>
               </strong>
-              <small><?= e(Multimedia::nombre((string)($v['plataforma'] ?? 'youtube'))) ?>
+              <small title="<?= e((string)$v['enlace_youtube']) ?>"><?= e(Multimedia::nombre((string)($v['plataforma'] ?? 'youtube'))) ?>
                      · <?= e((string)$v['enlace_youtube']) ?></small>
             </div>
             <span class="estado-suave <?= (int)$v['activo'] ? 'si' : 'no' ?>">

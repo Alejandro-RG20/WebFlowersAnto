@@ -33,40 +33,61 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && crudo('accion_masiva') !== '') {
     $ids = array_slice($ids, 0, 200);
     $huecos = implode(',', array_fill(0, count($ids), '?'));
 
+    // Se quedan solo los identificadores que existen de verdad.
+    //
+    // Antes el mensaje contaba lo que venía en la petición, así que una lista
+    // con arreglos ya borrados —o retocada a mano— respondía «listo, 3
+    // arreglos» sin haber tocado ninguno. Contar filas reales hace que el
+    // mensaje diga lo que pasó. No se usa `rowCount()` para esto porque MySQL
+    // devuelve ahí las filas CAMBIADAS: poner el mismo 10% que ya tenían daría
+    // cero y parecería un fallo.
+    $existe = $pdo->prepare("SELECT id FROM productos WHERE id IN ($huecos)");
+    $existe->execute($ids);
+    $ids = array_map('intval', $existe->fetchAll(PDO::FETCH_COLUMN));
+    if (!$ids) {
+        flash('error', 'Esos arreglos ya no están en el catálogo. Actualiza la página y vuelve a marcarlos.');
+        redirigir('admin/productos.php');
+    }
+    $huecos = implode(',', array_fill(0, count($ids), '?'));
+
     switch (opcion('accion_masiva', ['oferta', 'quitar_oferta', 'aumentar'], '')) {
         case 'oferta':
             $pct = Precios::normalizarPct(crudo('descuento_pct'));
             if ($pct === null) {
-                flash('error', 'El descuento tiene que ser un número entre 0 y ' . Precios::TOPE_PCT . '.');
+                flash('error', 'El descuento tiene que ser un número entero entre 0 y ' .
+                      Precios::TOPE_PCT . '. Con 0 el arreglo vuelve a su precio de siempre.');
                 redirigir('admin/productos.php');
             }
             $pdo->prepare("UPDATE productos SET descuento_pct = ? WHERE id IN ($huecos)")
                 ->execute(array_merge([$pct], $ids));
+            $cuantos = count($ids) . ' ' . unidad_plural(count($ids), 'arreglos');
             Auditoria::registrar($pdo, 'editar', 'productos', [
                 'recurso_tipo' => 'producto', 'recurso_id' => implode(',', $ids),
                 'descripcion'  => $pct > 0
-                    ? "Oferta del {$pct}% aplicada a " . count($ids) . ' arreglo(s).'
-                    : 'Oferta retirada de ' . count($ids) . ' arreglo(s).',
+                    ? "Oferta del {$pct}% aplicada a {$cuantos}."
+                    : "Oferta retirada de {$cuantos}.",
             ]);
             flash('exito', $pct > 0
-                ? 'Descuento del ' . $pct . '% aplicado a ' . count($ids) . ' arreglo(s).'
-                : 'Descuento retirado de ' . count($ids) . ' arreglo(s).');
+                ? "Listo: {$cuantos} con el {$pct}% de descuento. El precio de siempre sigue guardado y vuelve al quitar la oferta."
+                : "Listo: {$cuantos} vuelven a su precio de siempre.");
             break;
 
         case 'quitar_oferta':
             $pdo->prepare("UPDATE productos SET descuento_pct = 0 WHERE id IN ($huecos)")
                 ->execute($ids);
+            $cuantos = count($ids) . ' ' . unidad_plural(count($ids), 'arreglos');
             Auditoria::registrar($pdo, 'editar', 'productos', [
                 'recurso_tipo' => 'producto', 'recurso_id' => implode(',', $ids),
-                'descripcion'  => 'Oferta retirada de ' . count($ids) . ' arreglo(s).',
+                'descripcion'  => "Oferta retirada de {$cuantos}.",
             ]);
-            flash('exito', 'Los arreglos vuelven a su precio de siempre.');
+            flash('exito', "Listo: {$cuantos} vuelven a su precio de siempre.");
             break;
 
         case 'aumentar':
             $monto = (float)str_replace(',', '', crudo('monto'));
             if ($monto <= 0 || $monto > Precios::TOPE_AUMENTO) {
-                flash('error', 'Escribe cuánto subir, entre 1 y ' . dinero(Precios::TOPE_AUMENTO) . '.');
+                flash('error', 'Escribe cuánto quieres subir el precio: una cantidad entre ' .
+                      dinero(1) . ' y ' . dinero(Precios::TOPE_AUMENTO) . '.');
                 redirigir('admin/productos.php');
             }
             // Sube el precio de siempre, no el rebajado: si el arreglo está en
@@ -98,11 +119,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && crudo('accion_masiva') !== '') {
                 flash('error', 'No se pudo aplicar el aumento. Vuelve a intentarlo.');
                 redirigir('admin/productos.php');
             }
+            $cuantos = count($ids) . ' ' . unidad_plural(count($ids), 'arreglos');
             Auditoria::registrar($pdo, 'editar', 'productos', [
                 'recurso_tipo' => 'producto', 'recurso_id' => implode(',', $ids),
-                'descripcion'  => 'Precio subido ' . dinero($monto) . ' en ' . count($ids) . ' arreglo(s).',
+                'descripcion'  => 'Precio de siempre subido ' . dinero($monto) . " en {$cuantos}.",
             ]);
-            flash('exito', 'Precio subido ' . dinero($monto) . ' en ' . count($ids) . ' arreglo(s).');
+            flash('exito', "Listo: {$cuantos} suben " . dinero($monto) .
+                '. Los que estén en oferta mantienen su porcentaje sobre el precio nuevo.');
             break;
 
         default:
@@ -271,27 +294,46 @@ require __DIR__ . '/_cabecera.php';
     <?php if (Rbac::puede('productos.editar')): ?>
     <form method="post" action="<?= e(url('admin/productos.php')) ?>" id="formMasivo">
       <?= campoToken() ?>
-      <div class="barra-masiva" data-barra-masiva hidden>
-        <span class="masiva-cuenta"><strong data-masiva-n>0</strong> seleccionados</span>
-        <label class="masiva-campo">
-          <span>Descuento</span>
-          <select name="descuento_pct">
-            <?php foreach (Precios::SUGERIDOS as $sug): ?>
-              <option value="<?= $sug ?>"><?= $sug ?>%</option>
-            <?php endforeach; ?>
-          </select>
-        </label>
-        <button type="submit" name="accion_masiva" value="oferta" class="boton boton-principal">
-          Aplicar oferta</button>
-        <button type="submit" name="accion_masiva" value="quitar_oferta" class="boton boton-claro">
-          Quitar oferta</button>
-        <label class="masiva-campo">
-          <span>Subir precio</span>
-          <input type="number" name="monto" min="1" max="<?= (int)Precios::TOPE_AUMENTO ?>"
-                 step="1" placeholder="200" inputmode="numeric">
-        </label>
-        <button type="submit" name="accion_masiva" value="aumentar" class="boton boton-claro"
-                data-confirmar="¿Subir el precio de los arreglos seleccionados?">Aplicar aumento</button>
+      <!--
+        La barra dice de antemano en qué queda cada acción.
+
+        Antes solo preguntaba «¿seguro?» al pulsar, que no es una pregunta que
+        nadie pueda responder: subir C$200 a treinta arreglos es una decisión
+        distinta según cuánto valgan ahora. El renglón de abajo hace la cuenta
+        con lo marcado y lo enseña antes de tocar nada, así que la confirmación
+        deja de ser un trámite. El servidor vuelve a calcularlo todo por su
+        cuenta; esto solo se ve.
+      -->
+      <div class="barra-masiva" data-barra-masiva data-moneda="<?= e(Ajustes::texto('moneda_local', 'C$')) ?>" hidden>
+        <p class="masiva-cuenta"><strong data-masiva-n>0</strong> <span data-masiva-palabra>arreglos</span> marcados</p>
+
+        <div class="masiva-grupo">
+          <label class="masiva-campo" for="masivaPct">
+            <span>Poner descuento</span>
+            <select id="masivaPct" name="descuento_pct" data-masiva-pct>
+              <?php foreach (Precios::SUGERIDOS as $sug): ?>
+                <option value="<?= $sug ?>"><?= $sug ?>%</option>
+              <?php endforeach; ?>
+            </select>
+          </label>
+          <button type="submit" name="accion_masiva" value="oferta" class="boton boton-principal"
+                  data-masiva-accion="oferta">Aplicar oferta</button>
+          <button type="submit" name="accion_masiva" value="quitar_oferta" class="boton boton-claro"
+                  data-masiva-accion="quitar">Quitar oferta</button>
+        </div>
+
+        <div class="masiva-grupo">
+          <label class="masiva-campo" for="masivaMonto">
+            <span>Subir el precio de siempre</span>
+            <input id="masivaMonto" type="number" name="monto" min="1"
+                   max="<?= (int)Precios::TOPE_AUMENTO ?>" step="1" placeholder="200"
+                   inputmode="numeric" data-masiva-monto>
+          </label>
+          <button type="submit" name="accion_masiva" value="aumentar" class="boton boton-claro"
+                  data-masiva-accion="aumentar">Aplicar aumento</button>
+        </div>
+
+        <p class="masiva-vista" data-masiva-vista role="status" aria-live="polite"></p>
       </div>
     <?php endif; ?>
     <div class="tabla-envoltura">
@@ -308,9 +350,13 @@ require __DIR__ . '/_cabecera.php';
             <tr>
               <?php if (Rbac::puede('productos.editar')): ?>
                 <td><input type="checkbox" name="ids[]" value="<?= (int)$p['id'] ?>" form="formMasivo"
-                           data-masiva-item aria-label="Seleccionar <?= e((string)$p['nombre']) ?>"></td>
+                           data-masiva-item
+                           data-precio="<?= e(number_format(Precios::base($p), 2, '.', '')) ?>"
+                           data-pct="<?= Precios::porcentaje($p) ?>"
+                           aria-label="Seleccionar <?= e((string)$p['nombre']) ?>"></td>
               <?php endif; ?>
-              <td><img class="miniatura" src="<?= e(url_imagen((string)$p['imagen'])) ?>" alt="" loading="lazy"></td>
+              <td><img class="miniatura" width="42" height="52" loading="lazy" decoding="async"
+                       src="<?= e(url_imagen((string)$p['imagen'], 'images/placeholders/logo.svg', 160)) ?>" alt=""></td>
               <td>
                 <span class="celda-principal"><?= e((string)$p['nombre']) ?></span>
                 <?php if ((int)$p['destacado'] === 1): ?>
@@ -321,11 +367,13 @@ require __DIR__ . '/_cabecera.php';
               <td><?= e((string)$p['categoria_nombre']) ?></td>
               <td class="num">
                 <?php if (Precios::enOferta($p)): ?>
-                  <s class="precio-antes"><?= e(dinero(Precios::base($p))) ?></s><br>
-                  <strong><?= e(dinero(Precios::efectivo($p))) ?></strong>
-                  <span class="estado-suave oferta"><?= Precios::porcentaje($p) ?>% OFF</span>
+                  <span class="precio-pila">
+                    <s class="precio-antes" title="Precio de siempre"><?= e(dinero(Precios::base($p))) ?></s>
+                    <strong class="precio-ahora"><?= e(dinero(Precios::efectivo($p))) ?></strong>
+                    <span class="estado-suave oferta">&minus;<?= Precios::porcentaje($p) ?>%</span>
+                  </span>
                 <?php else: ?>
-                  <?= e(dinero(Precios::base($p))) ?>
+                  <span class="precio-pila"><strong class="precio-ahora"><?= e(dinero(Precios::base($p))) ?></strong></span>
                 <?php endif; ?>
               </td>
               <td>
