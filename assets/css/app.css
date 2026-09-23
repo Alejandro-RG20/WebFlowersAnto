@@ -999,3 +999,32 @@ body:has(.aviso-cookies:not([hidden])) .whatsapp-float { bottom: 132px; }
    deja la animación en su último fotograma, y así la flor se queda entera
    en vez de con los pétalos a medio desvanecer. */
 @keyframes espera-respirar { 0%, 100% { opacity: 1; } 45% { opacity: .34; } }
+
+/* ----------------------------------------------------------------------
+   Confirmación de correo
+
+   Un estado por pantalla, con su icono y una sola acción principal. El
+   color dice de un vistazo si hay que hacer algo (ámbar), si ya está (verde)
+   o si el enlace no sirve (rosa oscuro), sin depender solo del color: el
+   título lo dice con palabras.
+   ---------------------------------------------------------------------- */
+.verificacion-pagina { max-width: 520px; padding: 48px 16px 72px; }
+.verificacion-tarjeta { text-align: center; padding: 36px 28px 30px; }
+.verificacion-icono {
+  width: 64px; height: 64px; margin: 0 auto 18px; border-radius: 50%;
+  display: grid; place-items: center; font-size: 1.7rem;
+  background: var(--rose-soft); color: var(--tinta);
+}
+.verificacion-tarjeta.bien  .verificacion-icono { background: var(--exito-fondo); color: var(--exito); }
+.verificacion-tarjeta.aviso .verificacion-icono { background: var(--aviso-fondo); color: var(--aviso); }
+.verificacion-tarjeta.mal   .verificacion-icono { background: var(--alerta-fondo); color: var(--alerta); }
+.verificacion-titulo {
+  font-family: 'Playfair Display', serif; font-size: 1.5rem; line-height: 1.25;
+  color: var(--tinta); margin-bottom: 10px;
+}
+.verificacion-texto { color: var(--suave); font-size: .97rem; line-height: 1.6; max-width: 40ch; margin: 0 auto; }
+.verificacion-acciones { display: grid; gap: 10px; margin-top: 26px; }
+@media (max-width: 480px) {
+  .verificacion-pagina { padding-top: 28px; }
+  .verificacion-tarjeta { padding: 28px 18px 24px; }
+}
