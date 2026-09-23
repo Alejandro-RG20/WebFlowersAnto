@@ -74,12 +74,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         // No se genera ni se muestra ninguna contraseña: se envía el mismo
         // enlace de un solo uso que usa la recuperación normal.
-        $pdo->prepare("UPDATE password_resets SET usado_en = NOW() WHERE usuario_id = ? AND usado_en IS NULL")
+        // Solo los enlaces de contraseña: sin el filtro por `tipo` se anulaba
+        // también la confirmación de correo que el empleado tuviera pendiente.
+        $pdo->prepare("UPDATE password_resets SET usado_en = NOW()
+                        WHERE usuario_id = ? AND tipo = 'password' AND usado_en IS NULL")
             ->execute([$id]);
         $token = bin2hex(random_bytes(32));
         $pdo->prepare(
-            "INSERT INTO password_resets (usuario_id, token_hash, expira_en, ip)
-             VALUES (?, ?, DATE_ADD(NOW(), INTERVAL 120 MINUTE), ?)"
+            "INSERT INTO password_resets (usuario_id, token_hash, expira_en, ip, tipo)
+             VALUES (?, ?, DATE_ADD(NOW(), INTERVAL 120 MINUTE), ?, 'password')"
         )->execute([$id, hash('sha256', $token), ip_cliente()]);
 
         Correo::enviar(

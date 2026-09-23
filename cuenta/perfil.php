@@ -73,6 +73,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $pdo->prepare("UPDATE usuarios SET password_hash = ? WHERE id = ?")
                 ->execute([password_hash($nueva, PASSWORD_DEFAULT), $usuario['id']]);
 
+            // Las sesiones abiertas en otros dispositivos se cierran; esta
+            // sigue abierta, porque quien la usa acaba de probar la clave.
+            Auth::cerrarOtrasSesiones($pdo, (int)$usuario['id'], true);
+
             Auditoria::registrar($pdo, 'cambio_password', 'usuarios', [
                 'recurso_tipo' => 'usuario', 'recurso_id' => (string)$usuario['id'],
                 'descripcion'  => 'El cliente cambió su contraseña desde su cuenta.',
@@ -80,7 +84,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             Correo::enviar((string)$usuario['email'], 'Tu contraseña se cambió',
                 Correo::plantilla('Tu contraseña se cambió',
-                    '<p>Hola ' . e((string)$usuario['nombre']) . ', acabas de cambiar tu contraseña. '
+                    '<p>Hola ' . e((string)$usuario['nombre']) . ', acabas de cambiar tu contraseña '
+                    . 'y cerramos tu cuenta en los demás dispositivos. '
                     . 'Si no fuiste tú, escríbenos cuanto antes.</p>'));
 
             flash('exito', 'Contraseña actualizada.');

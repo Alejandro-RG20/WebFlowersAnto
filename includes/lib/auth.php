@@ -54,6 +54,15 @@ final class Auth
             return self::$usuario = null;
         }
 
+        // La contraseña cambió después de abrir esta sesión: deja de valer.
+        // Si la columna aún no existe —migración 021 sin ejecutar— no se
+        // compara nada y todo sigue como antes.
+        if (array_key_exists('sesion_version', $fila)
+            && (int)$fila['sesion_version'] !== (int)($_SESSION['sesion_version'] ?? 0)) {
+            self::cerrarSesion();
+            return self::$usuario = null;
+        }
+
         return self::$usuario = $fila;
     }
 
@@ -89,14 +98,48 @@ final class Auth
     public static function abrirSesion(array $usuario): void
     {
         session_regenerate_id(true);
-        $_SESSION['usuario_id']    = (int)$usuario['id'];
-        $_SESSION['sesion_creada'] = time();
+        $_SESSION['usuario_id']     = (int)$usuario['id'];
+        $_SESSION['sesion_creada']  = time();
+        $_SESSION['sesion_version'] = (int)($usuario['sesion_version'] ?? 0);
         self::$usuario = null;
         self::$cargado = false;
 
         self::$pdo?->prepare(
             "UPDATE usuarios SET ultimo_acceso = NOW(), intentos_fallidos = 0, bloqueado_hasta = NULL WHERE id = ?"
         )->execute([$usuario['id']]);
+    }
+
+    /**
+     * Cierra todas las sesiones abiertas de una cuenta.
+     *
+     * Se llama al cambiar la contraseña. Si quien la cambia está dentro de su
+     * propia cuenta (`$mantenerActual`), su sesión se actualiza y sigue
+     * abierta: cerrarle la sesión a quien acaba de demostrar que es el dueño
+     * solo le obligaría a volver a entrar.
+     *
+     * Devuelve false si la columna aún no existe; en ese caso no se hace nada
+     * y el resto del cambio de contraseña sigue su curso.
+     */
+    public static function cerrarOtrasSesiones(PDO $pdo, int $usuarioId, bool $mantenerActual = false): bool
+    {
+        try {
+            $pdo->prepare("UPDATE usuarios SET sesion_version = sesion_version + 1 WHERE id = ?")
+                ->execute([$usuarioId]);
+        } catch (PDOException $e) {
+            if ($e->getCode() !== '42S22') {
+                throw $e;
+            }
+            return false;
+        }
+        if ($mantenerActual && (int)($_SESSION['usuario_id'] ?? 0) === $usuarioId) {
+            $st = $pdo->prepare("SELECT sesion_version FROM usuarios WHERE id = ?");
+            $st->execute([$usuarioId]);
+            session_regenerate_id(true);
+            $_SESSION['sesion_version'] = (int)$st->fetchColumn();
+            self::$usuario = null;
+            self::$cargado = false;
+        }
+        return true;
     }
 
     public static function cerrarSesion(): void

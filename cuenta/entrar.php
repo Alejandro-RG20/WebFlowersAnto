@@ -38,11 +38,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } else {
         $usuario = Auth::buscarPorIdentificador($pdo, $identidad);
 
+        // «Cuenta desactivada» solo se dice a quien acierta la contraseña.
+        // Antes se decía con cualquier clave, y eso bastaba para averiguar
+        // qué correos tenían una cuenta desactivada en la tienda.
+        $claveCorrecta = $usuario && !Auth::bloqueado($usuario)
+                      && Auth::verificarPassword($pdo, $usuario, $password);
+
+        // Con un correo que no existe no hay contraseña que comprobar y la
+        // respuesta salía antes: midiendo el tiempo se distinguían los
+        // correos registrados de los que no. Se hace un cálculo del mismo
+        // coste para que las dos respuestas tarden lo mismo.
+        if (!$usuario) {
+            password_hash($password, PASSWORD_DEFAULT);
+        }
+
         if ($usuario && Auth::bloqueado($usuario)) {
             $error = 'Por seguridad bloqueamos la cuenta 15 minutos tras varios intentos fallidos.';
-        } elseif ($usuario && (int)$usuario['activo'] !== 1) {
+        } elseif ($claveCorrecta && (int)$usuario['activo'] !== 1) {
             $error = 'Esta cuenta está desactivada. Escríbenos si crees que es un error.';
-        } elseif ($usuario && Auth::verificarPassword($pdo, $usuario, $password)) {
+        } elseif ($claveCorrecta) {
             Auth::abrirSesion($usuario);
             Favoritos::fusionarAlEntrar($pdo, (int)$usuario['id']);
             Carrito::fusionarAlEntrar($pdo, (int)$usuario['id']);

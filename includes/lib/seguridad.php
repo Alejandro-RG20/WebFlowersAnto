@@ -145,25 +145,28 @@ function limitar(PDO $pdo, string $clave, int $maximo, int $ventanaSegundos): bo
             ->execute([date('Y-m-d H:i:s', $ahora - 86400)]);
     }
 
-    $st = $pdo->prepare("SELECT intentos, UNIX_TIMESTAMP(ventana_inicio) AS inicio
-                           FROM rate_limits WHERE clave = ?");
-    $st->execute([$clave]);
-    $fila = $st->fetch();
+    // Sumar y saber el resultado en una sola sentencia.
+    //
+    // Antes se leía el contador y después se sumaba: varias peticiones a la
+    // vez leían el mismo número y pasaban todas. Sumar de forma atómica no
+    // basta si luego se vuelve a leer la fila, porque para entonces otras
+    // peticiones ya la han subido y todas ven un número de más.
+    //
+    // `LAST_INSERT_ID(expr)` guarda el valor por conexión: cada petición
+    // recupera exactamente el número que dejó ella, se cuele quien se cuele
+    // entre medias. En el alta se fija a 1 desde `VALUES`; si la fila ya
+    // existía, lo sobrescribe la asignación del `ON DUPLICATE KEY UPDATE`.
+    //
+    // El orden de las dos asignaciones importa: MySQL las evalúa de izquierda
+    // a derecha y la primera todavía lee la `ventana_inicio` vieja.
+    $pdo->prepare(
+        "INSERT INTO rate_limits (clave, intentos, ventana_inicio) VALUES (?, LAST_INSERT_ID(1), NOW())
+         ON DUPLICATE KEY UPDATE
+           intentos       = LAST_INSERT_ID(IF(ventana_inicio < NOW() - INTERVAL ? SECOND, 1, intentos + 1)),
+           ventana_inicio = IF(ventana_inicio < NOW() - INTERVAL ? SECOND, NOW(), ventana_inicio)"
+    )->execute([$clave, $ventanaSegundos, $ventanaSegundos]);
 
-    if (!$fila || ($ahora - (int)$fila['inicio']) > $ventanaSegundos) {
-        $pdo->prepare(
-            "INSERT INTO rate_limits (clave, intentos, ventana_inicio) VALUES (?, 1, NOW())
-             ON DUPLICATE KEY UPDATE intentos = 1, ventana_inicio = NOW()"
-        )->execute([$clave]);
-        return true;
-    }
-
-    if ((int)$fila['intentos'] >= $maximo) {
-        return false;
-    }
-
-    $pdo->prepare("UPDATE rate_limits SET intentos = intentos + 1 WHERE clave = ?")->execute([$clave]);
-    return true;
+    return (int)$pdo->query("SELECT LAST_INSERT_ID()")->fetchColumn() <= $maximo;
 }
 
 /** Borra el contador de una clave (por ejemplo, tras un acceso correcto). */
