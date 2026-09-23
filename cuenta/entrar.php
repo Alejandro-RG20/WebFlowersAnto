@@ -41,14 +41,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // «Cuenta desactivada» solo se dice a quien acierta la contraseña.
         // Antes se decía con cualquier clave, y eso bastaba para averiguar
         // qué correos tenían una cuenta desactivada en la tienda.
-        $claveCorrecta = $usuario && !Auth::bloqueado($usuario)
-                      && Auth::verificarPassword($pdo, $usuario, $password);
+        $comprobable = $usuario && !Auth::bloqueado($usuario)
+                    && (string)($usuario['password_hash'] ?? '') !== '';
+        $claveCorrecta = $comprobable && Auth::verificarPassword($pdo, $usuario, $password);
 
-        // Con un correo que no existe no hay contraseña que comprobar y la
-        // respuesta salía antes: midiendo el tiempo se distinguían los
-        // correos registrados de los que no. Se hace un cálculo del mismo
-        // coste para que las dos respuestas tarden lo mismo.
-        if (!$usuario) {
+        // Con un correo que no existe (o una cuenta solo de Google) no hay
+        // contraseña que comprobar y la respuesta salía antes: midiendo el
+        // tiempo se distinguían los correos registrados de los que no. Se
+        // hace un cálculo de bcrypt con el coste por defecto del servidor,
+        // el mismo que cuesta comprobar una contraseña guardada.
+        if (!$comprobable) {
             password_hash($password, PASSWORD_DEFAULT);
         }
 
