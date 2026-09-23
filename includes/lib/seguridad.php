@@ -187,7 +187,13 @@ function cabeceraCSP(): void
     }
 
     $script  = "'self' 'unsafe-inline'";
+    // Los reproductores de Instagram, Facebook y TikTok van en un marco igual
+    // que el de YouTube. Faltaban aquí desde que se añadieron las redes: el
+    // navegador los bloqueaba por la política y en su lugar quedaba un
+    // recuadro vacío. Son los mismos dominios, y solo esos, que
+    // `Multimedia::urlIncrustada()` puede llegar a construir.
     $marco   = "https://www.youtube.com https://www.youtube-nocookie.com "
+             . "https://www.instagram.com https://www.facebook.com https://www.tiktok.com "
              . "https://maps.google.com https://www.google.com";
     $conecta = "'self'";
     $formulario = "'self' https://accounts.google.com";
