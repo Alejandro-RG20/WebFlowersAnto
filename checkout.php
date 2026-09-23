@@ -79,7 +79,11 @@ if ($cuponesActivos && $codigoCupon !== '') {
 
 $detalle = Carrito::detalle($pdo, $zonaElegida, $tipoEntregaActual, $cuponAplicado);
 if (!$detalle['items']) {
-    flash('info', 'Tu carrito está vacío.');
+    // Si el carrito se quedó vacío porque otro cliente se llevó las últimas
+    // unidades, `detalle()` ya explica qué arreglo se quitó. Antes ese aviso
+    // se descartaba aquí y la persona solo veía «tu carrito está vacío», sin
+    // saber qué había pasado con lo que había elegido.
+    flash('alerta', $detalle['avisos'] ? implode(' ', $detalle['avisos']) : 'Tu carrito está vacío.');
     redirigir('carrito.php');
 }
 $permitirRetiro   = Ajustes::activo('permitir_retiro', true);
