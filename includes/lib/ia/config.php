@@ -70,7 +70,7 @@ final class IaConfig
         return max(10, min(90, Entorno::entero('AI_TIMEOUT', 40)));
     }
 
-    /** Conversaciones del asistente de clientes por día en toda la tienda. */
+    /** Mensajes al asistente de clientes por día en toda la tienda (0 = sin tope). */
     public static function limiteDiario(): int
     {
         return max(0, Entorno::entero('AI_LIMITE_DIARIO', 1500));

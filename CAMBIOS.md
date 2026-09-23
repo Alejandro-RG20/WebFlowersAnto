@@ -557,3 +557,52 @@ una vez por petición y se cachea; las animaciones de aparición usan
 `IntersectionObserver` y no el scroll; la primera imagen del carrusel ya lleva
 `fetchpriority="high"` y las demás `loading="lazy"`; las tarjetas del catálogo
 reservan su espacio con `aspect-ratio`, así que no dan saltos al cargar.
+
+---
+
+## 14. Asistentes de IA y endurecimiento de cuentas (FlowersAntoIA_v0.1)
+
+Rama `FlowersAntoIA_v0.1`, creada desde `FlowersAnto_v.10`. Detalle técnico
+completo en [`docs/IA.md`](docs/IA.md).
+
+### Asistentes
+
+- **Asesora floral** en la tienda: recomienda con productos reales del
+  catálogo, responde entregas, pagos, horario y políticas con los datos de la
+  configuración, añade al carrito con la misma lógica que el botón normal y
+  consulta pedidos con la misma regla de propiedad que `seguimiento.php`.
+- **AI Manager** en el panel: ventas, pedidos, más y menos vendidos,
+  inventario bajo; y cambios de precio, oferta, stock, publicación,
+  descripción o estado de pedido que **una persona confirma** viendo el antes
+  y el después. Al confirmar se vuelven a comprobar el permiso y que el dato
+  no haya cambiado.
+- La IA nunca escribe SQL: solo llama herramientas del sitio que validan todo.
+  Un precio que el modelo no haya sacado de una herramienta no llega al cliente.
+- Sin clave de API, o sin la migración 022, no aparece nada y la tienda es la
+  de siempre.
+
+### Cuentas y sesiones
+
+- Verificación de correo rehecha: token de un solo uso guardado como hash,
+  consumo atómico, fuera de la URL en cuanto se lee, estados claros y reenvío
+  con espera.
+- Recuperar la contraseña cierra todas las sesiones abiertas; cambiarla desde
+  el perfil, todas menos la actual (migración 021).
+- «Cuenta desactivada» solo se dice a quien acierta la contraseña, y el acceso
+  y la recuperación tardan lo mismo exista o no la cuenta.
+- El limitador de intentos es atómico: con 40 peticiones simultáneas pasan
+  exactamente las permitidas (antes, a veces, todas).
+
+### Fallos encontrados y corregidos
+
+- La CSP de la v.10 bloqueaba los reproductores de Instagram, Facebook y TikTok.
+- El panel no enviaba CSP.
+- Si un producto se agotaba mientras el cliente estaba en el checkout, el
+  carrito se vaciaba sin decir por qué. Ahora se explica.
+
+### Base de datos
+
+- `021_version_sesion`: columna `usuarios.sesion_version`.
+- `022_asistentes_ia`: tablas `ai_action_logs` y `ai_pending_actions`.
+
+Las dos solo añaden. Sin dependencias nuevas.

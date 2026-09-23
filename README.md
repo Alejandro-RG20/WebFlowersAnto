@@ -127,6 +127,7 @@ Se leen en este orden: variable de entorno real → `.env` → `config.local.php
 | `MAIL_REMITENTE`, `MAIL_REMITENTE_NOMBRE` | Remitente de los correos |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_SEGURIDAD`, `SMTP_USUARIO`, `SMTP_PASSWORD` | Servidor SMTP |
 | `MYSQLDUMP_BIN` | Ruta a `mysqldump`. Si falta, se usa el volcador en PHP |
+| `AI_API_KEY`, `AI_MODEL`, `AI_MODEL_ADMIN`, `AI_CLIENTE_ACTIVO`, `AI_ADMIN_ACTIVO`, `AI_TIMEOUT`, `AI_LIMITE_DIARIO` | Asistentes de IA (opcionales). Ver [`docs/IA.md`](docs/IA.md) |
 
 `.env` y `config.local.php` **nunca** se suben al repositorio.
 
@@ -683,9 +684,26 @@ No hay proceso de build: los archivos se sirven tal cual.
   o pedidos
 - `uploads/` tiene el motor de PHP desactivado por `.htaccess`
 - Cabeceras `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy` y
-  `Content-Security-Policy` en las páginas públicas
+  `Content-Security-Policy` en la tienda y en el panel
+- Enlaces de verificación y recuperación: token aleatorio guardado como hash,
+  de un solo uso, que sale de la URL en cuanto se lee; cambiar la contraseña
+  cierra las demás sesiones
+- El acceso y la recuperación tardan lo mismo exista o no la cuenta
 - Los números de cuenta bancaria no están en el código: viven en la base de
   datos y solo se muestran al cliente en la página de su pedido
+
+---
+
+## Asistentes de IA
+
+Dos asistentes opcionales con Claude: la **asesora floral** de la tienda
+(recomienda, resuelve dudas, añade al carrito y consulta pedidos) y el
+**AI Manager** del panel (ventas, pedidos, inventario, y cambios que siempre
+confirma una persona). La IA nunca toca la base de datos directamente: solo
+usa herramientas del propio sitio que validan permisos y datos.
+
+Se activan poniendo `AI_API_KEY` en el `.env` y aplicando la migración 022.
+Arquitectura, seguridad, costes, pruebas y despliegue: [`docs/IA.md`](docs/IA.md).
 
 ---
 
