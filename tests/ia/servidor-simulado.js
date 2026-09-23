@@ -225,6 +225,16 @@ function turnoAdmin(msgs) {
     if (!hechos.length) return { c: [usar('agregar_al_carrito', { producto_id: 1 })], s: 'tool_use' };
     return fin('Esa herramienta no está disponible aquí: ' + ultimo.datos);
   }
+  // El orden importa: las reglas más concretas van primero.
+  const estado = u.match(/marca(?:r)? el pedido (FA-[A-Z0-9-]+) como (\w+)/i);
+  if (estado) {
+    if (!hechos.length) return { c: [usar('proponer_estado_pedido', { codigo: estado[1], estado: estado[2].toLowerCase(), nota: 'Desde el asistente' })], s: 'tool_use' };
+    return ultimo.error ? fin('No se puede: ' + ultimo.datos) : fin('Preparé el cambio de estado. Confírmalo abajo.');
+  }
+  if (/m[aá]s vendid|vendiendo m[aá]s|menor movimiento|menos vendid/.test(bajo)) {
+    if (!hechos.length) return { c: [usar('ranking_productos', { periodo: 'mes', orden: /menor|menos/.test(bajo) ? 'menos' : 'mas' })], s: 'tool_use' };
+    return fin('Ranking: ' + (ultimo.datos.productos || []).slice(0, 3).map(p => `${p.nombre} (${p.unidades})`).join(', '));
+  }
   if (/pendiente/.test(bajo)) {
     if (!hechos.length) return { c: [usar('resumen_pedidos', { periodo: 'todo' })], s: 'tool_use' };
     return ultimo.error ? fin('No pude consultarlo: ' + ultimo.datos) : fin(`Hay ${ultimo.datos.por_estado.pendiente || 0} pedidos pendientes de ${ultimo.datos.total} en total.`);
@@ -232,10 +242,6 @@ function turnoAdmin(msgs) {
   if (/vend|ventas/.test(bajo)) {
     if (!hechos.length) return { c: [usar('ventas', { periodo: /hoy/.test(bajo) ? 'hoy' : /mes/.test(bajo) ? 'mes' : 'semana' })], s: 'tool_use' };
     return ultimo.error ? fin('No pude consultarlo: ' + ultimo.datos) : fin(`Vendimos ${ultimo.datos.total_cobrado} en ${ultimo.datos.pedidos} pedidos.`);
-  }
-  if (/m[aá]s vendid|menor movimiento|menos vendid/.test(bajo)) {
-    if (!hechos.length) return { c: [usar('ranking_productos', { periodo: 'mes', orden: /menor|menos/.test(bajo) ? 'menos' : 'mas' })], s: 'tool_use' };
-    return fin('Ranking: ' + (ultimo.datos.productos || []).slice(0, 3).map(p => `${p.nombre} (${p.unidades})`).join(', '));
   }
   if (/poca disponibilidad|stock|inventario|agotad/.test(bajo)) {
     if (!hechos.length) return { c: [usar('inventario_bajo', { umbral: 3 })], s: 'tool_use' };
@@ -256,11 +262,6 @@ function turnoAdmin(msgs) {
       return { c: [usar('proponer_cambio_precio', { producto_id: p.id, precio_nuevo: +precio[2].replace(/,/g, '') })], s: 'tool_use' };
     }
     return ultimo.error ? fin('No pude preparar el cambio: ' + ultimo.datos) : fin('Preparé el cambio. Revísalo y confírmalo abajo.');
-  }
-  const estado = u.match(/marca(?:r)? el pedido (FA-[A-Z0-9-]+) como (\w+)/i);
-  if (estado) {
-    if (!hechos.length) return { c: [usar('proponer_estado_pedido', { codigo: estado[1], estado: estado[2].toLowerCase(), nota: 'Desde el asistente' })], s: 'tool_use' };
-    return ultimo.error ? fin('No se puede: ' + ultimo.datos) : fin('Preparé el cambio de estado. Confírmalo abajo.');
   }
   const desc = u.match(/descripci[oó]n para (.+)/i);
   if (desc) {

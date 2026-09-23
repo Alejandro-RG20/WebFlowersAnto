@@ -657,3 +657,110 @@ dialog.modal .modal-pie {
   .masiva-campo { flex: 1 1 100%; }
   .barra-masiva .boton { flex: 1 1 130px; }
 }
+
+/* =======================================================================
+   Asistente IA del panel (AI Manager)
+
+   Misma piel que el resto del panel: paneles, tablas y botones de siempre.
+   La conversación ocupa la columna principal y a la derecha quedan qué
+   puede hacer y la actividad reciente. Las propuestas de cambio son fichas
+   con el antes y el después campo a campo: lo tachado es lo que hay, lo
+   resaltado lo que quedaría.
+   ======================================================================= */
+.visualmente-oculto {
+  position: absolute !important; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+.ia-rejilla { display: grid; gap: 20px; align-items: start; }
+.ia-rejilla > * { min-width: 0; }
+@media (min-width: 1100px) { .ia-rejilla { grid-template-columns: minmax(0, 1fr) 320px; } }
+
+.ia-conversacion { display: flex; flex-direction: column; margin-bottom: 0; }
+.ia-hilo {
+  display: flex; flex-direction: column; gap: 16px; padding: 20px;
+  min-height: 320px; max-height: calc(100dvh - 300px); overflow-y: auto; overscroll-behavior: contain;
+}
+.ia-hilo:focus { outline: none; }
+.ia-hilo:focus-visible { outline: 2px solid var(--p-rosa); outline-offset: -2px; }
+.ia-bienvenida p { color: var(--p-suave); margin-bottom: 12px; }
+.ia-sugerencias { display: flex; flex-wrap: wrap; gap: 8px; }
+.ia-chip {
+  min-height: 38px; padding: 7px 14px; border: 1px solid var(--p-linea2); border-radius: 20px;
+  background: var(--p-papel); color: var(--p-tinta); font: inherit; font-size: .86rem; cursor: pointer;
+  transition: border-color var(--p-trans), background-color var(--p-trans);
+}
+.ia-chip:hover { border-color: var(--p-rosa); background: var(--p-rosa-sw); }
+
+.ia-msg { max-width: 100%; }
+.ia-msg.persona {
+  align-self: flex-end; max-width: 80%; padding: 10px 14px; border-radius: 14px 14px 4px 14px;
+  background: var(--p-tinta); color: #fff;
+}
+.ia-msg.persona p { overflow-wrap: anywhere; }
+.ia-texto p { line-height: 1.6; }
+.ia-texto p + p { margin-top: 8px; }
+.ia-error { color: var(--p-alerta); }
+.ia-aviso, .ia-pensando { align-self: center; font-size: .84rem; color: var(--p-suave); }
+.ia-pensando { align-self: flex-start; }
+
+.ia-tabla { margin-top: 12px; border: 1px solid var(--p-linea); border-radius: 10px; overflow: hidden; background: var(--p-papel); }
+.ia-tabla table.tabla { min-width: 520px; }
+.ia-tabla-titulo { text-align: left; padding: 10px 16px; font-weight: 600; font-size: .86rem; background: #FCFAFA; }
+.ia-tabla-vacia { color: var(--p-suave); text-align: center; }
+.ia-enlace { display: inline-block; padding: 9px 16px; font-size: .84rem; font-weight: 600; color: var(--p-tinta); }
+
+.ia-propuesta {
+  margin-top: 12px; border: 1px solid var(--p-linea2); border-radius: 12px; background: var(--p-papel);
+  box-shadow: var(--p-sombra);
+}
+.ia-propuesta-cabecera { padding: 14px 16px 10px; display: flex; flex-direction: column; gap: 4px; }
+.ia-propuesta-etiqueta {
+  align-self: flex-start; font-size: .7rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+  padding: 2px 8px; border-radius: 20px; background: var(--p-rosa-sw); color: var(--p-tinta);
+}
+.ia-propuesta-resumen { font-weight: 600; line-height: 1.4; overflow-wrap: anywhere; }
+.ia-diff { margin: 0; padding: 0 16px 12px; display: grid; gap: 8px; }
+.ia-diff-fila { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 12px; font-size: .88rem; }
+.ia-diff-fila dt { color: var(--p-suave); }
+.ia-diff-fila dd { margin: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; font-variant-numeric: tabular-nums; }
+.ia-antes { color: var(--p-suave); text-decoration: line-through; }
+.ia-despues { font-weight: 600; background: #EAF5EE; color: #1F5A35; padding: 1px 6px; border-radius: 4px; }
+.ia-diff-fila.largo dd { flex-direction: column; align-items: stretch; }
+.ia-diff-fila.largo .ia-antes, .ia-diff-fila.largo .ia-despues { white-space: pre-wrap; padding: 8px 10px; border-radius: 8px; }
+.ia-diff-fila.largo .ia-antes { background: #FCFAFA; }
+.ia-diff-fila.largo .ia-flecha { display: none; }
+@media (max-width: 600px) { .ia-diff-fila { grid-template-columns: 1fr; gap: 2px; } }
+
+.ia-propuesta-pie {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 12px 16px; border-top: 1px solid var(--p-linea); background: #FCFAFA; border-radius: 0 0 12px 12px;
+}
+.ia-propuesta-estado { font-size: .84rem; color: var(--p-suave); }
+.ia-propuesta-acciones { display: flex; gap: 8px; flex-wrap: wrap; }
+.ia-propuesta[data-estado="ejecutada"] { border-color: #BFDCC9; }
+.ia-propuesta[data-estado="ejecutada"] .ia-propuesta-estado { color: #1F5A35; font-weight: 600; }
+.ia-propuesta[data-estado="fallida"] .ia-propuesta-estado,
+.ia-propuesta[data-estado="caducada"] .ia-propuesta-estado { color: var(--p-alerta); }
+
+.ia-form {
+  display: flex; align-items: flex-end; gap: 10px; padding: 14px 16px; border-top: 1px solid var(--p-linea);
+}
+.ia-form textarea {
+  flex: 1; min-width: 0; resize: none; max-height: 160px; padding: 10px 13px;
+  border: 1.5px solid var(--p-linea); border-radius: 9px; font: inherit; font-size: 16px; line-height: 1.45;
+  background: var(--p-papel); color: var(--p-tinta);
+}
+.ia-form textarea:focus { outline: none; border-color: var(--p-rosa); box-shadow: 0 0 0 3px rgba(196,120,143,.14); }
+@media (min-width: 700px) { .ia-form textarea { font-size: .92rem; } }
+.ia-form .boton { min-height: 44px; }
+
+.ia-capacidades p { font-size: .88rem; line-height: 1.55; color: var(--p-suave); }
+.ia-capacidades p + p { margin-top: 10px; }
+.ia-capacidades strong { color: var(--p-tinta); }
+.ia-limite { display: flex; gap: 8px; align-items: baseline; }
+.ia-nada { font-size: .86rem; color: var(--p-suave); }
+.ia-actividad { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+.ia-actividad li { display: grid; gap: 3px; font-size: .84rem; }
+.ia-actividad .estado-suave { justify-self: start; }
+.ia-actividad-texto { overflow-wrap: anywhere; }
+.ia-actividad small { color: var(--p-tenue); }

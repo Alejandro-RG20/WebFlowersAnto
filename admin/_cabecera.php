@@ -90,6 +90,13 @@ if (Rbac::puede('pedidos.ver')) {
 
   <nav class="menu" aria-label="Secciones del panel">
     <?php itemMenu('resumen',    'index.php',        'fa-solid fa-gauge',          'Resumen',       'dashboard.ver',       $seccion); ?>
+    <?php
+      // El asistente se ofrece a todo el personal: cada consulta y cada
+      // cambio exigen después el permiso de su pantalla equivalente.
+      if (IaConfig::adminActivo($pdo)) {
+          itemMenu('asistente', 'asistente.php', 'fa-solid fa-spa', 'Asistente IA', 'panel.acceder', $seccion);
+      }
+    ?>
 
     <p class="grupo">Ventas</p>
     <?php
