@@ -50,7 +50,7 @@ Options -Indexes
 
 # --- Carpetas internas ------------------------------------------------
 # Los comprobantes, los respaldos y el código no se sirven nunca por URL.
-RedirectMatch 404 ^/(.*/)?(storage|includes|db)/
+RedirectMatch 404 ^/(.*/)?(storage|includes|db|tests)/
 # `storage/` incluye respaldos, comprobantes y la caché de fotos reducidas.
 RedirectMatch 404 ^/(.*/)?\.git
 
