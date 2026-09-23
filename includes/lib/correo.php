@@ -44,6 +44,46 @@ final class Correo
         return self::transporte() !== 'log';
     }
 
+    /** @var list<array{0:string,1:string,2:string}> */
+    private static array $pendientes = [];
+
+    /**
+     * Envía el correo cuando la página ya se entregó al navegador.
+     *
+     * Para formularios que no deben dejar ver si un correo está registrado
+     * (recuperar la contraseña): si el correo se enviara durante la petición,
+     * la respuesta tardaría lo que tarda el servidor SMTP solo cuando la
+     * cuenta existe, y midiendo el tiempo se sabría. Con PHP-FPM o LiteSpeed
+     * la respuesta se cierra antes de enviar; con otro servidor se envía al
+     * final del script, como antes.
+     */
+    public static function enviarAlTerminar(string $para, string $asunto, string $cuerpoHtml): void
+    {
+        if (!self::$pendientes) {
+            register_shutdown_function(static function (): void {
+                // Se suelta la sesión antes: si no, la siguiente página del
+                // mismo visitante esperaría a que termine el envío.
+                if (session_status() === PHP_SESSION_ACTIVE) {
+                    session_write_close();
+                }
+                if (function_exists('fastcgi_finish_request')) {
+                    fastcgi_finish_request();
+                } elseif (function_exists('litespeed_finish_request')) {
+                    litespeed_finish_request();
+                }
+                foreach (self::$pendientes as [$a, $b, $c]) {
+                    try {
+                        self::enviar($a, $b, $c);
+                    } catch (Throwable $e) {
+                        error_log('Flowers Anto — correo diferido: ' . $e->getMessage());
+                    }
+                }
+                self::$pendientes = [];
+            });
+        }
+        self::$pendientes[] = [$para, $asunto, $cuerpoHtml];
+    }
+
     /**
      * Envía un correo HTML. Devuelve true si el transporte lo aceptó.
      * Un fallo nunca interrumpe la operación que lo disparó: se registra y ya.

@@ -50,7 +50,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 )->execute([$usuario['id'], hash('sha256', $token), ip_cliente()]);
 
                 $enlace = url_absoluta('cuenta/restablecer.php?token=' . $token);
-                Correo::enviar(
+                // Después de responder: así la respuesta tarda lo mismo
+                // exista o no la cuenta.
+                Correo::enviarAlTerminar(
                     $correo,
                     'Restablecer tu contraseña — ' . Ajustes::texto('nombre_tienda', 'Flowers Anto'),
                     Correo::plantilla(
