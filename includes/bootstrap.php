@@ -430,5 +430,8 @@ require_once __DIR__ . '/lib/verificacion.php';
 require_once __DIR__ . '/lib/checkout.php';
 require_once __DIR__ . '/lib/analitica.php';
 require_once __DIR__ . '/lib/facturas.php';
+// Solo la configuración: decide si se pinta el acceso al asistente. El resto
+// de la IA se carga únicamente en sus dos endpoints.
+require_once __DIR__ . '/lib/ia/config.php';
 
 Auth::iniciar($pdo);

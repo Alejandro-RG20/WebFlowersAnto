@@ -29,10 +29,18 @@ if (!IaConfig::clienteActivo($pdo)) {
 
 const CLAVE_SESION = 'ia_cliente';
 
-$accion = opcion('accion', ['mensaje', 'reiniciar'], 'mensaje');
+/** Mensajes que se vuelven a pintar al cambiar de página. */
+const MAX_VISTA = 30;
+
+$accion = opcion('accion', ['mensaje', 'reiniciar', 'historial'], 'mensaje');
 if ($accion === 'reiniciar') {
     unset($_SESSION[CLAVE_SESION]);
     responderJson(['ok' => true]);
+}
+// La conversación sigue al cambiar de página. Se devuelve lo que se pintó
+// —texto y tarjetas—, no el historial técnico con los bloques del modelo.
+if ($accion === 'historial') {
+    responderJson(['ok' => true, 'mensajes' => $_SESSION[CLAVE_SESION]['vista'] ?? []]);
 }
 
 // El mensaje del cliente: texto plano, sin caracteres de control, con tope.
@@ -59,10 +67,10 @@ if (IaConfig::limiteDiario() > 0
     errorJson('El asistente descansa por hoy. Escríbenos por WhatsApp y te atendemos.', 503, ['codigo' => 'no_disponible']);
 }
 
-$conversacion = $_SESSION[CLAVE_SESION] ?? ['mensajes' => [], 'turnos' => 0];
+$conversacion = $_SESSION[CLAVE_SESION] ?? ['mensajes' => [], 'turnos' => 0, 'vista' => []];
 $aviso = '';
 if ((int)($conversacion['turnos'] ?? 0) >= IaAgente::MAX_TURNOS) {
-    $conversacion = ['mensajes' => [], 'turnos' => 0];
+    $conversacion = ['mensajes' => [], 'turnos' => 0, 'vista' => []];
     $aviso = 'Empezamos una conversación nueva para mantener las respuestas rápidas.';
 }
 
@@ -89,9 +97,23 @@ try {
 }
 IaSesion::retomar();
 
+$efectos   = $r['efectos'];
+$tarjetas  = $caja->tarjetas($r['texto']);
+$respuesta = [
+    'texto'     => $r['texto'],
+    'productos' => $tarjetas,
+    'carrito'   => $efectos['carrito'] ?? null,
+    'pedido'    => $efectos['pedido'] ?? null,
+];
+
+$vista   = (array)($conversacion['vista'] ?? []);
+$vista[] = ['rol' => 'cliente', 'texto' => $mensaje];
+$vista[] = ['rol' => 'asistente'] + $respuesta;
+$vista   = array_slice($vista, -MAX_VISTA);
+
 $_SESSION[CLAVE_SESION] = $r['reiniciar']
-    ? ['mensajes' => [], 'turnos' => 0]
-    : ['mensajes' => $r['historial'], 'turnos' => (int)($conversacion['turnos'] ?? 0) + 1];
+    ? ['mensajes' => [], 'turnos' => 0, 'vista' => []]
+    : ['mensajes' => $r['historial'], 'turnos' => (int)($conversacion['turnos'] ?? 0) + 1, 'vista' => $vista];
 
 IaRegistro::anotar($pdo, 'cliente', 'conversacion', [
     'estado'         => $r['estado'] === 'rechazada' ? 'rechazada' : ($r['estado'] === 'error' ? 'error' : 'ok'),
@@ -102,12 +124,4 @@ IaRegistro::anotar($pdo, 'cliente', 'conversacion', [
     'ms'             => (int)((microtime(true) - $inicio) * 1000),
 ]);
 
-$efectos = $r['efectos'];
-responderJson([
-    'ok'        => true,
-    'texto'     => $r['texto'],
-    'productos' => $caja->tarjetas($r['texto']),
-    'carrito'   => $efectos['carrito'] ?? null,
-    'pedido'    => $efectos['pedido'] ?? null,
-    'aviso'     => $aviso,
-]);
+responderJson(['ok' => true, 'aviso' => $aviso] + $respuesta);
