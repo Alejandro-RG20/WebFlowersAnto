@@ -18,6 +18,10 @@ if (!defined('RAIZ')) {
 
 Rbac::exigirPanel();
 
+// La misma política de contenido que la tienda: el panel no carga nada de
+// fuera que ella no permita ya (fuentes, iconos, vistas previas de vídeos).
+cabeceraCSP();
+
 $tienda  = Ajustes::texto('nombre_tienda', 'Flowers Anto');
 $usuario = Auth::usuario();
 $seccion = $seccion ?? '';
