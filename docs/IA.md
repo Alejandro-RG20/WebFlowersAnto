@@ -52,19 +52,20 @@ las mismas clases y consultas preparadas que el resto de la tienda.
 | `assets/js/asistente.js`, `assets/js/admin-asistente.js` | Interfaces |
 | `db/migraciones/022_asistentes_ia.php` | Tablas `ai_action_logs` y `ai_pending_actions` |
 
-### Proveedores: Anthropic u OpenRouter
+### Proveedores: Anthropic, OpenRouter o Google Gemini
 
 El proveedor se elige en el `.env` con `AI_PROVEEDOR`, sin tocar código:
 
 ```
-                    agente.php  (formato interno: bloques de la Messages API)
-                          │
-                    cliente.php
-             ┌────────────┴────────────┐
-             ▼                         ▼
-   anthropic (por defecto)       openrouter / openai
-   /v1/messages, tal cual        traducción a Chat Completions
-   x-api-key                     /chat/completions, Authorization: Bearer
+                         agente.php  (formato interno: bloques de la Messages API)
+                               │
+                         cliente.php  (un solo cliente, un adaptador por proveedor)
+             ┌─────────────────┼──────────────────────────┐
+             ▼                 ▼                          ▼
+   anthropic (por defecto)   openrouter / openai        google
+   /v1/messages, tal cual    Chat Completions           Gemini generateContent
+   x-api-key                 /chat/completions          /v1beta/models/{modelo}:generateContent
+                             Authorization: Bearer      x-goog-api-key
 ```
 
 Todo lo que no es `cliente.php` trabaja siempre con **un solo formato
@@ -119,6 +120,58 @@ Consecuencias:
   por OpenRouter y por el proveedor del modelo. Los modelos gratuitos
   (`:free`) pueden guardar o usar las peticiones según la política de su
   proveedor: revisa la configuración de privacidad de la cuenta de OpenRouter.
+
+### Google Gemini
+
+Con `AI_PROVEEDOR=google`, `ClaudeCliente` traduce al formato de la API
+oficial de Gemini (`generateContent`) y de vuelta. El formato se verificó
+contra el documento de descubrimiento oficial de la API
+(`https://generativelanguage.googleapis.com/$discovery/rest?version=v1beta`,
+revisión 20260923) y contra la API real (respuesta a una clave no válida).
+
+| Formato interno | Gemini |
+|-----------------|--------|
+| `system` | `systemInstruction.parts[0].text`, una sola vez y completo |
+| `user` / `assistant` | `contents[]` con `role: user` / `role: model` y sus `parts` |
+| herramienta `{name, description, input_schema}` | `tools[0].functionDeclarations[]` con `parameters` (esquema `Schema` de Gemini: tipos en mayúsculas, solo los campos que admite; sin `additionalProperties`, que la API rechaza. Las herramientas sin argumentos van sin `parameters`) |
+| bloque `tool_use` | part `functionCall {id?, name, args}` |
+| bloque `tool_result` | part `functionResponse {id?, name, response}` en un contenido `user`, en el mismo orden; `response` es `{result: …}` o `{error: …}` |
+| respuesta: part `text` | bloque `text` |
+| respuesta: part `functionCall` | bloque `tool_use` (id de Gemini, o uno propio `fa_…` si no trae) |
+| `thoughtSignature` de una part | se guarda en el bloque (`firma_google`) y se devuelve intacta en la siguiente vuelta, como exige la API en los modelos con razonamiento |
+| `finishReason`: `MAX_TOKENS` / `SAFETY`, `RECITATION`, `BLOCKLIST`, `PROHIBITED_CONTENT`, `SPII` / `promptFeedback.blockReason` | `stop_reason`: `max_tokens` / `refusal` / `refusal` |
+| hay `functionCall` (Gemini termina en `STOP` también entonces) | `stop_reason: tool_use` |
+| `usageMetadata` | `input_tokens` (sin la caché), `output_tokens` (incluye el razonamiento), `cache_read_input_tokens` |
+
+- La clave viaja en la cabecera `x-goog-api-key`, **nunca en la URL**
+  (`?key=` quedaría en registros de proxies).
+- La URL se arma con `AI_BASE_URL` (la raíz del servicio) y el modelo de la
+  petición: el del panel puede ser otro que el de la tienda. Si alguien pone
+  `/v1beta` o `/v1beta/models` en `AI_BASE_URL`, o `models/` delante del
+  modelo, no se duplica.
+- Errores: una clave no válida Google la contesta con **400**
+  `API_KEY_INVALID` (no 401) → se trata como configuración. 403 → sin
+  permiso para la API. 404 → el modelo no existe o no admite
+  `generateContent` (lo dice el registro). 429 → cuota o límite. 500/503 →
+  saturado (un reintento). 504 → tiempo agotado.
+  `MALFORMED_FUNCTION_CALL`, `UNEXPECTED_TOOL_CALL`, `TOO_MANY_TOOL_CALLS` →
+  aviso amable sin ejecutar nada; `MISSING_THOUGHT_SIGNATURE` → se repite con
+  la conversación limpia.
+- **Sin respaldo automático entre proveedores.** Si Gemini falla, el
+  asistente responde con un aviso y la tienda sigue igual. No se reenvía a
+  otro proveedor: una herramienta podría ejecutarse dos veces (añadir al
+  carrito dos veces, por ejemplo). Cada llamada del modelo se ejecuta una
+  sola vez; los reintentos (429/5xx) son de la petición HTTP, antes de
+  ejecutar nada. Los cambios del panel necesitan confirmación humana y se
+  reclaman de forma atómica (no se pueden aplicar dos veces).
+- **Cuotas:** las del plan gratuito de Google cambian según el modelo, el
+  proyecto y las condiciones del servicio. El sistema no supone ninguna
+  cifra: un 429 se muestra como «muchas consultas a la vez» y la tienda sigue
+  funcionando. `AI_LIMITE_DIARIO` sigue siendo el tope **interno** de Flowers
+  Anto.
+- El modelo inicial es `gemini-2.5-flash-lite`. Se cambia solo con
+  `AI_MODEL` / `AI_MODEL_ADMIN`; `probar-api-real.php` comprueba contra la
+  API real que el modelo existe y admite `generateContent`.
 
 ### Por qué HTTP directo y no el SDK
 
@@ -346,10 +399,10 @@ Van en el `.env` del servidor (nunca en Git). Ver `.env.example`.
 
 | Variable | Por defecto | Para qué |
 |----------|-------------|----------|
-| `AI_PROVEEDOR` | `anthropic` | `anthropic`, `openrouter` u `openai` (otra API compatible con OpenAI). Un valor desconocido apaga los asistentes |
+| `AI_PROVEEDOR` | `anthropic` | `anthropic`, `openrouter`, `google` u `openai` (otra API compatible con OpenAI). Un valor desconocido apaga los asistentes |
 | `AI_API_KEY` | vacío | Clave del proveedor elegido. Vacía = asistentes apagados |
-| `AI_BASE_URL` | la del proveedor | Vacía: `https://api.anthropic.com` o `https://openrouter.ai/api/v1`. Solo `https` (salvo `http://127.0.0.1` en desarrollo, para el simulador) |
-| `AI_MODEL` | `claude-opus-5` con Anthropic; **obligatorio** con OpenRouter | Modelo de la tienda (y del panel si no se define el siguiente). Con OpenRouter, su identificador: `autor/modelo:variante`. Si falta o no es válido, los asistentes se apagan (no se usa `claude-opus-5` a escondidas) |
+| `AI_BASE_URL` | la del proveedor | Vacía: `https://api.anthropic.com`, `https://openrouter.ai/api/v1` o `https://generativelanguage.googleapis.com`. Solo `https` (salvo `http://127.0.0.1` en desarrollo, para el simulador) |
+| `AI_MODEL` | `claude-opus-5` con Anthropic; **obligatorio** con OpenRouter y Google | Modelo de la tienda (y del panel si no se define el siguiente). Con OpenRouter, su identificador: `autor/modelo:variante`; con Google, p. ej. `gemini-2.5-flash-lite` (minúsculas, números, punto y guion). Si falta o no es válido, los asistentes se apagan (no se usa `claude-opus-5` a escondidas) |
 | `AI_MODEL_ADMIN` | igual que `AI_MODEL` | Modelo del panel |
 | `AI_CLIENTE_ACTIVO` | `1` | `0` apaga solo la asesora de la tienda |
 | `AI_ADMIN_ACTIVO` | `1` | `0` apaga solo el AI Manager |
@@ -383,9 +436,23 @@ AI_TIMEOUT=40
 AI_LIMITE_DIARIO=50
 ```
 
-Después, `php tests/ia/probar-api-real.php`. Al volver a Anthropic, deja
-`AI_BASE_URL` vacía (o con la de Anthropic): si se queda la de OpenRouter, las
-peticiones irían al sitio equivocado.
+Google Gemini:
+
+```
+AI_PROVEEDOR=google
+AI_API_KEY=<clave de Google AI Studio>
+AI_BASE_URL=https://generativelanguage.googleapis.com
+AI_MODEL=gemini-2.5-flash-lite
+AI_MODEL_ADMIN=gemini-2.5-flash-lite
+AI_CLIENTE_ACTIVO=1
+AI_ADMIN_ACTIVO=1
+AI_TIMEOUT=40
+AI_LIMITE_DIARIO=50
+```
+
+Después, `php tests/ia/probar-api-real.php`. Al cambiar de proveedor, cambia
+también `AI_BASE_URL` (o déjala vacía para usar la del proveedor): si se
+queda la de otro, las peticiones irían al sitio equivocado.
 
 ### Dos límites distintos: no confundirlos
 
@@ -579,7 +646,9 @@ en la tienda, o bajar `AI_LIMITE_DIARIO`.
 | «El asistente descansa por hoy» | Se alcanzó `AI_LIMITE_DIARIO` |
 | Una propuesta dice «No se aplicó» | Alguien cambió el dato entre la propuesta y la confirmación, o el usuario ya no tiene el permiso. Pedirla de nuevo |
 | Una propuesta dice «Caducó» | Pasaron 15 minutos sin confirmar. Pedirla de nuevo |
-| El servidor no llega a la API | El hosting bloquea la salida HTTPS hacia `api.anthropic.com` u `openrouter.ai`; hay que pedir que la permitan |
+| El servidor no llega a la API | El hosting bloquea la salida HTTPS hacia `api.anthropic.com`, `openrouter.ai` o `generativelanguage.googleapis.com`; hay que pedir que la permitan |
+| Con Google: «La clave de la IA no es válida» | El registro dice `API_KEY_INVALID` (clave mal copiada) o `403` (la clave no tiene habilitada la API de Gemini). Crear la clave en Google AI Studio |
+| Con Google: «No puedo responder ahora mismo» y en el registro `404 … revisa AI_MODEL` | El modelo de `AI_MODEL` no existe o no admite `generateContent`. `probar-api-real.php` lo comprueba |
 
 ---
 

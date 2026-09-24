@@ -127,7 +127,7 @@ Se leen en este orden: variable de entorno real → `.env` → `config.local.php
 | `MAIL_REMITENTE`, `MAIL_REMITENTE_NOMBRE` | Remitente de los correos |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_SEGURIDAD`, `SMTP_USUARIO`, `SMTP_PASSWORD` | Servidor SMTP |
 | `MYSQLDUMP_BIN` | Ruta a `mysqldump`. Si falta, se usa el volcador en PHP |
-| `AI_API_KEY`, `AI_MODEL`, `AI_MODEL_ADMIN`, `AI_CLIENTE_ACTIVO`, `AI_ADMIN_ACTIVO`, `AI_TIMEOUT`, `AI_LIMITE_DIARIO` | Asistentes de IA (opcionales). Ver [`docs/IA.md`](docs/IA.md) |
+| `AI_PROVEEDOR`, `AI_API_KEY`, `AI_BASE_URL`, `AI_MODEL`, `AI_MODEL_ADMIN`, `AI_CLIENTE_ACTIVO`, `AI_ADMIN_ACTIVO`, `AI_TIMEOUT`, `AI_LIMITE_DIARIO`, `AI_APP_URL`, `AI_APP_NOMBRE` | Asistentes de IA (opcionales): Anthropic, OpenRouter o Google Gemini. Ver [`docs/IA.md`](docs/IA.md) |
 
 `.env` y `config.local.php` **nunca** se suben al repositorio.
 
@@ -696,7 +696,7 @@ No hay proceso de build: los archivos se sirven tal cual.
 
 ## Asistentes de IA
 
-Dos asistentes opcionales con Claude: **Massiel**, la asesora floral de la tienda
+Dos asistentes opcionales con IA (Anthropic, OpenRouter o Google Gemini, a elegir en el `.env`): **Massiel**, la asesora floral de la tienda
 (recomienda, resuelve dudas, añade al carrito y consulta pedidos) y el
 **AI Manager** del panel (ventas, pedidos, inventario, y cambios que siempre
 confirma una persona). La IA nunca toca la base de datos directamente: solo

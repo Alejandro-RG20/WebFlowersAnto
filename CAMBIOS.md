@@ -606,3 +606,22 @@ completo en [`docs/IA.md`](docs/IA.md).
 - `022_asistentes_ia`: tablas `ai_action_logs` y `ai_pending_actions`.
 
 Las dos solo añaden. Sin dependencias nuevas.
+
+---
+
+## 15. Google Gemini como tercer proveedor (FlowersAntoIAGemini_v.02)
+
+Rama `FlowersAntoIAGemini_v.02`, creada desde `FlowersAntoIA_v0.1`.
+
+- `AI_PROVEEDOR=google` usa Gemini por su API oficial (`generateContent`),
+  con Function Calling, a través del mismo cliente y del mismo agente que
+  Anthropic y OpenRouter. Cambiar de proveedor es cambiar el `.env`.
+- El adaptador traduce el formato interno a `contents`/`parts`,
+  `functionDeclarations`, `functionCall`/`functionResponse` y de vuelta,
+  conserva las firmas de razonamiento y los ids de las llamadas, y adapta el
+  esquema de parámetros sin tocar las herramientas.
+- Mismas herramientas, permisos, guardia de precios, propuestas con
+  confirmación humana, auditoría e historial. Sin respaldo automático entre
+  proveedores (evita ejecutar dos veces una herramienta).
+- Sin dependencias nuevas y sin cambios en la base de datos, la interfaz, las
+  herramientas ni los endpoints.
