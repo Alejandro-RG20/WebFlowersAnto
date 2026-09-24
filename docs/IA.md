@@ -4,7 +4,7 @@ Guía técnica de los dos asistentes con inteligencia artificial y de los
 cambios de seguridad que se hicieron al integrarlos. Rama: `FlowersAntoIA_v0.1`
 (parte de `FlowersAnto_v.10`).
 
-- **Asesora floral** (tienda): ayuda al cliente a elegir, responde dudas de
+- **Massiel, asesora floral** (tienda): ayuda al cliente a elegir, responde dudas de
   entregas, pagos, horarios y políticas, añade al carrito y consulta pedidos.
 - **AI Manager** (panel): responde con datos del negocio al personal
   autorizado y *prepara* cambios que una persona confirma.
@@ -149,19 +149,43 @@ legítima, la API la repite en otro modelo en la misma llamada.
 
 ---
 
-## 2. Asesora floral (tienda)
+## 2. Massiel, asesora floral (tienda)
+
+La asesora se llama **Massiel**: así se presenta (instrucciones en
+`IaHerramientasCliente::instrucciones()`) y así aparece en la interfaz. Si le
+preguntan si es una persona, dice que es una asistente virtual de la tienda.
 
 ### Qué se ve
 
-- Botón con el icono de chispa en la barra superior (en pantallas de hasta
-  414 px pasa al menú, para no tapar el nombre de la tienda) y una invitación
-  sobre los filtros del catálogo.
+- **Móvil y tableta (hasta 900 px, iOS y Android):** botón flotante rosa con
+  la flor, justo encima del de WhatsApp, con el mismo tamaño (60 px) y el
+  mismo latido. Al cargar la página muestra unos segundos la etiqueta
+  «Massiel · Asesora floral» y luego queda solo el círculo, para no tapar el
+  contenido. Respeta la zona segura del iPhone y sube con el aviso de cookies.
+  La barra ya no lleva botón de la asesora: el nombre de la tienda no se corta
+  (antes, en un iPhone de 430 px, sí).
+- **Escritorio (más de 900 px):** botón «Massiel» en la barra superior.
+- En el catálogo, una invitación sobre los filtros.
 - Panel lateral en escritorio y hoja a pantalla completa en móvil. No aparece
   en `checkout.php` para no distraer del pago.
 - Las recomendaciones llegan como tarjetas con foto, precio y el mismo
   formulario «Agregar» del catálogo. Enlaces e imágenes los arma el servidor.
 - Todo se pinta con `textContent`: el texto del modelo nunca se interpreta
   como HTML.
+
+### Mientras espera la respuesta
+
+- Los puntos de «escribiendo» explican qué pasa a los 6, 15 y 30 segundos
+  («Massiel está revisando el catálogo…», «Sigue buscando…», «Está tardando
+  más de lo normal…»).
+- El navegador espera como mucho `AI_TIMEOUT` + 20 segundos. Nunca se queda
+  cargando para siempre: termina con la respuesta o con un aviso que ofrece
+  «Reintentar» y WhatsApp.
+- Si la conexión se corta (datos móviles, pantalla bloqueada), el servidor
+  termina igual y guarda la respuesta (`ignore_user_abort`). El navegador la
+  busca en la conversación guardada, por la referencia de ese mensaje, antes
+  de dar el error.
+- Si la respuesta llega con el chat cerrado, el botón muestra un punto verde.
 
 ### Herramientas
 
@@ -548,6 +572,8 @@ en la tienda, o bajar `AI_LIMITE_DIARIO`.
 | No aparecen con `AI_PROVEEDOR=openrouter` | Falta `AI_MODEL` o no es un identificador válido. El registro del servidor lo dice (una vez por hora): «IA apagada por configuración…» |
 | «La clave de la IA no es válida» | Clave mal copiada o revocada, sin acceso al modelo de `AI_MODEL` o, con OpenRouter, **sin créditos (402)**; el registro lo indica |
 | La asesora contesta sin mirar el catálogo | Con OpenRouter: el modelo no admite herramientas o las usa mal. Cambiar `AI_MODEL` por uno con «Tools» |
+| Massiel tarda mucho en contestar | Casi siempre es el modelo: los gratuitos grandes (p. ej. `…-ultra-…:free`) tienen cola y razonan antes de responder, y cada mensaje necesita 2 o más llamadas. Probar un modelo más rápido que admita herramientas, o uno de pago. Ver la duración real: `SELECT created_at, estado, detalle, ms FROM ai_action_logs WHERE agente='cliente' AND accion='conversacion' ORDER BY id DESC LIMIT 20;` (`detalle` = `tiempo` si se cortó) |
+| «Estoy tardando más de la cuenta» | Se agotó `AI_TIMEOUT` antes de que el modelo terminara. Subirlo (p. ej. 60) si el hosting lo permite, o usar un modelo más rápido |
 | «Tengo muchas consultas a la vez» | El proveedor devolvió 429. Con el plan gratuito de OpenRouter: 20 peticiones por minuto y el tope diario |
 | «No puede responder ahora» | La API no respondió a tiempo o está saturada. Ver el log de PHP: línea `Flowers Anto — IA: HTTP …` (Anthropic) o `Flowers Anto — IA (openrouter): HTTP …` |
 | «El asistente descansa por hoy» | Se alcanzó `AI_LIMITE_DIARIO` |

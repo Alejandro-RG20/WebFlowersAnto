@@ -696,7 +696,7 @@ No hay proceso de build: los archivos se sirven tal cual.
 
 ## Asistentes de IA
 
-Dos asistentes opcionales con Claude: la **asesora floral** de la tienda
+Dos asistentes opcionales con Claude: **Massiel**, la asesora floral de la tienda
 (recomienda, resuelve dudas, añade al carrito y consulta pedidos) y el
 **AI Manager** del panel (ventas, pedidos, inventario, y cambios que siempre
 confirma una persona). La IA nunca toca la base de datos directamente: solo
