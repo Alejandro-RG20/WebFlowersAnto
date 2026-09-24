@@ -25,7 +25,7 @@ Navegador ──► admin/asistente-api.php ┤            (panel)
                ┌──────────────────────┼─────────────────────────┐
                ▼                      ▼                         ▼
       ClaudeCliente (cURL)   IaHerramientasCliente      IaHerramientasAdmin
-      api.anthropic.com      (solo lectura pública +    (lectura con permisos +
+      Anthropic u OpenRouter (solo lectura pública +    (lectura con permisos +
                               carrito del visitante)     propuestas)
                                       │                         │
                                       ▼                         ▼
@@ -41,7 +41,7 @@ las mismas clases y consultas preparadas que el resto de la tienda.
 | Archivo | Qué hace |
 |---------|----------|
 | `includes/lib/ia/config.php` | `IaConfig`: lee las variables `AI_*`, decide si cada asistente está activo |
-| `includes/lib/ia/cliente.php` | `ClaudeCliente`: HTTP a la Messages API; tiempo máximo, un reintento en 429/5xx, errores como `IaError` |
+| `includes/lib/ia/cliente.php` | `ClaudeCliente`: HTTP al proveedor (Anthropic u OpenRouter) con el adaptador de formatos; tiempo máximo, un reintento en 429/5xx, errores como `IaError` |
 | `includes/lib/ia/agente.php` | `IaAgente` (bucle), `IaCaja` (interfaz de herramientas), `IaEntrada` (validación), `IaSesion`, `IaGuardia` |
 | `includes/lib/ia/herramientas_cliente.php` | Herramientas de la asesora |
 | `includes/lib/ia/herramientas_admin.php` | Herramientas del AI Manager |
@@ -51,6 +51,74 @@ las mismas clases y consultas preparadas que el resto de la tienda.
 | `admin/asistente-api.php`, `admin/asistente.php` | Endpoint y página del panel |
 | `assets/js/asistente.js`, `assets/js/admin-asistente.js` | Interfaces |
 | `db/migraciones/022_asistentes_ia.php` | Tablas `ai_action_logs` y `ai_pending_actions` |
+
+### Proveedores: Anthropic u OpenRouter
+
+El proveedor se elige en el `.env` con `AI_PROVEEDOR`, sin tocar código:
+
+```
+                    agente.php  (formato interno: bloques de la Messages API)
+                          │
+                    cliente.php
+             ┌────────────┴────────────┐
+             ▼                         ▼
+   anthropic (por defecto)       openrouter / openai
+   /v1/messages, tal cual        traducción a Chat Completions
+   x-api-key                     /chat/completions, Authorization: Bearer
+```
+
+Todo lo que no es `cliente.php` trabaja siempre con **un solo formato
+interno**, el de la Messages API (bloques `text`, `tool_use`, `tool_result`).
+Con OpenRouter, `ClaudeCliente` traduce en los dos sentidos:
+
+| Formato interno | Chat Completions (OpenRouter) |
+|-----------------|-------------------------------|
+| `system` (bloques) | primer mensaje `{role: system}` con las instrucciones completas |
+| herramienta `{name, description, input_schema}` | `{type: function, function: {name, description, parameters}}` (el mismo JSON Schema) |
+| bloque `tool_use` del asistente | `tool_calls[]` con `arguments` como texto JSON |
+| bloques `tool_result` (uno por herramienta) | un mensaje `{role: tool, tool_call_id}` por resultado, en el mismo orden; `is_error` pasa al texto (`ERROR: …`) |
+| `thinking`, `cache_control`, `output_config`, `fallbacks` | no se envían (son de Anthropic) |
+| respuesta: `choices[0].message.content` | bloque `text` |
+| respuesta: `message.tool_calls[]` | bloques `tool_use` con los argumentos decodificados |
+| `finish_reason`: `length` / `content_filter` (o `message.refusal`) | `stop_reason`: `max_tokens` / `refusal` |
+| hay `tool_calls` (aunque `finish_reason` diga `stop`) | `stop_reason: tool_use` |
+| `usage.prompt_tokens` − `cached_tokens`, `completion_tokens` | `input_tokens`, `output_tokens`, `cache_read_input_tokens` |
+
+Consecuencias:
+
+- **El agente, las herramientas, los permisos, las propuestas, la guardia de
+  precios y el historial de la sesión son los mismos con los dos proveedores.**
+- El historial guardado en `$_SESSION['ia_cliente']` y `$_SESSION['ia_admin']`
+  está siempre en el formato interno: se puede cambiar de proveedor con
+  conversaciones abiertas. Si una conversación antigua no la acepta la API
+  (400), se repite una vez solo con el mensaje nuevo y se sigue limpia.
+- **Argumentos inválidos**: si un modelo manda `arguments` que no son un
+  objeto JSON (truncados, texto suelto, una lista), la herramienta **no se
+  ejecuta**; el modelo recibe un error y puede reintentarlo. Vale también
+  para Anthropic.
+- Con Anthropic todo sigue como antes (mismas cabeceras, caché, esfuerzo y
+  `fallbacks`). Al añadir el adaptador apareció y se corrigió un fallo que ya
+  existía: una herramienta sin argumentos (`ver_carrito`, `mis_pedidos`,
+  `consultar_promociones`, `listar_categorias`) se reenviaba con `"input": []`,
+  que la API real rechaza con un 400. Ahora va como `{}`.
+
+**Qué hay que saber de OpenRouter:**
+
+- **El modelo tiene que admitir herramientas (*tool calling*).** Sin eso la
+  asesora no puede consultar el catálogo. En openrouter.ai/models se filtra por
+  «Tools». Si no las admite, `probar-api-real.php` lo detecta.
+- Las instrucciones están escritas y probadas para Claude. Otro modelo puede
+  seguirlas peor. La guardia de precios, los permisos y la confirmación
+  humana no dependen del modelo; lo que sí depende es la calidad de las
+  respuestas y que no invente datos distintos de precios (horarios,
+  políticas). Si hace falta el mismo comportamiento, se puede usar un modelo
+  de Anthropic a través de OpenRouter (`anthropic/…`).
+- Sin `cache_control`, cada vuelta paga la entrada completa (con modelos de
+  pago).
+- Los mensajes de los clientes y, en el panel, los nombres de clientes pasan
+  por OpenRouter y por el proveedor del modelo. Los modelos gratuitos
+  (`:free`) pueden guardar o usar las peticiones según la política de su
+  proveedor: revisa la configuración de privacidad de la cuenta de OpenRouter.
 
 ### Por qué HTTP directo y no el SDK
 
@@ -204,7 +272,8 @@ SELECT agente, COUNT(*) llamadas, SUM(tokens_entrada) entrada,
 | CSRF | Token obligatorio en los dos endpoints |
 | Abuso y coste | Límites: 20 mensajes/10 min por sesión, 40 por IP, tope diario de la tienda (`AI_LIMITE_DIARIO`); 60/10 min por persona en el panel y 30 confirmaciones/10 min; 30 cambios de carrito/10 min |
 | Bucles del modelo | Máximo 6 pasos de herramienta por mensaje, 14 turnos por conversación, historial acotado |
-| Exposición de la clave | Solo en `.env`, solo en la cabecera `x-api-key`, nunca en logs, respuestas ni JavaScript. `AI_BASE_URL` solo acepta `https` |
+| Exposición de la clave | Solo en `.env`, solo en su cabecera (`x-api-key` con Anthropic, `Authorization: Bearer` con OpenRouter), nunca en logs, respuestas ni JavaScript; si un proveedor la repitiera en un error, el registro la tapa. Una clave con saltos de línea se descarta (no permite inyectar cabeceras). `AI_BASE_URL` solo acepta `https` y las redirecciones no se siguen |
+| Argumentos rotos del modelo | Si no son un objeto JSON válido, la herramienta no se ejecuta |
 | API caída o lenta | Tiempo máximo por respuesta, un reintento, mensaje amable. El resto del sitio no depende de la IA |
 
 ### Otros cambios de seguridad de esta versión
@@ -253,14 +322,64 @@ Van en el `.env` del servidor (nunca en Git). Ver `.env.example`.
 
 | Variable | Por defecto | Para qué |
 |----------|-------------|----------|
-| `AI_API_KEY` | vacío | Clave de la API de Anthropic. Vacía = asistentes apagados |
-| `AI_MODEL` | `claude-opus-5` | Modelo de la tienda (y del panel si no se define el siguiente) |
+| `AI_PROVEEDOR` | `anthropic` | `anthropic`, `openrouter` u `openai` (otra API compatible con OpenAI). Un valor desconocido apaga los asistentes |
+| `AI_API_KEY` | vacío | Clave del proveedor elegido. Vacía = asistentes apagados |
+| `AI_BASE_URL` | la del proveedor | Vacía: `https://api.anthropic.com` o `https://openrouter.ai/api/v1`. Solo `https` (salvo `http://127.0.0.1` en desarrollo, para el simulador) |
+| `AI_MODEL` | `claude-opus-5` con Anthropic; **obligatorio** con OpenRouter | Modelo de la tienda (y del panel si no se define el siguiente). Con OpenRouter, su identificador: `autor/modelo:variante`. Si falta o no es válido, los asistentes se apagan (no se usa `claude-opus-5` a escondidas) |
 | `AI_MODEL_ADMIN` | igual que `AI_MODEL` | Modelo del panel |
 | `AI_CLIENTE_ACTIVO` | `1` | `0` apaga solo la asesora de la tienda |
 | `AI_ADMIN_ACTIVO` | `1` | `0` apaga solo el AI Manager |
 | `AI_TIMEOUT` | `40` | Segundos máximos por respuesta (10–90) |
-| `AI_LIMITE_DIARIO` | `1500` | Mensajes a la asesora por día en toda la tienda; techo de gasto (0 = sin tope) |
-| `AI_BASE_URL` | `https://api.anthropic.com` | Solo para pruebas locales (ver §8). Solo acepta `https`, salvo `http://127.0.0.1` en desarrollo |
+| `AI_LIMITE_DIARIO` | `1500` (el `.env.example` propone `50`) | Tope **interno** de Flowers Anto: mensajes de clientes a la asesora por día en toda la tienda (0 = sin tope). Ver abajo |
+| `AI_APP_URL`, `AI_APP_NOMBRE` | vacíos | Opcionales, solo OpenRouter: se envían como `HTTP-Referer` y `X-Title` para identificar la tienda en su panel. Datos públicos, nunca secretos |
+
+### Cambiar de proveedor
+
+Anthropic:
+
+```
+AI_PROVEEDOR=anthropic
+AI_API_KEY=<clave de Anthropic>
+AI_BASE_URL=
+AI_MODEL=claude-opus-5
+AI_MODEL_ADMIN=
+```
+
+OpenRouter:
+
+```
+AI_PROVEEDOR=openrouter
+AI_BASE_URL=https://openrouter.ai/api/v1
+AI_API_KEY=<clave de OpenRouter>
+AI_MODEL=nvidia/nemotron-3-ultra-550b-a55b:free
+AI_MODEL_ADMIN=nvidia/nemotron-3-ultra-550b-a55b:free
+AI_CLIENTE_ACTIVO=1
+AI_ADMIN_ACTIVO=1
+AI_TIMEOUT=40
+AI_LIMITE_DIARIO=50
+```
+
+Después, `php tests/ia/probar-api-real.php`. Al volver a Anthropic, deja
+`AI_BASE_URL` vacía (o con la de Anthropic): si se queda la de OpenRouter, las
+peticiones irían al sitio equivocado.
+
+### Dos límites distintos: no confundirlos
+
+- **`AI_LIMITE_DIARIO` es de Flowers Anto.** Cuenta *mensajes de clientes* a la
+  asesora al día, en toda la tienda. El AI Manager del panel no cuenta aquí
+  (tiene su propio límite por persona: 60 cada 10 minutos).
+- **El límite del proveedor es otro.** Según la documentación de OpenRouter,
+  hoy su plan gratuito admite unas **50 peticiones al día** a modelos `:free`
+  y **20 por minuto** (puede cambiar; consulta su página de límites). Cuenta
+  *peticiones a la API*, no mensajes: cada mensaje de un cliente hace como
+  mínimo 1 petición y normalmente 2 o 3 (pregunta → herramienta → respuesta),
+  hasta 6. Las pruebas del panel y `probar-api-real.php` también gastan.
+
+Con el plan gratuito de OpenRouter, `AI_LIMITE_DIARIO=50` no impide llegar
+antes al límite del proveedor: unos 20 mensajes con herramientas bastan. Cuando
+OpenRouter corta (429), la asesora responde «Tengo muchas consultas a la vez…» y
+la tienda sigue funcionando. Para evitarlo: bajar `AI_LIMITE_DIARIO` a ~15–20,
+o usar créditos o un modelo de pago.
 
 ---
 
@@ -294,10 +413,17 @@ asistente está apagado o la API no responde.
 ## 8. Ejecución local y pruebas
 
 Con XAMPP o `php -S`, igual que el resto del sitio. Para probar los
-asistentes **sin gastar ni una llamada real** hay un servidor que imita la
-Messages API y comprueba que las peticiones cumplan sus reglas (cabeceras,
-alternancia de roles, emparejamiento `tool_use`/`tool_result`, firmas de los
-bloques de razonamiento…):
+asistentes **sin gastar ni una llamada real** hay un servidor que imita las
+dos APIs y rechaza (400) las peticiones que no cumplan sus reglas:
+
+- Messages API (`/v1/messages`): cabeceras, alternancia de roles,
+  emparejamiento `tool_use`/`tool_result`, `input` como objeto, firmas de los
+  bloques de razonamiento…
+- Chat Completions, como OpenRouter (`/api/v1/chat/completions`): `Bearer`,
+  nada propio de Anthropic, herramientas `type: function`, `arguments` como
+  texto con un objeto JSON, cada `tool_call` contestado por su mensaje `tool`
+  en orden… Una de cada dos respuestas con herramientas termina en
+  `finish_reason: stop`, como hacen algunos modelos.
 
 ```bash
 node tests/ia/servidor-simulado.js 8799
@@ -308,13 +434,22 @@ y en el `.env` local (nunca en el servidor):
 ```
 APP_ENTORNO=dev
 AI_API_KEY=cualquier-texto-local
+# Anthropic simulado:
+AI_PROVEEDOR=anthropic
 AI_BASE_URL=http://127.0.0.1:8799
+# …o OpenRouter simulado:
+# AI_PROVEEDOR=openrouter
+# AI_BASE_URL=http://127.0.0.1:8799/api/v1
+# AI_MODEL=nvidia/nemotron-3-ultra-550b-a55b:free
 ```
 
 Frases que activan casos especiales del simulador: `__error500__`,
 `__429__`, `__401__`, `__lento__`, `__bucle__`, `__rechazo__`, `__max__`,
 `__inventa__` (intenta dar un precio falso), `__herramienta_prohibida__`,
-`__otro_pedido__`, `__basura__`.
+`__otro_pedido__`, `__basura__`, `__varias__` (dos herramientas en un turno).
+Solo en modo OpenRouter: `__402__`, `__args_rotos__`, `__args_lista__`,
+`__stop_con_herramienta__`, `__length_con_herramienta__`, `__refusal_campo__`,
+`__vacio__`, `__error_en_200__`, `__sin_choices__`, `__eco_clave__`.
 
 ### Prueba con la API real (una vez, en el servidor)
 
@@ -322,9 +457,13 @@ Frases que activan casos especiales del simulador: `__error500__`,
 php tests/ia/probar-api-real.php
 ```
 
-Comprueba la clave, el modelo y la conexión, y hace una pregunta de catálogo
-que obliga a usar una herramienta. Solo lee; cuesta céntimos. La carpeta
-`tests/` no es accesible desde el navegador.
+Sirve con los dos proveedores. Comprueba la configuración y hace cuatro
+pruebas: un mensaje simple, «¿Cuánto cuesta la Gerbera?» (tiene que consultar
+el catálogo sin que la guardia bloquee la respuesta), «¿Qué productos tienen
+disponibles?» y añadir un producto al carrito (el de ese proceso de consola, que
+no se guarda). Solo lee. Son unas 6–10 peticiones: con el plan gratuito de
+OpenRouter cuentan para su límite diario. La carpeta `tests/` no es accesible
+desde el navegador.
 
 ### Pruebas realizadas en esta versión
 
@@ -360,12 +499,11 @@ es `probar-api-real.php`.
    Aplica la 021 (`usuarios.sesion_version`) y la 022 (tablas de IA). Las dos
    solo añaden; no tocan datos existentes. Si el código sube antes que las
    migraciones, la tienda sigue funcionando y los asistentes no aparecen.
-3. Crear la clave en <https://console.anthropic.com> → API Keys. Recomendado:
-   un *workspace* propio para la tienda con un límite de gasto mensual.
-4. Añadir al `.env` del servidor:
-   ```
-   AI_API_KEY=sk-ant-…
-   ```
+3. Crear la clave del proveedor: Anthropic en <https://console.anthropic.com>
+   (recomendado: un *workspace* propio con límite de gasto) u OpenRouter en
+   <https://openrouter.ai/keys> (recomendado: límite de crédito en la clave).
+4. Añadir al `.env` del servidor la configuración del proveedor (§6,
+   «Cambiar de proveedor») con la clave en `AI_API_KEY`.
 5. En el servidor: `php tests/ia/probar-api-real.php`. Si no hay consola, abrir
    el panel → Asistente IA y preguntar «¿Cuántos pedidos tenemos pendientes?».
 6. Probar la asesora en la tienda con una pregunta de catálogo.
@@ -397,19 +535,27 @@ en la tienda, o bajar `AI_LIMITE_DIARIO`.
 |---------|------------------|
 | No aparece el botón de la asesora | Falta `AI_API_KEY`, `AI_CLIENTE_ACTIVO=0` o la migración 022 sin aplicar. En `checkout.php` no aparece a propósito |
 | «El asistente no está configurado» en el panel | Igual que arriba, con `AI_ADMIN_ACTIVO` |
-| «La clave de la IA no es válida» | Clave mal copiada, revocada o sin acceso al modelo de `AI_MODEL` |
-| «No puede responder ahora» | La API no respondió a tiempo o está saturada. Ver `storage/logs` / log de PHP: línea `Flowers Anto — IA: HTTP …` |
+| No aparecen con `AI_PROVEEDOR=openrouter` | Falta `AI_MODEL` o no es un identificador válido. El registro del servidor lo dice (una vez por hora): «IA apagada por configuración…» |
+| «La clave de la IA no es válida» | Clave mal copiada o revocada, sin acceso al modelo de `AI_MODEL` o, con OpenRouter, **sin créditos (402)**; el registro lo indica |
+| La asesora contesta sin mirar el catálogo | Con OpenRouter: el modelo no admite herramientas o las usa mal. Cambiar `AI_MODEL` por uno con «Tools» |
+| «Tengo muchas consultas a la vez» | El proveedor devolvió 429. Con el plan gratuito de OpenRouter: 20 peticiones por minuto y el tope diario |
+| «No puede responder ahora» | La API no respondió a tiempo o está saturada. Ver el log de PHP: línea `Flowers Anto — IA: HTTP …` (Anthropic) o `Flowers Anto — IA (openrouter): HTTP …` |
 | «El asistente descansa por hoy» | Se alcanzó `AI_LIMITE_DIARIO` |
 | Una propuesta dice «No se aplicó» | Alguien cambió el dato entre la propuesta y la confirmación, o el usuario ya no tiene el permiso. Pedirla de nuevo |
 | Una propuesta dice «Caducó» | Pasaron 15 minutos sin confirmar. Pedirla de nuevo |
-| El servidor no llega a la API | El hosting bloquea la salida HTTPS hacia `api.anthropic.com`; hay que pedir que la permitan |
+| El servidor no llega a la API | El hosting bloquea la salida HTTPS hacia `api.anthropic.com` u `openrouter.ai`; hay que pedir que la permitan |
 
 ---
 
 ## 12. Riesgos y pendientes conocidos
 
-- **No hay prueba con la API real** desde este entorno: hacerla al desplegar
-  (§9, paso 5).
+- **No hay prueba con la API real** desde este entorno (sin clave, y la red
+  de desarrollo no llega a `openrouter.ai`): hacerla al desplegar (§9, paso 5).
+  En concreto, no está comprobado que `nvidia/nemotron-3-ultra-550b-a55b:free`
+  exista en OpenRouter con ese nombre, que admita herramientas ni cómo sigue
+  las instrucciones.
+- **Límite del plan gratuito de OpenRouter** por debajo de `AI_LIMITE_DIARIO`
+  (ver §6): la asesora dejará de responder antes de lo que marca el tope interno.
 - **Zona horaria de MySQL**: el panel (desde antes de esta versión) y el AI
   Manager usan `CURDATE()`/`NOW()` de MySQL para «hoy». Si el MySQL del hosting
   está en UTC y la tienda en Managua (UTC−6), entre las 18:00 y las 24:00 «hoy»
