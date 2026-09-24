@@ -55,6 +55,25 @@ final class ClaudeCliente
     private const BETA_RESPALDO = 'server-side-fallback-2026-07-01';
 
     /**
+     * Causa del último fallo, tal como va al registro del servidor (sin la
+     * clave). La usan el registro de IA y la página de diagnóstico del panel
+     * para decir exactamente qué pasó, en hostings sin acceso al log de PHP.
+     */
+    private static string $ultimoDetalle = '';
+
+    public static function ultimoDetalle(): string
+    {
+        return self::$ultimoDetalle;
+    }
+
+    /** Anota la causa de un fallo y la manda al registro del servidor. */
+    private static function anotar(string $linea): void
+    {
+        self::$ultimoDetalle = mb_substr(trim($linea), 0, 400);
+        error_log('Flowers Anto — IA' . $linea);
+    }
+
+    /**
      * Envía una petición al proveedor configurado y devuelve la respuesta en
      * el formato de la Messages API (content, stop_reason, usage).
      *
@@ -66,8 +85,10 @@ final class ClaudeCliente
         if (!function_exists('curl_init')) {
             throw new IaError('config', 'La extensión cURL de PHP no está disponible.');
         }
+        self::$ultimoDetalle = '';
         $clave = IaConfig::clave();
         if ($clave === '') {
+            self::$ultimoDetalle = 'Falta AI_API_KEY o tiene caracteres no válidos.';
             throw new IaError('config', 'Falta AI_API_KEY.');
         }
         return match (IaConfig::proveedor()) {
@@ -107,6 +128,8 @@ final class ClaudeCliente
                 self::post(IaConfig::urlPeticion(), self::cabecerasAnthropic($clave, $betas), $cuerpo, $quedan);
 
             if ($errorCurl !== '') {
+                self::$ultimoDetalle = 'Sin conexión con ' . (parse_url(IaConfig::urlPeticion(), PHP_URL_HOST) ?: 'la API')
+                    . ': ' . mb_substr($errorCurl, 0, 200);
                 throw new IaError(str_contains($errorCurl, 'timed out') ? 'tiempo' : 'red', $errorCurl);
             }
             if ($estado === 200) {
@@ -136,7 +159,7 @@ final class ClaudeCliente
                 continue;
             }
 
-            error_log(sprintf('Flowers Anto — IA: HTTP %d %s %s', $estado, $tipo, $texto));
+            self::anotar(sprintf(': HTTP %d %s %s', $estado, $tipo, $texto));
             throw new IaError(match (true) {
                 $estado === 401, $estado === 403 => 'config',
                 $estado === 429                  => 'limite',
@@ -219,6 +242,8 @@ final class ClaudeCliente
                 self::post(IaConfig::urlPeticion(), $cabeceras, $peticion, $quedan);
 
             if ($errorCurl !== '') {
+                self::$ultimoDetalle = 'Sin conexión con ' . (parse_url(IaConfig::urlPeticion(), PHP_URL_HOST) ?: 'la API')
+                    . ': ' . mb_substr($errorCurl, 0, 200);
                 throw new IaError(str_contains($errorCurl, 'timed out') ? 'tiempo' : 'red', $errorCurl);
             }
 
@@ -244,7 +269,7 @@ final class ClaudeCliente
                 continue;
             }
 
-            error_log(sprintf('Flowers Anto — IA (%s): HTTP %d %s %s%s', IaConfig::proveedor(), $estado,
+            self::anotar(sprintf(' (%s): HTTP %d %s %s%s', IaConfig::proveedor(), $estado,
                 mb_substr(preg_replace('/[^\w.-]/u', '', $codigo) ?? '', 0, 40), $texto,
                 $estado === 402 ? ' — la cuenta del proveedor no tiene saldo o créditos suficientes' : ''));
             throw new IaError(match (true) {
@@ -542,6 +567,8 @@ final class ClaudeCliente
             [$estado, $respuesta, $reintentarEn, $errorCurl] = self::post($url, $cabeceras, $peticion, $quedan);
 
             if ($errorCurl !== '') {
+                self::$ultimoDetalle = 'Sin conexión con ' . (parse_url(IaConfig::urlPeticion(), PHP_URL_HOST) ?: 'la API')
+                    . ': ' . mb_substr($errorCurl, 0, 200);
                 throw new IaError(str_contains($errorCurl, 'timed out') ? 'tiempo' : 'red', $errorCurl);
             }
 
@@ -570,7 +597,7 @@ final class ClaudeCliente
                 continue;
             }
 
-            error_log(sprintf('Flowers Anto — IA (google): HTTP %d %s %s %s%s', $estado, $status, $motivo, $texto, match (true) {
+            self::anotar(sprintf(' (google): HTTP %d %s %s %s%s', $estado, $status, $motivo, $texto, match (true) {
                 $claveMala        => ' — AI_API_KEY no es válida',
                 $estado === 403   => ' — la clave no tiene permiso para la API de Gemini',
                 $estado === 404   => ' — revisa AI_MODEL: el modelo no existe o no admite generateContent',

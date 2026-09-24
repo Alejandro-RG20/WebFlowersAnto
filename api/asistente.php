@@ -91,7 +91,7 @@ try {
 } catch (IaError $e) {
     IaSesion::retomar();
     IaRegistro::anotar($pdo, 'cliente', 'conversacion', [
-        'estado' => 'error', 'detalle' => $e->codigo,
+        'estado' => 'error', 'detalle' => mb_substr($e->codigo . ' · ' . (ClaudeCliente::ultimoDetalle() ?: $e->getMessage()), 0, 255),
         'ms' => (int)((microtime(true) - $inicio) * 1000),
     ]);
     error_log('Flowers Anto — asistente: ' . $e->codigo . ' ' . $e->getMessage());

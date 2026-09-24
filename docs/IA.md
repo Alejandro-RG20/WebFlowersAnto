@@ -612,8 +612,9 @@ para eso es `probar-api-real.php` (§9).
    <https://openrouter.ai/keys> (recomendado: límite de crédito en la clave).
 4. Añadir al `.env` del servidor la configuración del proveedor (§6,
    «Cambiar de proveedor») con la clave en `AI_API_KEY`.
-5. En el servidor: `php tests/ia/probar-api-real.php`. Si no hay consola, abrir
-   el panel → Asistente IA y preguntar «¿Cuántos pedidos tenemos pendientes?».
+5. En el servidor: `php tests/ia/probar-api-real.php`. **Sin consola** (hosting
+   compartido): panel → `admin/ia-diagnostico.php` → «Probar conexión ahora».
+   Hace las mismas pruebas y dice la causa exacta si algo falla.
 6. Probar la asesora en la tienda con una pregunta de catálogo.
 
 **Para apagar** un asistente al instante: `AI_CLIENTE_ACTIVO=0` o
@@ -638,6 +639,13 @@ en la tienda, o bajar `AI_LIMITE_DIARIO`.
 ---
 
 ## 11. Problemas frecuentes
+
+**Primero, el diagnóstico:** `https://tu-dominio/admin/ia-diagnostico.php`
+(personal con permiso de ver la configuración; la prueba, con permiso de
+editarla). Muestra la configuración que está leyendo la tienda (sin la
+clave), avisa de variables repetidas en el `.env`, de una `AI_BASE_URL` o una
+clave de otro proveedor, prueba la conexión y lista los últimos fallos con la
+causa que dio el proveedor. Esa causa también queda en `ai_action_logs.detalle`.
 
 | Síntoma | Causa y solución |
 |---------|------------------|

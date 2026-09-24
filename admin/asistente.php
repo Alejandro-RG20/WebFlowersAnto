@@ -58,6 +58,10 @@ require __DIR__ . '/_cabecera.php';
       <p>Falta la clave de la API (<code>AI_API_KEY</code> en el archivo <code>.env</code> del servidor)
          o la migración 022 en <a href="<?= e(url('admin/base-datos.php')) ?>">Base de datos</a>.
          El resto del panel funciona igual sin él.</p>
+      <?php if (Rbac::puede('configuracion.ver')): ?>
+        <p><a class="boton boton-claro" href="<?= e(url('admin/ia-diagnostico.php')) ?>">
+          <i class="fa-solid fa-stethoscope" aria-hidden="true"></i> Ver qué falta (diagnóstico)</a></p>
+      <?php endif; ?>
     </div>
   </section>
 <?php else: ?>
@@ -100,6 +104,10 @@ require __DIR__ . '/_cabecera.php';
            estado de un pedido. Verás el antes y el después y decides tú.</p>
         <p class="ia-limite"><i class="fa-solid fa-shield-halved" aria-hidden="true"></i>
            No borra productos, no toca la configuración ni los usuarios.</p>
+        <?php if (Rbac::puede('configuracion.ver')): ?>
+          <p><a href="<?= e(url('admin/ia-diagnostico.php')) ?>">
+            <i class="fa-solid fa-stethoscope" aria-hidden="true"></i> Diagnóstico y prueba de conexión</a></p>
+        <?php endif; ?>
       </div>
     </section>
     <section class="panel">

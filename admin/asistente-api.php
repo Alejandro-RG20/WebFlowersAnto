@@ -109,7 +109,7 @@ try {
     $r = IaAgente::responder('admin', $caja, (array)$conversacion['mensajes'], $mensaje);
 } catch (IaError $e) {
     IaSesion::retomar();
-    IaRegistro::anotar($pdo, 'admin', 'conversacion', ['estado' => 'error', 'detalle' => $e->codigo,
+    IaRegistro::anotar($pdo, 'admin', 'conversacion', ['estado' => 'error', 'detalle' => mb_substr($e->codigo . ' · ' . (ClaudeCliente::ultimoDetalle() ?: $e->getMessage()), 0, 255),
         'ms' => (int)((microtime(true) - $inicio) * 1000)]);
     error_log('Flowers Anto — AI Manager: ' . $e->codigo . ' ' . $e->getMessage());
     errorJson(match ($e->codigo) {
