@@ -221,8 +221,23 @@ final class IaAgente
             $peticion['output_config'] = ['effort' => $opciones['esfuerzo'] ?? ($agente === 'admin' ? 'medium' : 'low')];
         }
 
+        $limpio = $historial === [];
         for ($paso = 0; $paso < self::MAX_PASOS; $paso++) {
-            $respuesta = ClaudeCliente::mensajes($peticion + ['messages' => $mensajes], $limite);
+            try {
+                $respuesta = ClaudeCliente::mensajes($peticion + ['messages' => $mensajes], $limite);
+            } catch (IaError $e) {
+                // Si la API rechaza la petición y había historial —una
+                // conversación empezada con otro proveedor o con una versión
+                // anterior—, se repite una vez solo con el mensaje nuevo. La
+                // conversación sigue limpia en vez de quedarse atascada.
+                if ($e->codigo !== 'peticion' || $limpio || $paso > 0) {
+                    throw $e;
+                }
+                $limpio   = true;
+                $mensajes = [['role' => 'user', 'content' => $mensaje]];
+                $paso--;
+                continue;
+            }
 
             $uso['entrada'] += (int)($respuesta['usage']['input_tokens'] ?? 0);
             $uso['salida']  += (int)($respuesta['usage']['output_tokens'] ?? 0);
@@ -269,7 +284,20 @@ final class IaAgente
             foreach ($pedidas as $bloque) {
                 $nombre = (string)($bloque['name'] ?? '');
                 $usadas[] = $nombre;
-                $entrada = is_array($bloque['input'] ?? null) ? $bloque['input'] : [];
+                // Argumentos que no son un objeto (JSON roto o truncado, una
+                // lista, texto suelto): la herramienta no se ejecuta. Antes se
+                // ejecutaba con una entrada vacía.
+                if (!empty($bloque['entrada_invalida']) || !is_array($bloque['input'] ?? null)
+                    || ($bloque['input'] !== [] && array_is_list($bloque['input']))) {
+                    $resultados[] = [
+                        'type' => 'tool_result', 'tool_use_id' => (string)($bloque['id'] ?? ''),
+                        'content' => 'Los argumentos de la herramienta no son un objeto JSON válido. '
+                                   . 'No se ejecutó nada. Vuelve a llamarla con un objeto JSON completo.',
+                        'is_error' => true,
+                    ];
+                    continue;
+                }
+                $entrada = $bloque['input'];
                 try {
                     $datos = $caja->ejecutar($nombre, $entrada);
                     $resultados[] = [
