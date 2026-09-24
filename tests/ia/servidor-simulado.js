@@ -31,6 +31,18 @@
  * finish_reason «stop» (hay modelos que lo hacen), para probar que el cliente
  * no depende de ese campo.
  *
+ * Y la API de Google Gemini en POST /v1beta/models/{modelo}:generateContent,
+ * con los campos que admite según su documento de descubrimiento oficial
+ * (un campo desconocido es un 400, como en la API real):
+ *   · clave en x-goog-api-key, nunca en la URL; sin cabeceras de otros;
+ *   · modelo conocido (si no, 404 como la API real);
+ *   · esquema de parámetros con tipos en mayúsculas y sin additionalProperties;
+ *   · cada functionCall contestado por su functionResponse, en orden, con el
+ *     mismo nombre y el mismo id si lo traía; la firma de razonamiento
+ *     (thoughtSignature) devuelta intacta en el turno en curso.
+ * La mitad de las respuestas con herramientas traen id en la llamada y la
+ * otra mitad no, para probar los dos casos.
+ *
  * Uso:  node tests/ia/servidor-simulado.js [puerto]      (por defecto 8799)
  *       GET /__estado  → número de peticiones y la última recibida (sin clave)
  */
@@ -463,6 +475,206 @@ function atenderOpenAi(req, res) {
 }
 
 // ---------------------------------------------------------------------------
+// Google Gemini (generateContent)
+// ---------------------------------------------------------------------------
+// Campos que admite la API, sacados de su documento de descubrimiento oficial
+// (https://generativelanguage.googleapis.com/$discovery/rest?version=v1beta,
+// revisión 20260923).
+const CAMPOS_GEMINI = {"GenerateContentRequest":["cachedContent","contents","generationConfig","labels","model","safetySettings","serviceTier","store","systemInstruction","toolConfig","tools"],"Content":["parts","role"],"Part":["audioTranscription","codeExecutionResult","executableCode","fileData","functionCall","functionResponse","inlineData","mediaProcessing","mediaResolution","partMetadata","speechMetadata","text","thought","thoughtSignature","toolCall","toolResponse","videoMetadata"],"FunctionCall":["args","id","name"],"FunctionResponse":["id","name","parts","response","scheduling","willContinue"],"Tool":["codeExecution","computerUse","fileSearch","functionDeclarations","googleMaps","googleSearch","googleSearchRetrieval","mcpServers","urlContext"],"FunctionDeclaration":["behavior","description","name","parameters","parametersJsonSchema","response","responseJsonSchema"],"Schema":["anyOf","default","description","enum","example","format","items","maxItems","maxLength","maxProperties","maximum","minItems","minLength","minProperties","minimum","nullable","pattern","properties","propertyOrdering","required","title","type"],"GenerationConfig":["_responseJsonSchema","audioTranscriptionConfig","candidateCount","enableAffectiveDialog","enableEnhancedCivicAnswers","frequencyPenalty","imageConfig","logprobs","maxOutputTokens","mediaResolution","presencePenalty","responseFormat","responseJsonSchema","responseLogprobs","responseMimeType","responseModalities","responseSchema","seed","speechConfig","stopSequences","temperature","thinkingConfig","topK","topP","translationConfig"],"ToolConfig":["functionCallingConfig","includeServerSideToolInvocations","retrievalConfig"],"FunctionCallingConfig":["allowedFunctionNames","mode"]};
+const TIPOS_GEMINI = ['STRING', 'NUMBER', 'INTEGER', 'BOOLEAN', 'ARRAY', 'OBJECT', 'NULL'];
+const MODELOS_GEMINI = ['gemini-2.5-flash-lite', 'gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-flash-latest', 'gemini-flash-lite-latest'];
+const firmasGemini = new Set();
+let peticionesGe = 0;
+
+function errorGe(res, code, status, message, reason, extra = {}) {
+  res.writeHead(code, Object.assign({ 'content-type': 'application/json' }, extra));
+  const details = reason ? [{ '@type': 'type.googleapis.com/google.rpc.ErrorInfo', reason, domain: 'googleapis.com' }] : [];
+  res.end(JSON.stringify({ error: { code, message, status, details } }));
+}
+
+const esObjeto = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
+
+function camposGe(obj, tipo, ruta) {
+  if (!esObjeto(obj)) return `${ruta}: se esperaba un objeto`;
+  for (const k of Object.keys(obj)) {
+    if (!CAMPOS_GEMINI[tipo].includes(k)) return `Invalid JSON payload received. Unknown name "${k}" at '${ruta}': Cannot find field.`;
+  }
+  return '';
+}
+
+function esquemaGe(sch, ruta) {
+  let f = camposGe(sch, 'Schema', ruta); if (f) return f;
+  if (!TIPOS_GEMINI.includes(sch.type)) return `${ruta}.type: valor no válido «${sch.type}»`;
+  if (sch.enum && (!Array.isArray(sch.enum) || sch.enum.some(e => typeof e !== 'string'))) return `${ruta}.enum: solo textos`;
+  for (const [k, v] of Object.entries(sch.properties || {})) { f = esquemaGe(v, `${ruta}.properties[${k}]`); if (f) return f; }
+  if (sch.items) { f = esquemaGe(sch.items, `${ruta}.items`); if (f) return f; }
+  if (sch.type === 'OBJECT' && sch.properties !== undefined && !Object.keys(sch.properties).length) return `${ruta}.properties: should be non-empty for OBJECT type`;
+  return '';
+}
+
+function validarGemini(req, body, modelo) {
+  if (!req.headers['x-goog-api-key']) return [403, 'PERMISSION_DENIED', "Method doesn't allow unregistered callers (callers without established identity). Please use API Key or other form of API consumer identity to call this API."];
+  if (/[?&]key=/.test(req.url)) return [400, 'INVALID_ARGUMENT', 'la clave no debe ir en la URL (prueba de Flowers Anto)'];
+  for (const h of ['authorization', 'x-api-key', 'anthropic-version', 'anthropic-beta'])
+    if (req.headers[h]) return [400, 'INVALID_ARGUMENT', `cabecera de otro proveedor: ${h}`];
+  if (!/^application\/json/i.test(req.headers['content-type'] || '')) return [400, 'INVALID_ARGUMENT', 'Content-Type debe ser application/json'];
+  const falla = (m) => [400, 'INVALID_ARGUMENT', m];
+  let f = camposGe(body, 'GenerateContentRequest', 'GenerateContentRequest'); if (f) return falla(f);
+  if (body.systemInstruction) {
+    f = camposGe(body.systemInstruction, 'Content', 'system_instruction'); if (f) return falla(f);
+    if (!Array.isArray(body.systemInstruction.parts) || body.systemInstruction.parts.some(p => typeof p.text !== 'string')) return falla('system_instruction: solo texto');
+  }
+  if (!Array.isArray(body.contents) || !body.contents.length) return falla('* GenerateContentRequest.contents: contents is not specified');
+  for (const [i, t] of (body.tools || []).entries()) {
+    f = camposGe(t, 'Tool', `tools[${i}]`); if (f) return falla(f);
+    for (const [j, d] of (t.functionDeclarations || []).entries()) {
+      f = camposGe(d, 'FunctionDeclaration', `tools[${i}].function_declarations[${j}]`); if (f) return falla(f);
+      if (!/^[a-zA-Z0-9_.:-]{1,128}$/.test(d.name || '')) return falla('nombre de función no válido');
+      if (d.parameters) { f = esquemaGe(d.parameters, `tools[${i}].function_declarations[${j}].parameters`); if (f) return falla(f); }
+    }
+  }
+  if (body.generationConfig) { f = camposGe(body.generationConfig, 'GenerationConfig', 'generation_config'); if (f) return falla(f); }
+  if (body.toolConfig) { f = camposGe(body.toolConfig, 'ToolConfig', 'tool_config'); if (f) return falla(f); }
+
+  // Turno en curso: desde el último mensaje de texto del usuario.
+  let inicioTurno = 0;
+  body.contents.forEach((c, i) => { if (c.role === 'user' && (c.parts || []).some(p => typeof p.text === 'string')) inicioTurno = i; });
+  let pendientes = null;
+  for (const [i, c] of body.contents.entries()) {
+    f = camposGe(c, 'Content', `contents[${i}]`); if (f) return falla(f);
+    if (!['user', 'model'].includes(c.role)) return falla(`contents[${i}].role: debe ser user o model`);
+    if (!Array.isArray(c.parts) || !c.parts.length) return falla(`contents[${i}]: must include at least one parts field`);
+    for (const [j, p] of c.parts.entries()) {
+      f = camposGe(p, 'Part', `contents[${i}].parts[${j}]`); if (f) return falla(f);
+      const datos = ['text', 'functionCall', 'functionResponse'].filter(k => k in p);
+      if (datos.length !== 1) return falla(`contents[${i}].parts[${j}]: una part lleva un solo dato`);
+      if (p.functionCall) {
+        f = camposGe(p.functionCall, 'FunctionCall', `contents[${i}].parts[${j}].function_call`); if (f) return falla(f);
+        if (c.role !== 'model') return falla('functionCall solo en contenido del modelo');
+        if (p.functionCall.args !== undefined && !esObjeto(p.functionCall.args)) return falla('function_call.args debe ser un objeto');
+      }
+      if (p.functionResponse) {
+        f = camposGe(p.functionResponse, 'FunctionResponse', `contents[${i}].parts[${j}].function_response`); if (f) return falla(f);
+        if (!esObjeto(p.functionResponse.response)) return falla('function_response.response debe ser un objeto');
+      }
+      if (p.thoughtSignature !== undefined && !firmasGemini.has(p.thoughtSignature)) return falla('thought_signature modificada o desconocida');
+    }
+    const llamadas = c.parts.filter(p => p.functionCall);
+    const respuestas = c.parts.filter(p => p.functionResponse);
+    if (pendientes) {
+      if (c.role !== 'user' || respuestas.length !== pendientes.length)
+        return falla(`contents[${i}]: faltan function_response para ${pendientes.map(x => x.name).join(',')}`);
+      for (const [k, r] of respuestas.entries()) {
+        if (r.functionResponse.name !== pendientes[k].name) return falla(`contents[${i}]: function_response ${r.functionResponse.name} fuera de orden`);
+        if (pendientes[k].id && r.functionResponse.id !== pendientes[k].id) return falla(`contents[${i}]: function_response sin el id ${pendientes[k].id}`);
+      }
+      pendientes = null;
+    } else if (respuestas.length) return falla(`contents[${i}]: function_response sin function_call`);
+    if (llamadas.length) {
+      if (i > inicioTurno && !llamadas[0].thoughtSignature) return falla(`contents[${i}]: Function call is missing a thought_signature`);
+      pendientes = llamadas.map(p => p.functionCall);
+    }
+  }
+  if (pendientes) return falla('faltan function_response al final');
+  if (body.contents[0].role !== 'user') return falla('el primer contenido debe ser del usuario');
+  if (body.contents[body.contents.length - 1].role !== 'user') return falla('el último contenido debe ser del usuario');
+  if (!MODELOS_GEMINI.includes(modelo)) return [404, 'NOT_FOUND', `models/${modelo} is not found for API version v1beta, or is not supported for generateContent.`];
+  return null;
+}
+
+/** Contenidos de Gemini → bloques, para reutilizar el mismo «modelo» con guion. */
+function geABloques(contents) {
+  const out = [];
+  contents.forEach((c, i) => {
+    if (c.role === 'model') {
+      const bl = [];
+      c.parts.forEach((p, j) => {
+        if (typeof p.text === 'string') bl.push(texto(p.text));
+        if (p.functionCall) bl.push({ type: 'tool_use', id: `g${i}_${bl.filter(b => b.type === 'tool_use').length}`, name: p.functionCall.name, input: p.functionCall.args || {} });
+      });
+      out.push({ role: 'assistant', content: bl });
+      return;
+    }
+    const respuestas = c.parts.filter(p => p.functionResponse);
+    if (respuestas.length) {
+      out.push({ role: 'user', content: respuestas.map((p, k) => {
+        const r = p.functionResponse.response;
+        const error = 'error' in r;
+        return { type: 'tool_result', tool_use_id: `g${i - 1}_${k}`, content: error ? String(r.error) : JSON.stringify(r.result), is_error: error };
+      }) });
+    } else {
+      out.push({ role: 'user', content: c.parts.map(p => p.text).join('\n') });
+    }
+  });
+  return out;
+}
+
+function atenderGemini(req, res) {
+  let raw = '';
+  req.on('data', d => raw += d);
+  req.on('end', () => {
+    peticiones++; peticionesGe++;
+    const ruta = req.url.split('?')[0];
+    const m = ruta.match(/^\/v1beta\/models\/([^/:]+):generateContent$/);
+    if (!m) return errorGe(res, 404, 'NOT_FOUND', 'ruta no encontrada: ' + ruta);
+    const modelo = decodeURIComponent(m[1]);
+    let body; try { body = JSON.parse(raw); } catch (e) { return errorGe(res, 400, 'INVALID_ARGUMENT', 'Invalid JSON payload received.'); }
+    ultima = { ruta, clave_en_url: /[?&]key=/.test(req.url), cabeceras: {
+      'x-goog-api-key': req.headers['x-goog-api-key'] ? '(presente)' : null,
+      authorization: req.headers['authorization'] ? '(presente)' : null,
+      'x-api-key': req.headers['x-api-key'] ? '(presente)' : null,
+      'anthropic-version': req.headers['anthropic-version'] || null,
+      'content-type': req.headers['content-type'] || null,
+    }, body };
+    if (req.headers['x-goog-api-key'] === 'clave-invalida')
+      return errorGe(res, 400, 'INVALID_ARGUMENT', 'API key not valid. Please pass a valid API key.', 'API_KEY_INVALID');
+    const fallo = validarGemini(req, body, modelo);
+    if (fallo) return errorGe(res, fallo[0], fallo[1], fallo[2]);
+
+    const msgs = geABloques(body.contents);
+    const u = ultimoTextoUsuario(msgs);
+    const hayResultados = body.contents[body.contents.length - 1].parts.some(p => p.functionResponse);
+    if (u.includes('__401__')) return errorGe(res, 400, 'INVALID_ARGUMENT', 'API key not valid. Please pass a valid API key.', 'API_KEY_INVALID');
+    if (u.includes('__403__')) return errorGe(res, 403, 'PERMISSION_DENIED', 'Generative Language API has not been used in project 0 before or it is disabled.', 'SERVICE_DISABLED');
+    if (u.includes('__429__')) return errorGe(res, 429, 'RESOURCE_EXHAUSTED', 'You exceeded your current quota, please check your plan and billing details.', null, { 'retry-after': '1' });
+    if (u.includes('__429una__') && cuenta429++ === 0) return errorGe(res, 429, 'RESOURCE_EXHAUSTED', 'Resource has been exhausted (e.g. check quota).', null, { 'retry-after': '1' });
+    if (u.includes('__error500__')) return errorGe(res, 500, 'INTERNAL', 'An internal error has occurred.');
+    if (u.includes('__503__')) return errorGe(res, 503, 'UNAVAILABLE', 'The model is overloaded. Please try again later.');
+    if (u.includes('__504__')) return errorGe(res, 504, 'DEADLINE_EXCEEDED', 'Deadline expired before operation could complete.');
+    if (u.includes('__eco_clave__')) return errorGe(res, 400, 'INVALID_ARGUMENT', 'API key not valid: ' + req.headers['x-goog-api-key'], 'API_KEY_INVALID');
+    const responder = (cuerpo) => { const demora = u.includes('__lento__') ? 20000 : 30; setTimeout(() => { res.writeHead(200, { 'content-type': 'application/json' }); res.end(JSON.stringify(cuerpo)); }, demora); };
+    const uso = { promptTokenCount: Math.ceil(raw.length / 4), candidatesTokenCount: 40, totalTokenCount: Math.ceil(raw.length / 4) + 40, cachedContentTokenCount: body.contents.length > 2 ? 900 : 0 };
+    if (u.includes('__bloqueo_prompt__')) return responder({ promptFeedback: { blockReason: 'SAFETY' }, usageMetadata: uso });
+    if (u.includes('__sin_candidatos__')) return responder({ candidates: [], usageMetadata: uso });
+    if (u.includes('__malformada__')) return responder({ candidates: [{ content: { role: 'model', parts: [] }, finishReason: 'MALFORMED_FUNCTION_CALL', index: 0 }], usageMetadata: uso });
+    if (u.includes('__seguridad__')) return responder({ candidates: [{ finishReason: 'SAFETY', index: 0 }], usageMetadata: uso });
+
+    const esAdmin = (body.tools || []).some(t => (t.functionDeclarations || []).some(d => d.name === 'resumen_pedidos'));
+    let r, argsLista = false;
+    if (u.includes('__args_lista__') && !hayResultados) { r = { c: [usar(esAdmin ? 'proponer_stock' : 'buscar_productos', {})], s: 'tool_use' }; argsLista = true; }
+    else if (u.includes('__args_lista__')) { r = { c: [texto('No pude usar la herramienta: ' + JSON.stringify(body.contents[body.contents.length - 1].parts[0].functionResponse.response))], s: 'end_turn' }; }
+    else r = esAdmin ? turnoAdmin(msgs) : turnoCliente(msgs);
+
+    const conId = peticionesGe % 2 === 0;
+    let firmada = false;
+    const parts = r.c.map(b => {
+      if (b.type === 'text') return { text: b.text };
+      const fc = { name: b.name, args: argsLista ? [1, 2] : b.input };
+      if (conId) fc.id = 'gcall_' + (++nUso);
+      const p = { functionCall: fc };
+      if (!firmada) { firmada = true; p.thoughtSignature = Buffer.from('firma-' + crypto.randomBytes(6).toString('hex')).toString('base64'); firmasGemini.add(p.thoughtSignature); }
+      return p;
+    });
+    const fin = r.s === 'max_tokens' ? 'MAX_TOKENS' : r.s === 'refusal' ? 'SAFETY' : 'STOP';
+    responder({
+      candidates: [{ content: r.s === 'refusal' ? undefined : { role: 'model', parts }, finishReason: fin, index: 0 }],
+      usageMetadata: Object.assign(uso, { candidatesTokenCount: 40 + JSON.stringify(r.c).length / 4 | 0 }),
+      modelVersion: modelo, responseId: 'resp-sim-' + peticiones,
+    });
+  });
+}
+
+// ---------------------------------------------------------------------------
 http.createServer((req, res) => {
   if (req.method === 'GET' && req.url === '/__estado') {
     res.writeHead(200, { 'content-type': 'application/json' });
@@ -470,6 +682,15 @@ http.createServer((req, res) => {
   }
   if (req.method === 'POST' && req.url === '/__reiniciar') { peticiones = 0; ultima = null; cuenta429 = 0; res.writeHead(204); return res.end(); }
   if (req.method === 'POST' && RUTAS_OPENAI.includes(req.url)) return atenderOpenAi(req, res);
+  if (req.method === 'POST' && req.url.startsWith('/v1beta/models/')) return atenderGemini(req, res);
+  if (req.method === 'GET' && req.url.startsWith('/v1beta/models/')) {
+    // Consulta de un modelo, como GET models/{modelo} de la API real.
+    const modelo = decodeURIComponent(req.url.split('?')[0].slice('/v1beta/models/'.length));
+    if (!req.headers['x-goog-api-key']) return errorGe(res, 403, 'PERMISSION_DENIED', "Method doesn't allow unregistered callers.");
+    if (!MODELOS_GEMINI.includes(modelo)) return errorGe(res, 404, 'NOT_FOUND', `models/${modelo} is not found for API version v1beta.`);
+    res.writeHead(200, { 'content-type': 'application/json' });
+    return res.end(JSON.stringify({ name: 'models/' + modelo, displayName: 'Gemini simulado (' + modelo + ')', supportedGenerationMethods: ['generateContent', 'countTokens'] }));
+  }
   if (req.method !== 'POST' || req.url !== '/v1/messages') { res.writeHead(404); return res.end(); }
 
   let raw = '';
@@ -504,4 +725,4 @@ http.createServer((req, res) => {
     setTimeout(() => { res.writeHead(200, { 'content-type': 'application/json' }); res.end(JSON.stringify(respuesta)); }, demora);
   });
 }).listen(PUERTO, '127.0.0.1', () => console.log('API simulada en http://127.0.0.1:' + PUERTO
-  + ' (Anthropic: /v1/messages · OpenAI/OpenRouter: /api/v1/chat/completions)'));
+  + ' (Anthropic: /v1/messages · OpenAI/OpenRouter: /api/v1/chat/completions · Gemini: /v1beta/models/{modelo}:generateContent)'));

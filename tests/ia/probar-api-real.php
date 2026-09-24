@@ -8,7 +8,9 @@
  *
  *     php tests/ia/probar-api-real.php
  *
- * Sirve igual con AI_PROVEEDOR=anthropic que con AI_PROVEEDOR=openrouter.
+ * Sirve con AI_PROVEEDOR=anthropic, openrouter y google. Con google, antes
+ * de nada comprueba contra la API real que el modelo de AI_MODEL existe y
+ * admite generateContent.
  * Hace cuatro comprobaciones, con unas 6 a 10 peticiones a la API en total
  * (con el plan gratuito de OpenRouter cuentan para su límite diario):
  *   1. Un mensaje simple: clave, modelo y conexión.
@@ -53,7 +55,7 @@ function explicar(IaError $e): void
         'config'    => "        La clave no es válida, no tiene permisos para ese modelo o la cuenta no tiene saldo/créditos.\n",
         'red'       => "        El servidor no llega a $destino (firewall o salida HTTPS bloqueada).\n",
         'tiempo'    => "        La API no respondió a tiempo; sube AI_TIMEOUT o reintenta.\n",
-        'limite'    => "        El proveedor está limitando peticiones (con el plan gratuito de OpenRouter: 20 por minuto y un tope diario).\n",
+        'limite'    => "        El proveedor está limitando peticiones o se acabó la cuota (depende del plan, el modelo y el proyecto).\n",
         'sobrecarga'=> "        El proveedor o el modelo están caídos o saturados; prueba más tarde u otro modelo.\n",
         'peticion'  => "        La API rechazó la petición; revisa AI_MODEL (nombre exacto) y que el modelo admita herramientas.\n",
         default     => '',
@@ -95,6 +97,29 @@ if ($problemas) {
 echo "        Proveedor: " . IaConfig::proveedor() . " · " . IaConfig::urlPeticion() . "\n"
    . "        Modelo tienda: " . IaConfig::modelo('cliente') . " · panel: " . IaConfig::modelo('admin')
    . " · tiempo máximo: " . IaConfig::tiempoMaximo() . " s\n\n";
+
+// 0. Con Google: el modelo existe y admite generateContent (consulta real).
+if (IaConfig::proveedor() === 'google') {
+    $url = preg_replace('#:generateContent$#', '', IaConfig::urlPeticion());
+    $ch = curl_init($url);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 15, CURLOPT_FOLLOWLOCATION => false,
+        CURLOPT_HTTPHEADER => ['x-goog-api-key: ' . IaConfig::clave()],
+    ]);
+    $cuerpo = (string)curl_exec($ch);
+    $estado = (int)curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+    $modelo = json_decode($cuerpo, true) ?: [];
+    $admite = in_array('generateContent', (array)($modelo['supportedGenerationMethods'] ?? []), true);
+    linea($estado === 200 && $admite, $estado === 200
+        ? sprintf('0. Modelo %s (%s): %s', IaConfig::modelo('cliente'), (string)($modelo['displayName'] ?? '?'),
+            $admite ? 'existe y admite generateContent' : 'existe pero NO admite generateContent')
+        : sprintf('0. Consulta del modelo: HTTP %d — %s', $estado,
+            str_replace(IaConfig::clave(), '[clave]', mb_substr((string)($modelo['error']['message'] ?? 'sin respuesta'), 0, 160))));
+    if ($estado !== 200 || !$admite) {
+        echo "        Revisa AI_API_KEY y AI_MODEL (modelos: https://ai.google.dev/gemini-api/docs/models).\n\n";
+        exit(1);
+    }
+}
 
 // 1. Mensaje simple.
 $t = microtime(true);
