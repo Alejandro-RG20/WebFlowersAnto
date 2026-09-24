@@ -17,6 +17,20 @@
  *   · `fallbacks` solo con su cabecera beta;
  *   · `properties` de cada herramienta como objeto, no como lista.
  *
+ * También imita una API compatible con OpenAI (OpenRouter) en
+ * POST /api/v1/chat/completions (y /v1/chat/completions), con sus reglas:
+ *   · Authorization: Bearer y Content-Type JSON, sin cabeceras de Anthropic;
+ *   · nada exclusivo de Anthropic (system arriba, cache_control, output_config,
+ *     fallbacks, input_schema, is_error, bloques de razonamiento);
+ *   · herramientas como {type: function, function: {name, parameters}};
+ *   · `arguments` de cada tool_call como texto con un objeto JSON;
+ *   · cada tool_call contestado por un mensaje `tool` con su tool_call_id,
+ *     en el mismo orden y antes de cualquier otro mensaje.
+ * El «modelo» con guion es el mismo para los dos formatos. En modo OpenAI,
+ * además, una de cada dos respuestas con herramientas termina en
+ * finish_reason «stop» (hay modelos que lo hacen), para probar que el cliente
+ * no depende de ese campo.
+ *
  * Uso:  node tests/ia/servidor-simulado.js [puerto]      (por defecto 8799)
  *       GET /__estado  → número de peticiones y la última recibida (sin clave)
  */
@@ -64,6 +78,8 @@ function validar(req, body) {
       pendientes = null;
     } else {
       for (const b of bloques) {
+        if (b.type === 'tool_use' && (b.input === null || typeof b.input !== 'object' || Array.isArray(b.input)))
+          return `messages.${i}: tool_use.input debe ser un objeto`;
         if (b.type === 'thinking') {
           if (!firmas.has(b.signature) || firmas.get(b.signature) !== JSON.stringify(b))
             return `messages.${i}: bloque de razonamiento modificado o desconocido`;
@@ -132,6 +148,19 @@ function turnoCliente(msgs) {
     return { c: [texto('No pude agregarlo: ' + ultimo.datos)], s: 'end_turn' };
   }
   if (bajo.includes('__bucle__')) return { c: [usar('ver_carrito', {})], s: 'tool_use' };
+  if (bajo.includes('__varias__')) {
+    // Dos herramientas en el mismo turno.
+    if (!hechos.length) return { c: [texto('Lo consulto.'), usar('buscar_productos', { limite: 2 }), usar('informacion_tienda', { tema: 'pagos' })], s: 'tool_use' };
+    const ps = hechos.find(h => h.nombre === 'buscar_productos').datos.productos || [];
+    const pagos = hechos.find(h => h.nombre === 'informacion_tienda').datos.metodos || [];
+    return { c: [texto(`Te recomiendo ${listar(ps)}. Puedes pagar con: ${pagos.join('; ')}.`)], s: 'end_turn' };
+  }
+  const cuesta = u.match(/cu[aá]nto cuesta (?:el |la |los |las |un |una )?(.+?)\??$/i);
+  if (cuesta) {
+    if (!hechos.length) return { c: [usar('buscar_productos', { consulta: cuesta[1], limite: 1 })], s: 'tool_use' };
+    const p = (ultimo.datos.productos || [])[0];
+    return { c: [texto(p ? `${p.nombre} cuesta ${p.precio}.` : `No encontré «${cuesta[1]}» en el catálogo.`)], s: 'end_turn' };
+  }
   if (bajo.includes('__rechazo__')) return { c: [], s: 'refusal' };
   if (bajo.includes('__max__')) return { c: [texto('Voy a agregar'), usar('agregar_al_carrito', { producto_id: 1 })], s: 'max_tokens' };
   if (bajo.includes('__inventa__')) {
@@ -195,7 +224,7 @@ function turnoCliente(msgs) {
   }
 
   // --- recomendación ------------------------------------------------------------
-  if (/regalo|novia|rom[aá]ntic|cumplea|mam[aá]|elegante|econ[oó]mic|tengo|presupuesto|recomi|busco|quiero/.test(bajo)) {
+  if (/regalo|novia|rom[aá]ntic|cumplea|mam[aá]|elegante|econ[oó]mic|tengo|presupuesto|recomi|busco|quiero|disponibles/.test(bajo)) {
     if (!hechos.length) {
       const entrada = { limite: 3 };
       const m = u.match(/C\$\s?([\d,]+)/i); if (m) entrada.presupuesto_max = +m[1].replace(/,/g, '');
@@ -278,12 +307,169 @@ function turnoAdmin(msgs) {
 }
 
 // ---------------------------------------------------------------------------
+// API compatible con OpenAI (OpenRouter)
+// ---------------------------------------------------------------------------
+const RUTAS_OPENAI = ['/api/v1/chat/completions', '/v1/chat/completions'];
+let peticionesOa = 0;
+
+function errorOa(res, estado, msg, extra = {}) {
+  res.writeHead(estado, Object.assign({ 'content-type': 'application/json' }, extra));
+  res.end(JSON.stringify({ error: { code: estado, message: msg, metadata: {} } }));
+}
+
+function validarOpenAi(req, body) {
+  if (!/^Bearer \S+$/.test(req.headers['authorization'] || '')) return 'falta Authorization: Bearer';
+  for (const h of ['x-api-key', 'anthropic-version', 'anthropic-beta'])
+    if (req.headers[h]) return `cabecera de Anthropic no admitida: ${h}`;
+  if (!/^application\/json/i.test(req.headers['content-type'] || '')) return 'Content-Type debe ser application/json';
+  if (typeof body.model !== 'string' || !body.model) return 'model obligatorio';
+  for (const k of ['system', 'output_config', 'fallbacks', 'stop_sequences', 'thinking'])
+    if (k in body) return `campo de Anthropic no admitido: ${k}`;
+  if (JSON.stringify(body).includes('"cache_control"')) return 'cache_control no existe en Chat Completions';
+  if (body.max_tokens !== undefined && (!Number.isInteger(body.max_tokens) || body.max_tokens < 1)) return 'max_tokens inválido';
+  if (!Array.isArray(body.messages) || !body.messages.length) return 'messages vacío';
+  for (const t of body.tools || []) {
+    if ('input_schema' in t || 'name' in t) return 'herramienta en formato de Anthropic';
+    if (t.type !== 'function' || !t.function || typeof t.function.name !== 'string' || !t.function.name) return 'herramienta mal definida';
+    const p = t.function.parameters;
+    if (!p || p.type !== 'object' || typeof p.properties !== 'object' || Array.isArray(p.properties))
+      return `tools.${t.function.name}.parameters debe ser un objeto con properties`;
+  }
+  let pendientes = [];
+  for (const [i, m] of body.messages.entries()) {
+    if (!['system', 'user', 'assistant', 'tool'].includes(m.role)) return `messages.${i}: rol desconocido ${m.role}`;
+    if ('is_error' in m) return `messages.${i}: is_error no existe en Chat Completions`;
+    if (m.role === 'system' && i !== 0) return `messages.${i}: system solo puede ir al principio`;
+    if (pendientes.length && m.role !== 'tool') return `messages.${i}: faltan mensajes tool para ${pendientes.join(',')}`;
+    if (m.role === 'tool') {
+      if (!pendientes.length) return `messages.${i}: mensaje tool sin tool_call pendiente`;
+      if (m.tool_call_id !== pendientes[0]) return `messages.${i}: tool_call_id ${m.tool_call_id} fuera de orden (se esperaba ${pendientes[0]})`;
+      if (typeof m.content !== 'string') return `messages.${i}: el content de un mensaje tool debe ser texto`;
+      pendientes.shift();
+      continue;
+    }
+    if (m.role === 'user' || m.role === 'system') {
+      if (typeof m.content !== 'string' || !m.content) return `messages.${i}: content debe ser texto`;
+      continue;
+    }
+    if (m.content !== null && typeof m.content !== 'string') return `messages.${i}: content del asistente debe ser texto o null`;
+    if (m.tool_calls !== undefined) {
+      if (!Array.isArray(m.tool_calls) || !m.tool_calls.length) return `messages.${i}: tool_calls vacío`;
+      for (const tc of m.tool_calls) {
+        if (typeof tc.id !== 'string' || !tc.id || tc.type !== 'function' || !tc.function || typeof tc.function.name !== 'string')
+          return `messages.${i}: tool_call mal formado`;
+        if (typeof tc.function.arguments !== 'string') return `messages.${i}: arguments debe ser texto JSON`;
+        let a; try { a = JSON.parse(tc.function.arguments); } catch (e) { return `messages.${i}: arguments no es JSON`; }
+        if (a === null || typeof a !== 'object' || Array.isArray(a)) return `messages.${i}: arguments debe ser un objeto`;
+      }
+      pendientes = m.tool_calls.map(tc => tc.id);
+    } else if (m.content === null) return `messages.${i}: asistente sin contenido`;
+  }
+  if (pendientes.length) return `faltan mensajes tool para ${pendientes.join(',')}`;
+  if (!['user', 'tool'].includes(body.messages[body.messages.length - 1].role)) return 'el último mensaje debe ser user o tool';
+  return '';
+}
+
+/** Chat Completions → bloques, para reutilizar el mismo «modelo» con guion. */
+function aBloques(msgs) {
+  const out = [];
+  for (const m of msgs) {
+    if (m.role === 'system') continue;
+    if (m.role === 'user') { out.push({ role: 'user', content: m.content }); continue; }
+    if (m.role === 'assistant') {
+      const c = m.content ? [texto(m.content)] : [];
+      for (const tc of m.tool_calls || []) c.push({ type: 'tool_use', id: tc.id, name: tc.function.name, input: JSON.parse(tc.function.arguments) });
+      out.push({ role: 'assistant', content: c });
+      continue;
+    }
+    const error = m.content.startsWith('ERROR: ');
+    const r = { type: 'tool_result', tool_use_id: m.tool_call_id, content: error ? m.content.slice(7) : m.content, is_error: error };
+    const prev = out[out.length - 1];
+    if (prev && prev.role === 'user' && Array.isArray(prev.content)) prev.content.push(r);
+    else out.push({ role: 'user', content: [r] });
+  }
+  return out;
+}
+
+function atenderOpenAi(req, res) {
+  let raw = '';
+  req.on('data', d => raw += d);
+  req.on('end', () => {
+    peticiones++; peticionesOa++;
+    let body; try { body = JSON.parse(raw); } catch (e) { return errorOa(res, 400, 'JSON inválido'); }
+    ultima = { ruta: req.url, cabeceras: {
+      authorization: req.headers['authorization'] ? 'Bearer (presente)' : null,
+      'content-type': req.headers['content-type'] || null,
+      'x-api-key': req.headers['x-api-key'] ? '(presente)' : null,
+      'anthropic-version': req.headers['anthropic-version'] || null,
+      'anthropic-beta': req.headers['anthropic-beta'] || null,
+      'http-referer': req.headers['http-referer'] || null, 'x-title': req.headers['x-title'] || null,
+    }, body };
+    const fallo = validarOpenAi(req, body);
+    if (fallo) return errorOa(res, 400, fallo);
+
+    const msgs = aBloques(body.messages);
+    const u = ultimoTextoUsuario(msgs);
+    const hayResultados = body.messages[body.messages.length - 1].role === 'tool';
+    if (u.includes('__error500__')) return errorOa(res, 500, 'Internal');
+    if (u.includes('__429__')) return errorOa(res, 429, 'Rate limit exceeded: free-models-per-day', { 'retry-after': '1' });
+    if (u.includes('__429una__') && cuenta429++ === 0) return errorOa(res, 429, 'slow down', { 'retry-after': '1' });
+    if (u.includes('__401__')) return errorOa(res, 401, 'No auth credentials found');
+    if (u.includes('__402__')) return errorOa(res, 402, 'Insufficient credits. Add more using https://openrouter.ai/credits');
+    if (u.includes('__eco_clave__')) return errorOa(res, 401, 'Invalid key: ' + (req.headers['authorization'] || '').slice(7));
+    if (u.includes('__error_en_200__')) { res.writeHead(200, { 'content-type': 'application/json' }); return res.end(JSON.stringify({ error: { code: 502, message: 'Provider returned error' } })); }
+    if (u.includes('__sin_choices__')) { res.writeHead(200, { 'content-type': 'application/json' }); return res.end('{"id":"gen-x","choices":[]}'); }
+
+    const esAdmin = (body.tools || []).some(t => t.function.name === 'resumen_pedidos');
+    let r;
+    let crudo = null, finForzado = null, rechazo = null;
+    if ((u.includes('__args_rotos__') || u.includes('__args_lista__')) && !hayResultados) {
+      r = { c: [usar(esAdmin ? 'proponer_stock' : 'buscar_productos', {})], s: 'tool_use' };
+      crudo = u.includes('__args_rotos__') ? '{"consulta": "ros' : '[1, 2]';
+    } else if (u.includes('__args_rotos__') || u.includes('__args_lista__')) {
+      const t = body.messages[body.messages.length - 1].content;
+      r = { c: [texto('No pude usar la herramienta: ' + t)], s: 'end_turn' };
+    } else if (u.includes('__vacio__')) {
+      r = { c: [], s: 'end_turn' };
+    } else if (u.includes('__refusal_campo__')) {
+      r = { c: [], s: 'end_turn' }; rechazo = 'I cannot help with that.';
+    } else if (u.includes('__stop_con_herramienta__') && !hayResultados) {
+      r = { c: [usar('listar_categorias', {})], s: 'tool_use' }; finForzado = 'stop';
+    } else if (u.includes('__length_con_herramienta__')) {
+      r = { c: [usar('agregar_al_carrito', { producto_id: 1 })], s: 'tool_use' }; finForzado = 'length';
+    } else {
+      r = esAdmin ? turnoAdmin(msgs) : turnoCliente(msgs);
+    }
+
+    const usos = r.c.filter(b => b.type === 'tool_use');
+    const textoRespuesta = r.c.filter(b => b.type === 'text').map(b => b.text).join('\n\n');
+    const message = { role: 'assistant', content: textoRespuesta || null, refusal: rechazo };
+    if (usos.length) {
+      message.tool_calls = usos.map(b => ({ id: b.id.replace('toolu_', 'call_'), type: 'function',
+        function: { name: b.name, arguments: crudo !== null ? crudo : JSON.stringify(b.input) } }));
+    }
+    const fin = finForzado || (r.s === 'tool_use' ? (peticionesOa % 2 ? 'tool_calls' : 'stop')
+      : r.s === 'max_tokens' ? 'length' : r.s === 'refusal' ? 'content_filter' : 'stop');
+    const respuesta = {
+      id: 'gen-sim-' + peticiones, object: 'chat.completion', created: Math.floor(Date.now() / 1000), model: body.model,
+      choices: [{ index: 0, message, finish_reason: fin, native_finish_reason: fin }],
+      usage: { prompt_tokens: Math.ceil(raw.length / 4), completion_tokens: 40 + JSON.stringify(r.c).length / 4 | 0,
+               total_tokens: 0, prompt_tokens_details: { cached_tokens: body.messages.length > 2 ? 900 : 0 } },
+    };
+    respuesta.usage.total_tokens = respuesta.usage.prompt_tokens + respuesta.usage.completion_tokens;
+    const demora = u.includes('__lento__') ? 20000 : 30;
+    setTimeout(() => { res.writeHead(200, { 'content-type': 'application/json' }); res.end(JSON.stringify(respuesta)); }, demora);
+  });
+}
+
+// ---------------------------------------------------------------------------
 http.createServer((req, res) => {
   if (req.method === 'GET' && req.url === '/__estado') {
     res.writeHead(200, { 'content-type': 'application/json' });
     return res.end(JSON.stringify({ peticiones, ultima }));
   }
   if (req.method === 'POST' && req.url === '/__reiniciar') { peticiones = 0; ultima = null; cuenta429 = 0; res.writeHead(204); return res.end(); }
+  if (req.method === 'POST' && RUTAS_OPENAI.includes(req.url)) return atenderOpenAi(req, res);
   if (req.method !== 'POST' || req.url !== '/v1/messages') { res.writeHead(404); return res.end(); }
 
   let raw = '';
@@ -317,4 +503,5 @@ http.createServer((req, res) => {
     const demora = u.includes('__lento__') ? 20000 : 30;
     setTimeout(() => { res.writeHead(200, { 'content-type': 'application/json' }); res.end(JSON.stringify(respuesta)); }, demora);
   });
-}).listen(PUERTO, '127.0.0.1', () => console.log('Messages API simulada en http://127.0.0.1:' + PUERTO));
+}).listen(PUERTO, '127.0.0.1', () => console.log('API simulada en http://127.0.0.1:' + PUERTO
+  + ' (Anthropic: /v1/messages · OpenAI/OpenRouter: /api/v1/chat/completions)'));

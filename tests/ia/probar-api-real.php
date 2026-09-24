@@ -1,21 +1,26 @@
 <?php
 /**
- * Prueba de humo contra la API real de Claude.
+ * Prueba de humo contra la API real del proveedor configurado.
  *
- * Se ejecuta una sola vez en el servidor, después de poner AI_API_KEY en el
- * `.env`, para confirmar que la clave, el modelo y la red funcionan antes de
+ * Se ejecuta en el servidor después de poner AI_API_KEY en el `.env`, para
+ * confirmar que la clave, el proveedor, el modelo y la red funcionan antes de
  * dejar el asistente abierto a los clientes:
  *
  *     php tests/ia/probar-api-real.php
  *
- * Hace dos llamadas cortas (cuestan céntimos):
- *   1. Una petición mínima, para comprobar clave, modelo y conexión.
- *   2. Una pregunta de catálogo a la asesora de la tienda, que obliga al
- *      modelo a usar la herramienta de búsqueda contra la base de datos.
+ * Sirve igual con AI_PROVEEDOR=anthropic que con AI_PROVEEDOR=openrouter.
+ * Hace cuatro comprobaciones, con unas 6 a 10 peticiones a la API en total
+ * (con el plan gratuito de OpenRouter cuentan para su límite diario):
+ *   1. Un mensaje simple: clave, modelo y conexión.
+ *   2. «¿Cuánto cuesta la Gerbera?»: tiene que consultar el catálogo, y la
+ *      guardia de precios no debe bloquear la respuesta.
+ *   3. «¿Qué productos tienen disponibles?»: tiene que usar las herramientas.
+ *   4. Añadir un producto al carrito. Es el carrito de este proceso de
+ *      consola, que no se guarda en ningún sitio.
  *
- * Solo lee: no crea pedidos, no toca carritos ni productos. No imprime la
- * clave ni la guarda en ningún sitio. Desde el navegador no se puede abrir
- * (la carpeta tests/ está cerrada en .htaccess y el script exige consola).
+ * Solo lee: no crea pedidos ni toca productos. No imprime la clave ni la
+ * guarda en ningún sitio. Desde el navegador no se puede abrir (la carpeta
+ * tests/ está cerrada en .htaccess y el script exige consola).
  */
 
 declare(strict_types=1);
@@ -30,30 +35,74 @@ foreach (['config', 'cliente', 'registro', 'agente', 'herramientas_cliente'] as 
     require_once __DIR__ . '/../../includes/lib/ia/' . $f . '.php';
 }
 
+// Carrito de visitante solo en memoria de este proceso.
+$_SESSION = [];
+
+$fallos = 0;
 function linea(bool $ok, string $texto): void
 {
+    global $fallos;
+    $fallos += $ok ? 0 : 1;
     echo ($ok ? '  OK    ' : '  FALLA ') . $texto . "\n";
+}
+
+function explicar(IaError $e): void
+{
+    $destino = parse_url(IaConfig::urlPeticion(), PHP_URL_HOST) ?: 'la API';
+    echo match ($e->codigo) {
+        'config'    => "        La clave no es válida, no tiene permisos para ese modelo o la cuenta no tiene saldo/créditos.\n",
+        'red'       => "        El servidor no llega a $destino (firewall o salida HTTPS bloqueada).\n",
+        'tiempo'    => "        La API no respondió a tiempo; sube AI_TIMEOUT o reintenta.\n",
+        'limite'    => "        El proveedor está limitando peticiones (con el plan gratuito de OpenRouter: 20 por minuto y un tope diario).\n",
+        'sobrecarga'=> "        El proveedor o el modelo están caídos o saturados; prueba más tarde u otro modelo.\n",
+        'peticion'  => "        La API rechazó la petición; revisa AI_MODEL (nombre exacto) y que el modelo admita herramientas.\n",
+        default     => '',
+    };
+}
+
+/** Pregunta a la asesora y muestra el resultado. */
+function preguntar(PDO $pdo, string $pregunta, array $herramientasEsperadas): ?array
+{
+    $t = microtime(true);
+    echo "\n  «{$pregunta}»\n";
+    try {
+        $r = IaAgente::responder('cliente', new IaHerramientasCliente($pdo), [], $pregunta);
+    } catch (IaError $e) {
+        linea(false, 'Error: ' . $e->codigo . ' — ' . $e->getMessage());
+        explicar($e);
+        return null;
+    }
+    $usadas = array_values(array_unique($r['herramientas']));
+    linea((bool)array_intersect($herramientasEsperadas, $usadas), sprintf('Usó herramientas del sitio (%s) en %d ms',
+        $usadas ? implode(', ', $usadas) : 'ninguna', (microtime(true) - $t) * 1000));
+    echo sprintf("        Tokens: %d de entrada · %d de salida · %d de caché · estado: %s\n",
+        $r['uso']['entrada'], $r['uso']['salida'], $r['uso']['cache'], $r['estado']);
+    echo "        Respuesta: " . str_replace("\n", "\n                   ", wordwrap($r['texto'], 90)) . "\n";
+    return $r;
 }
 
 echo "\nFlowers Anto — prueba de la API de IA\n\n";
 
-$fallos = 0;
-linea(IaConfig::hayClave(), 'AI_API_KEY definida en el .env');
-linea(IaConfig::tablasListas($pdo), 'Migración 022 aplicada (tablas ai_action_logs y ai_pending_actions)');
-if (!IaConfig::hayClave() || !IaConfig::tablasListas($pdo)) {
+$problemas = IaConfig::problemas();
+if (!IaConfig::tablasListas($pdo)) {
+    $problemas[] = 'Falta la migración 022 (tablas ai_action_logs y ai_pending_actions).';
+}
+linea(!$problemas, $problemas ? implode(' ', $problemas) : 'Configuración completa');
+if ($problemas) {
     echo "\nCorrige lo anterior y vuelve a ejecutar.\n\n";
     exit(1);
 }
-echo "        Modelo tienda: " . IaConfig::modelo('cliente') . " · panel: " . IaConfig::modelo('admin')
+echo "        Proveedor: " . IaConfig::proveedor() . " · " . IaConfig::urlPeticion() . "\n"
+   . "        Modelo tienda: " . IaConfig::modelo('cliente') . " · panel: " . IaConfig::modelo('admin')
    . " · tiempo máximo: " . IaConfig::tiempoMaximo() . " s\n\n";
 
-// 1. Petición mínima.
+// 1. Mensaje simple.
 $t = microtime(true);
 try {
     $r = ClaudeCliente::mensajes([
         'model'      => IaConfig::modelo('cliente'),
-        'max_tokens' => 20,
-        'messages'   => [['role' => 'user', 'content' => 'Responde solo con la palabra: listo']],
+        'max_tokens' => 200,
+        'messages'   => [['role' => 'user', 'content' => 'Hola, responde brevemente confirmando que estás operativo.']],
     ], microtime(true) + IaConfig::tiempoMaximo());
     $texto = '';
     foreach ($r['content'] as $b) {
@@ -61,44 +110,36 @@ try {
             $texto .= $b['text'];
         }
     }
-    linea(true, sprintf('Conexión con la API (%d ms) · modelo que respondió: %s · respuesta: «%s»',
-        (microtime(true) - $t) * 1000, (string)($r['model'] ?? '?'), trim($texto)));
+    linea(trim($texto) !== '', sprintf('1. Conexión (%d ms) · modelo que respondió: %s · «%s»',
+        (microtime(true) - $t) * 1000, (string)($r['model'] ?? '?'), mb_substr(trim($texto), 0, 120)));
 } catch (IaError $e) {
-    $fallos++;
-    linea(false, 'Conexión con la API: ' . $e->codigo . ' — ' . $e->getMessage());
-    echo match ($e->codigo) {
-        'config'  => "        La clave no es válida o no tiene permisos para ese modelo.\n",
-        'red'     => "        El servidor no llega a api.anthropic.com (firewall o salida HTTPS bloqueada).\n",
-        'tiempo'  => "        La API no respondió a tiempo; sube AI_TIMEOUT o reintenta.\n",
-        'limite'  => "        La cuenta está limitando peticiones; revisa los límites en la consola de Anthropic.\n",
-        'peticion'=> "        La API rechazó la petición; revisa AI_MODEL (nombre exacto del modelo).\n",
-        default   => '',
-    };
+    linea(false, '1. Conexión: ' . $e->codigo . ' — ' . $e->getMessage());
+    explicar($e);
     echo "\n";
     exit(1);
 }
 
-// 2. La asesora usando una herramienta de verdad.
-$t = microtime(true);
-try {
-    $r = IaAgente::responder('cliente', new IaHerramientasCliente($pdo), [],
-        'Busco un arreglo para regalar. Recomiéndame dos que tengan disponibles, con su precio.');
-    $usoHerramienta = in_array('buscar_productos', $r['herramientas'], true)
-                   || in_array('listar_categorias', $r['herramientas'], true);
-    linea($usoHerramienta, sprintf('La asesora consultó el catálogo (%d ms · herramientas: %s)',
-        (microtime(true) - $t) * 1000, $r['herramientas'] ? implode(', ', array_unique($r['herramientas'])) : 'ninguna'));
-    $fallos += $usoHerramienta ? 0 : 1;
-    linea($r['estado'] !== 'error', 'Respuesta completa (estado: ' . $r['estado'] . ')');
-    $fallos += $r['estado'] !== 'error' ? 0 : 1;
-    echo sprintf("        Tokens: %d de entrada · %d de salida · %d leídos de caché\n",
-        $r['uso']['entrada'], $r['uso']['salida'], $r['uso']['cache']);
-    echo "\n  Respuesta de la asesora:\n\n    " . str_replace("\n", "\n    ", wordwrap($r['texto'], 90)) . "\n";
-} catch (IaError $e) {
-    $fallos++;
-    linea(false, 'Asesora: ' . $e->codigo . ' — ' . $e->getMessage());
+// 2. Precio: catálogo + guardia.
+$r = preguntar($pdo, '¿Cuánto cuesta la Gerbera?', ['buscar_productos', 'ver_producto']);
+if ($r) {
+    linea($r['estado'] !== 'rechazada', '2. La guardia de precios no bloqueó una respuesta basada en el catálogo');
+}
+
+// 3. Disponibles.
+$r = preguntar($pdo, '¿Qué productos tienen disponibles?', ['buscar_productos', 'listar_categorias', 'consultar_promociones']);
+
+// 4. Carrito (en memoria).
+$st = $pdo->query("SELECT nombre FROM productos WHERE activo = 1 ORDER BY id LIMIT 1");
+$nombre = (string)$st->fetchColumn();
+if ($nombre !== '') {
+    $r = preguntar($pdo, "Agrega el {$nombre} al carrito, por favor.", ['agregar_al_carrito']);
+    if ($r) {
+        linea((int)($r['efectos']['carrito']['unidades'] ?? 0) > 0, '4. El producto quedó en el carrito (de este proceso de consola)');
+    }
 }
 
 echo "\n" . ($fallos === 0
     ? "Todo en orden: el asistente puede quedar activo.\n\n"
-    : "Hubo $fallos fallo(s). El resto de la tienda funciona igual; el asistente mostrará un aviso amable.\n\n");
+    : "Hubo $fallos fallo(s). El resto de la tienda funciona igual; el asistente mostrará un aviso amable.\n"
+      . "Si el modelo no usa herramientas, prueba otro que las admita (en OpenRouter: filtro «Tools»).\n\n");
 exit($fallos === 0 ? 0 : 1);
