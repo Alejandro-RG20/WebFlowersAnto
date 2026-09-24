@@ -19,6 +19,19 @@ final class Carrito
     public const MAX_UNIDADES = 20;
     public const MAX_LINEAS   = 30;
 
+    /**
+     * Avisos de disponibilidad dados en esta petición. El checkout calcula el
+     * carrito varias veces; si un arreglo se agota entre una y otra, la
+     * llamada que lo quita da el aviso y las siguientes ya lo ven vacío.
+     */
+    private static array $avisosPeticion = [];
+
+    /** @return string[] */
+    public static function avisosDeEstaPeticion(): array
+    {
+        return self::$avisosPeticion;
+    }
+
     /** @return array<int,int> producto_id => cantidad */
     public static function lineas(): array
     {
@@ -221,7 +234,7 @@ final class Carrito
         // está en oferta, la base es cero y el cupón no descuenta nada.
         $descuento = $cupon ? Cupones::calcular($cupon, $baseCupon, $envio) : 0.0;
 
-        return [
+        $resultado = [
             'items'      => $items,
             'subtotal'   => $subtotal,
             'base_cupon' => $baseCupon,
@@ -235,6 +248,8 @@ final class Carrito
             'unidades'  => array_sum($lineas),
             'avisos'    => array_values(array_unique($avisos)),
         ];
+        self::$avisosPeticion = array_values(array_unique(array_merge(self::$avisosPeticion, $avisos)));
+        return $resultado;
     }
 
     /**

@@ -117,7 +117,10 @@ final class Pedidos
 
         $detalle = Carrito::detalle($pdo, $zona, $entrega, $cupon);
         if (!$detalle['items']) {
-            return ['ok' => false, 'error' => 'Tu carrito está vacío.'];
+            // Si se vació porque otro cliente se llevó las últimas unidades,
+            // se dice qué arreglo se quitó (igual que checkout.php al cargar).
+            $avisos = $detalle['avisos'] ?: Carrito::avisosDeEstaPeticion();
+            return ['ok' => false, 'error' => $avisos ? implode(' ', $avisos) : 'Tu carrito está vacío.'];
         }
         if ($detalle['avisos']) {
             // Algo cambió de disponibilidad mientras el cliente llenaba el formulario.
