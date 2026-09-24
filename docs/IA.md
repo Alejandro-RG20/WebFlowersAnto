@@ -468,27 +468,37 @@ desde el navegador.
 ### Pruebas realizadas en esta versión
 
 Todas en local contra el simulador, con navegador real (Chromium) donde
-aplica. Resultado: **0 fallos**.
+aplica. **Toda la batería se ejecutó dos veces completa: con el proveedor
+Anthropic simulado y con OpenRouter simulado, con los mismos resultados.**
 
-| Suite | Resultado |
-|-------|-----------|
-| Verificación de correo (estados, reenvío, carreras, token fuera de la URL) | 20/20 |
-| Recuperación, sesiones y acceso (cierre de sesiones, tiempos, cuenta desactivada) | 17/17 |
-| Limitador bajo 40 peticiones simultáneas | pasan exactamente 5 de 5 permitidas |
-| Herramientas de la tienda (datos, propiedad de pedidos, carrito, validación) | 34/34 |
-| Seguridad IA (inyección, herramienta prohibida, precio inventado, pedido ajeno, XSS, CSRF, límites, errores de la API) | 31/31 |
-| Interfaz de la asesora (móvil y escritorio, teclado, foco, tarjetas, carrito) | 39/39 |
-| Herramientas del panel (permisos por rol, datos, propuestas) | 29/29 |
-| AI Manager (propuestas, confirmación, caducidad, cambio concurrente, doble clic) | 30/30 |
-| Venta completa: registro → verificación → recomendación IA → carrito por IA → checkout → comprobante → aprobación → cambio de estado por el AI Manager → el cliente lo ve | 27/27 |
-| Regresión de la tienda sin IA | 23/23 |
-| Concurrencia: 4 compradores por la última unidad (1 pedido, stock 0) y 20 chats simultáneos | 8/8 |
-| Asistente apagado (sin clave, con `AI_CLIENTE_ACTIVO=0`, sin migración 022): la tienda idéntica | 4/4 |
-| Precios, compra y panel de la v.10 | 7/7, 8/8, 7/7 |
-| 13 páginas públicas + 17 del panel: sin errores de consola, sin violaciones de CSP, sin desborde en 104 + 96 combinaciones de pantalla | limpio |
+| Suite | Anthropic | OpenRouter |
+|-------|-----------|------------|
+| Adaptador de proveedores (configuración, traducción de peticiones y respuestas, varias herramientas, argumentos rotos, `finish_reason` engañoso, errores 401/402/429/5xx, clave tapada en el registro, cambio de proveedor con la conversación abierta, AI Manager con permisos y confirmación) | 78/78 (ambos proveedores en la misma suite) | |
+| Seguridad IA (inyección, herramienta prohibida, precio inventado, pedido ajeno, XSS, CSRF, límites, errores de la API) | 31/31 | 31/31 |
+| Interfaz de la asesora (móvil y escritorio, teclado, foco, tarjetas, carrito) | 39/39 | 39/39 |
+| AI Manager (propuestas, confirmación, caducidad, cambio concurrente, doble clic) | 30/30 | 30/30 |
+| Venta completa: registro → verificación → recomendación IA → carrito por IA → checkout → comprobante → aprobación → cambio de estado por el AI Manager → el cliente lo ve | 27/27 | 27/27 |
+| Concurrencia: 4 compradores por la última unidad (1 pedido, stock 0, los demás con aviso claro) y 20 chats simultáneos | 8/8 | 8/8 |
+| Herramientas de la tienda (datos, propiedad de pedidos, carrito, validación) | 34/34 | 34/34 |
+| Herramientas del panel (permisos por rol, datos, propuestas) | 29/29 | 29/29 |
+| Regresión de la tienda sin IA | 23/23 | 23/23 |
+| Verificación de correo | 20/20 | 20/20 |
+| Recuperación, sesiones y acceso | 17/17 | 17/17 |
+| Precios, compra y panel de la v.10 | 7/7, 8/8, 7/7 | 7/7, 8/8, 7/7 |
+| Asistente apagado (sin clave, `AI_CLIENTE_ACTIVO=0`, OpenRouter sin `AI_MODEL`, sin migración 022): la tienda idéntica | 5/5 | 5/5 |
+| 13 páginas públicas + 17 del panel: sin errores de consola ni violaciones de CSP; 0 errores de PHP en el registro | limpio | limpio |
 
-No se probó con la API real porque la clave no está en este entorno: para eso
-es `probar-api-real.php`.
+Fallos encontrados y corregidos al hacer estas pruebas:
+
+- **Anthropic, herramientas sin argumentos**: `"input": []` rechazado por la
+  API real (400). Ya existía; el simulador no validaba esa regla. Corregido en
+  el adaptador y el simulador ahora la exige.
+- **Checkout con la última unidad**: a veces el cliente que se quedaba sin el
+  arreglo veía «Tu carrito está vacío.» en vez de «Nos quedamos sin…». Ya
+  existía; corregido en `Carrito`/`Pedidos`.
+
+No se probó con la API real: no hay clave en este entorno y su red no llega a
+`openrouter.ai`. Para eso es `probar-api-real.php` (§9).
 
 ---
 
