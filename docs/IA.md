@@ -559,37 +559,44 @@ desde el navegador.
 ### Pruebas realizadas en esta versión
 
 Todas en local contra el simulador, con navegador real (Chromium) donde
-aplica. **Toda la batería se ejecutó dos veces completa: con el proveedor
-Anthropic simulado y con OpenRouter simulado, con los mismos resultados.**
+aplica. **Toda la batería se ejecutó completa con cada proveedor: Anthropic,
+OpenRouter y Google Gemini simulados, con los mismos resultados.**
 
-| Suite | Anthropic | OpenRouter |
-|-------|-----------|------------|
-| Adaptador de proveedores (configuración, traducción de peticiones y respuestas, varias herramientas, argumentos rotos, `finish_reason` engañoso, errores 401/402/429/5xx, clave tapada en el registro, cambio de proveedor con la conversación abierta, AI Manager con permisos y confirmación) | 78/78 (ambos proveedores en la misma suite) | |
-| Seguridad IA (inyección, herramienta prohibida, precio inventado, pedido ajeno, XSS, CSRF, límites, errores de la API) | 31/31 | 31/31 |
-| Interfaz de la asesora (móvil y escritorio, teclado, foco, tarjetas, carrito) | 39/39 | 39/39 |
-| AI Manager (propuestas, confirmación, caducidad, cambio concurrente, doble clic) | 30/30 | 30/30 |
-| Venta completa: registro → verificación → recomendación IA → carrito por IA → checkout → comprobante → aprobación → cambio de estado por el AI Manager → el cliente lo ve | 27/27 | 27/27 |
-| Concurrencia: 4 compradores por la última unidad (1 pedido, stock 0, los demás con aviso claro) y 20 chats simultáneos | 8/8 | 8/8 |
-| Herramientas de la tienda (datos, propiedad de pedidos, carrito, validación) | 34/34 | 34/34 |
-| Herramientas del panel (permisos por rol, datos, propuestas) | 29/29 | 29/29 |
-| Regresión de la tienda sin IA | 23/23 | 23/23 |
-| Verificación de correo | 20/20 | 20/20 |
-| Recuperación, sesiones y acceso | 17/17 | 17/17 |
-| Precios, compra y panel de la v.10 | 7/7, 8/8, 7/7 | 7/7, 8/8, 7/7 |
-| Asistente apagado (sin clave, `AI_CLIENTE_ACTIVO=0`, OpenRouter sin `AI_MODEL`, sin migración 022): la tienda idéntica | 5/5 | 5/5 |
-| 13 páginas públicas + 17 del panel: sin errores de consola ni violaciones de CSP; 0 errores de PHP en el registro | limpio | limpio |
+| Suite | Anthropic | OpenRouter | Google |
+|-------|-----------|------------|--------|
+| Adaptador de proveedores: configuración, traducción de peticiones y respuestas, herramientas (una, varias y en cadena), argumentos inválidos, guardia de precios, rechazos, errores (401/402/403/404/429/5xx/504), clave tapada en el registro, cambio de proveedor con la conversación abierta (en todas las direcciones), AI Manager con permisos y confirmación | 146/146 (los tres en la misma suite) | | |
+| Aislamiento: 3 clientes a la vez, sin mezclar historial, carrito ni respuestas | 9/9 | 9/9 | 9/9 |
+| Espera de Massiel (progreso, conexión cortada, recuperación, aviso con el chat cerrado) | 8/8 | 8/8 | 8/8 |
+| Seguridad IA (inyección, herramienta prohibida, precio inventado, pedido ajeno, XSS, CSRF, límites, errores de la API) | 31/31 | 31/31 | 31/31 |
+| Interfaz de la asesora | 42/42 | 42/42 | 42/42 |
+| AI Manager (propuestas, confirmación, caducidad, cambio concurrente, doble clic) | 30/30 | 30/30 | 30/30 |
+| Venta completa (registro → … → el cliente ve el estado cambiado por el AI Manager) | 27/27 | 27/27 | 27/27 |
+| Concurrencia: 4 compradores por la última unidad y 20 chats simultáneos | 8/8 | 8/8 | 8/8 |
+| Herramientas de la tienda / del panel | 34/34 · 29/29 | 34/34 · 29/29 | 34/34 · 29/29 |
+| Regresión de la tienda, verificación de correo, recuperación y sesiones | 23/23 · 20/20 · 17/17 | igual | igual |
+| Precios, compra y panel de la v.10 | 7/7 · 8/8 · 7/7 | igual | igual |
+| Asistente apagado (sin clave, `AI_CLIENTE_ACTIVO=0`, sin `AI_MODEL`, sin migración 022) | 5/5 | 5/5 | 5/5 |
+| 13 páginas públicas + 17 del panel: consola, CSP y registro de PHP | limpio | limpio | limpio |
+
+Contra la **API real de Google** (alcanzable desde el entorno de pruebas, sin
+clave válida): la URL y la cabecera `x-goog-api-key` son las correctas; una
+clave no válida da `400 API_KEY_INVALID`, se trata como error de
+configuración y el registro no contiene la clave.
 
 Fallos encontrados y corregidos al hacer estas pruebas:
 
 - **Anthropic, herramientas sin argumentos**: `"input": []` rechazado por la
-  API real (400). Ya existía; el simulador no validaba esa regla. Corregido en
-  el adaptador y el simulador ahora la exige.
-- **Checkout con la última unidad**: a veces el cliente que se quedaba sin el
-  arreglo veía «Tu carrito está vacío.» en vez de «Nos quedamos sin…». Ya
-  existía; corregido en `Carrito`/`Pedidos`.
+  API real (400). Ya existía; corregido en el adaptador.
+- **Checkout con la última unidad** (ya existía):
+  - a veces el cliente que se quedaba sin el arreglo veía «Tu carrito está
+    vacío.»; ahora ve qué se agotó;
+  - con varias compras a la vez, MariaDB deshacía a veces una transacción
+    (deadlock) y **el cliente veía el error SQL en crudo**. Ahora nunca se
+    muestra un error de base de datos y la compra se repite, dando el aviso
+    correcto. Lo mismo en `api/paypal.php`.
 
-No se probó con la API real: no hay clave en este entorno y su red no llega a
-`openrouter.ai`. Para eso es `probar-api-real.php` (§9).
+No se probó con una respuesta real de un modelo (sin clave en este entorno):
+para eso es `probar-api-real.php` (§9).
 
 ---
 
