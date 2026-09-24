@@ -9,6 +9,8 @@
  *   anthropic             → se envía tal cual a /v1/messages.
  *   openrouter / openai   → se traduce a Chat Completions (/chat/completions)
  *                           y la respuesta se traduce de vuelta.
+ *   google                → se traduce a Gemini (generateContent: contents,
+ *                           parts, functionCall/functionResponse) y de vuelta.
  *
  * Así el agente, las herramientas, la guardia de precios y el historial de la
  * sesión no cambian con el proveedor: el historial siempre queda en el mismo
@@ -21,7 +23,8 @@
  *
  * Lo que garantiza, con cualquier proveedor:
  *
- *   · La clave solo sale en su cabecera (`x-api-key` o `Authorization`) y
+ *   · La clave solo sale en su cabecera (`x-api-key`, `Authorization` o
+ *     `x-goog-api-key`; nunca en la URL) y
  *     nunca se registra; si apareciera en un mensaje de error, se tapa.
  *   · Tiempo máximo por llamada, con un reintento para 429 y 5xx si queda
  *     margen dentro del presupuesto de tiempo.
@@ -70,6 +73,7 @@ final class ClaudeCliente
         return match (IaConfig::proveedor()) {
             'anthropic'            => self::anthropic($cuerpo, $limite, $clave),
             'openrouter', 'openai' => self::compatibleOpenAi($cuerpo, $limite, $clave),
+            'google'               => self::google($cuerpo, $limite, $clave),
             default                => throw new IaError('config', 'AI_PROVEEDOR no es válido.'),
         };
     }
@@ -162,7 +166,9 @@ final class ClaudeCliente
      *   · `input` de un tool_use siempre como objeto. PHP decodifica `{}` como
      *     un array vacío y lo volvería a codificar como `[]`, que la API
      *     rechaza: pasaba con cualquier herramienta sin argumentos.
-     *   · Sin la marca interna `entrada_invalida` (ver compatibleOpenAi).
+     *   · Sin las marcas internas `entrada_invalida` (ver compatibleOpenAi) ni
+     *     `firma_google` (ver google), por si la conversación empezó con otro
+     *     proveedor.
      *   · Identificadores de herramienta con los caracteres que admite la API,
      *     por si la conversación empezó con otro proveedor. El cambio es el
      *     mismo en el tool_use y en su tool_result, así que siguen emparejados.
@@ -176,8 +182,10 @@ final class ClaudeCliente
             }
             foreach ($m['content'] as $j => $b) {
                 $tipo = is_array($b) ? ($b['type'] ?? '') : '';
-                if ($tipo === 'tool_use') {
-                    unset($b['entrada_invalida']);
+                if ($tipo === 'text' && isset($b['firma_google'])) {
+                    unset($cuerpo['messages'][$i]['content'][$j]['firma_google']);
+                } elseif ($tipo === 'tool_use') {
+                    unset($b['entrada_invalida'], $b['firma_google']);
                     if (!is_array($b['input'] ?? null) || $b['input'] === [] || array_is_list($b['input'])) {
                         $b['input'] = new stdClass();
                     }
@@ -491,6 +499,333 @@ final class ClaudeCliente
         }
         $entrada = json_decode($crudo, true, 32);
         return [is_array($entrada) ? $entrada : [], is_array($entrada)];
+    }
+
+
+    // =====================================================================
+    // Google Gemini
+    // =====================================================================
+
+    /** Prefijo de los identificadores que pone Flowers Anto cuando Gemini no manda uno. */
+    private const ID_PROPIO_GOOGLE = 'fa_';
+
+    /**
+     * Campos del esquema de parámetros que admite Gemini (objeto `Schema` de
+     * la API, subconjunto de OpenAPI 3.0). Cualquier otro —por ejemplo
+     * `additionalProperties`— la API lo rechaza con un 400.
+     */
+    private const CAMPOS_ESQUEMA_GOOGLE = [
+        'type', 'format', 'title', 'description', 'nullable', 'enum', 'required',
+        'minimum', 'maximum', 'minItems', 'maxItems', 'minLength', 'maxLength', 'pattern',
+        'minProperties', 'maxProperties', 'propertyOrdering',
+    ];
+
+    /** Finales de Gemini que son un rechazo por seguridad o contenido. */
+    private const RECHAZOS_GOOGLE = ['SAFETY', 'RECITATION', 'BLOCKLIST', 'PROHIBITED_CONTENT', 'SPII'];
+
+    private static function google(array $cuerpo, float $limite, string $clave): array
+    {
+        $peticion  = self::aGemini($cuerpo);
+        // El modelo va en la URL: se usa el de la petición (tienda o panel).
+        $url       = IaConfig::urlPeticion((string)($cuerpo['model'] ?? ''));
+        // La clave va en la cabecera oficial, nunca como ?key= en la URL, que
+        // podría quedar en registros de proxies.
+        $cabeceras = ['Content-Type: application/json', 'x-goog-api-key: ' . $clave];
+
+        $intentos = 0;
+        while (true) {
+            $intentos++;
+            $quedan = $limite - microtime(true);
+            if ($quedan < 3) {
+                throw new IaError('tiempo', 'Sin tiempo para llamar a la API.');
+            }
+            [$estado, $respuesta, $reintentarEn, $errorCurl] = self::post($url, $cabeceras, $peticion, $quedan);
+
+            if ($errorCurl !== '') {
+                throw new IaError(str_contains($errorCurl, 'timed out') ? 'tiempo' : 'red', $errorCurl);
+            }
+
+            $datos = json_decode($respuesta, true);
+            if ($estado === 200) {
+                return self::desdeGemini(is_array($datos) ? $datos : []);
+            }
+
+            $error  = is_array($datos) && is_array($datos['error'] ?? null) ? $datos['error'] : [];
+            $status = preg_replace('/[^A-Z_]/', '', (string)($error['status'] ?? '')) ?? '';
+            $motivo = '';
+            foreach ((array)($error['details'] ?? []) as $d) {
+                if (is_array($d) && is_string($d['reason'] ?? null)) {
+                    $motivo = preg_replace('/[^A-Z_]/', '', $d['reason']) ?? '';
+                    break;
+                }
+            }
+            $texto = self::tapar(mb_substr((string)($error['message'] ?? ''), 0, 200), $clave);
+            // Google responde 400 (no 401) a una clave que no es válida.
+            $claveMala = $motivo === 'API_KEY_INVALID' || ($estado === 400 && stripos($texto, 'API key') !== false);
+
+            $reintentable = in_array($estado, [429, 500, 502, 503], true);
+            $espera = min(3.0, max(0.5, $reintentarEn));
+            if ($reintentable && $intentos < 2 && ($limite - microtime(true)) > $espera + 5) {
+                usleep((int)($espera * 1_000_000));
+                continue;
+            }
+
+            error_log(sprintf('Flowers Anto — IA (google): HTTP %d %s %s %s%s', $estado, $status, $motivo, $texto, match (true) {
+                $claveMala        => ' — AI_API_KEY no es válida',
+                $estado === 403   => ' — la clave no tiene permiso para la API de Gemini',
+                $estado === 404   => ' — revisa AI_MODEL: el modelo no existe o no admite generateContent',
+                $estado === 429   => ' — cuota o límite de Google alcanzado (depende del modelo y del proyecto)',
+                default           => '',
+            }));
+            throw new IaError(match (true) {
+                $claveMala, $estado === 401, $estado === 403 => 'config',
+                $estado === 408, $estado === 504             => 'tiempo',
+                $estado === 429                              => 'limite',
+                $estado >= 500                               => 'sobrecarga',
+                default                                      => 'peticion',
+            }, "HTTP $estado $status");
+        }
+    }
+
+    /**
+     * Petición Messages → Gemini (generateContent).
+     *
+     *   · system          → systemInstruction (una sola vez, completo).
+     *   · user/assistant  → contents con role user/model y sus parts.
+     *   · tool_use        → part functionCall {id?, name, args} (+ su firma).
+     *   · tool_result     → part functionResponse {id?, name, response}, en un
+     *                       contenido de usuario, en el mismo orden.
+     *   · herramientas    → tools[0].functionDeclarations, con el esquema
+     *                       adaptado a lo que admite Gemini.
+     * Lo exclusivo de Anthropic (cache_control, output_config, fallbacks,
+     * razonamiento) no se envía.
+     */
+    private static function aGemini(array $cuerpo): array
+    {
+        $peticion = [];
+
+        $sistema = $cuerpo['system'] ?? '';
+        if (is_array($sistema)) {
+            $sistema = self::textoDeBloques($sistema);
+        }
+        if (is_string($sistema) && $sistema !== '') {
+            $peticion['systemInstruction'] = ['parts' => [['text' => $sistema]]];
+        }
+
+        // functionResponse necesita el nombre de la función: se toma del
+        // tool_use con el mismo id, que siempre va antes en el historial.
+        $nombres  = [];
+        $contents = [];
+        foreach ($cuerpo['messages'] ?? [] as $m) {
+            if (!is_array($m)) {
+                continue;
+            }
+            $rol = ($m['role'] ?? '') === 'assistant' ? 'model' : 'user';
+            $contenido = $m['content'] ?? '';
+            $partes = [];
+
+            if (is_string($contenido)) {
+                if ($contenido !== '') {
+                    $partes[] = ['text' => $contenido];
+                }
+            } else {
+                foreach ((array)$contenido as $b) {
+                    $tipo = is_array($b) ? ($b['type'] ?? '') : '';
+                    if ($tipo === 'text' && is_string($b['text'] ?? null) && $b['text'] !== '') {
+                        $parte = ['text' => $b['text']];
+                        if ($rol === 'model' && is_string($b['firma_google'] ?? null)) {
+                            $parte['thoughtSignature'] = $b['firma_google'];
+                        }
+                        $partes[] = $parte;
+                    } elseif ($tipo === 'tool_use' && $rol === 'model') {
+                        $id = (string)($b['id'] ?? '');
+                        $nombres[$id] = (string)($b['name'] ?? '');
+                        $entrada = $b['input'] ?? [];
+                        $llamada = [
+                            'name' => (string)($b['name'] ?? ''),
+                            'args' => is_array($entrada) && $entrada !== [] && !array_is_list($entrada)
+                                && empty($b['entrada_invalida']) ? $entrada : new stdClass(),
+                        ];
+                        if ($id !== '' && !str_starts_with($id, self::ID_PROPIO_GOOGLE)) {
+                            $llamada = ['id' => $id] + $llamada;
+                        }
+                        $parte = ['functionCall' => $llamada];
+                        if (is_string($b['firma_google'] ?? null)) {
+                            $parte['thoughtSignature'] = $b['firma_google'];
+                        }
+                        $partes[] = $parte;
+                    } elseif ($tipo === 'tool_result' && $rol === 'user') {
+                        $id = (string)($b['tool_use_id'] ?? '');
+                        $resultado = $b['content'] ?? '';
+                        $resultado = is_array($resultado) ? self::textoDeBloques($resultado) : (string)$resultado;
+                        if (!empty($b['is_error'])) {
+                            $respuesta = ['error' => $resultado];
+                        } else {
+                            $dato = json_decode($resultado, true);
+                            $respuesta = ['result' => json_last_error() === JSON_ERROR_NONE ? $dato : $resultado];
+                        }
+                        $funcion = ['name' => $nombres[$id] ?? 'herramienta', 'response' => $respuesta];
+                        if ($id !== '' && !str_starts_with($id, self::ID_PROPIO_GOOGLE)) {
+                            $funcion = ['id' => $id] + $funcion;
+                        }
+                        $partes[] = ['functionResponse' => $funcion];
+                    }
+                    // `thinking` y `redacted_thinking` son de Anthropic: no se envían.
+                }
+            }
+            if ($partes) {
+                $contents[] = ['role' => $rol, 'parts' => $partes];
+            }
+        }
+        $peticion['contents'] = $contents;
+
+        $declaraciones = [];
+        foreach ($cuerpo['tools'] ?? [] as $t) {
+            if (!is_array($t) || !isset($t['name'])) {
+                continue;
+            }
+            $declaracion = ['name' => (string)$t['name'], 'description' => (string)($t['description'] ?? '')];
+            $parametros = self::esquemaGoogle($t['input_schema'] ?? []);
+            // Una función sin parámetros se declara sin `parameters`.
+            if (!empty($parametros['properties'])) {
+                $declaracion['parameters'] = $parametros;
+            }
+            $declaraciones[] = $declaracion;
+        }
+        if ($declaraciones) {
+            $peticion['tools'] = [['functionDeclarations' => $declaraciones]];
+        }
+
+        $peticion['generationConfig'] = ['maxOutputTokens' => (int)($cuerpo['max_tokens'] ?? 1024)];
+        return $peticion;
+    }
+
+    /**
+     * Esquema JSON de una herramienta → `Schema` de Gemini. Tipos en
+     * mayúsculas (su forma oficial) y solo los campos que la API admite. La
+     * definición original de la herramienta no se toca: esto es una copia.
+     * Quitar `additionalProperties` no abre nada: las herramientas solo leen
+     * sus campos conocidos (IaEntrada).
+     */
+    private static function esquemaGoogle(mixed $esquema): array
+    {
+        $esquema = json_decode((string)json_encode($esquema), true);
+        if (!is_array($esquema)) {
+            return [];
+        }
+        $salida = [];
+        foreach (self::CAMPOS_ESQUEMA_GOOGLE as $campo) {
+            if (array_key_exists($campo, $esquema)) {
+                $salida[$campo] = $esquema[$campo];
+            }
+        }
+        if (isset($salida['type'])) {
+            $tipos = array_values(array_filter((array)$salida['type'], fn($t) => is_string($t) && strtolower($t) !== 'null'));
+            if (is_array($salida['type']) && count($tipos) < count($salida['type'])) {
+                $salida['nullable'] = true;
+            }
+            $salida['type'] = strtoupper((string)($tipos[0] ?? 'string'));
+        }
+        if (is_array($esquema['properties'] ?? null) && $esquema['properties'] !== []) {
+            $salida['properties'] = [];
+            foreach ($esquema['properties'] as $nombre => $sub) {
+                $salida['properties'][(string)$nombre] = self::esquemaGoogle($sub);
+            }
+        }
+        if (isset($esquema['items'])) {
+            $salida['items'] = self::esquemaGoogle($esquema['items']);
+        }
+        if (isset($salida['enum'])) {
+            $salida['enum'] = array_values(array_map('strval', (array)$salida['enum']));
+        }
+        return $salida;
+    }
+
+    /**
+     * Respuesta de Gemini → formato Messages.
+     *
+     * Cada part de texto es un bloque `text`; cada functionCall, un bloque
+     * `tool_use` con su id (el de Gemini o uno propio si no trae) y los
+     * argumentos. Si `args` no es un objeto, el bloque lleva
+     * `entrada_invalida` y el agente devuelve un error en vez de ejecutarla.
+     * La firma de razonamiento (`thoughtSignature`) se guarda en el bloque
+     * para devolverla intacta en la siguiente vuelta, como pide la API.
+     * Hay herramientas si llega alguna functionCall: Gemini termina en «STOP»
+     * también cuando pide una.
+     */
+    private static function desdeGemini(array $datos): array
+    {
+        $uso = is_array($datos['usageMetadata'] ?? null) ? $datos['usageMetadata'] : [];
+        $cache = (int)($uso['cachedContentTokenCount'] ?? 0);
+        $usage = [
+            'input_tokens'            => max(0, (int)($uso['promptTokenCount'] ?? 0) - $cache),
+            'output_tokens'           => (int)($uso['candidatesTokenCount'] ?? 0) + (int)($uso['thoughtsTokenCount'] ?? 0),
+            'cache_read_input_tokens' => $cache,
+        ];
+        $base = ['id' => (string)($datos['responseId'] ?? ''), 'type' => 'message', 'role' => 'assistant',
+                 'model' => (string)($datos['modelVersion'] ?? '')];
+
+        $candidato = $datos['candidates'][0] ?? null;
+        if (!is_array($candidato)) {
+            // Sin candidatos: el mensaje del cliente se bloqueó por seguridad.
+            if (!empty($datos['promptFeedback']['blockReason'])) {
+                return $base + ['content' => [], 'stop_reason' => 'refusal', 'usage' => $usage];
+            }
+            throw new IaError('respuesta', 'Respuesta de Gemini sin candidatos.');
+        }
+        $fin = (string)($candidato['finishReason'] ?? '');
+        if ($fin === 'MISSING_THOUGHT_SIGNATURE') {
+            // El historial no traía una firma que el modelo exige: el agente
+            // lo repite con la conversación limpia.
+            throw new IaError('peticion', 'Gemini: ' . $fin);
+        }
+        if (in_array($fin, ['MALFORMED_FUNCTION_CALL', 'UNEXPECTED_TOOL_CALL', 'TOO_MANY_TOOL_CALLS', 'MALFORMED_RESPONSE'], true)) {
+            throw new IaError('respuesta', 'Gemini: ' . $fin);
+        }
+
+        $contenido = [];
+        $hayHerramientas = false;
+        foreach ((array)($candidato['content']['parts'] ?? []) as $parte) {
+            if (!is_array($parte) || !empty($parte['thought'])) {
+                continue; // resumen del razonamiento: no es parte de la respuesta
+            }
+            $firma = is_string($parte['thoughtSignature'] ?? null) && strlen($parte['thoughtSignature']) <= 20000
+                ? $parte['thoughtSignature'] : null;
+            if (is_array($parte['functionCall'] ?? null)) {
+                $llamada = $parte['functionCall'];
+                $args = $llamada['args'] ?? [];
+                $valida = is_array($args) && ($args === [] || !array_is_list($args));
+                $id = $llamada['id'] ?? '';
+                $bloque = [
+                    'type'  => 'tool_use',
+                    'id'    => is_string($id) && $id !== '' ? $id : self::ID_PROPIO_GOOGLE . bin2hex(random_bytes(8)),
+                    'name'  => (string)($llamada['name'] ?? ''),
+                    'input' => $valida ? $args : [],
+                ];
+                if (!$valida) {
+                    $bloque['entrada_invalida'] = true;
+                }
+                if ($firma !== null) {
+                    $bloque['firma_google'] = $firma;
+                }
+                $contenido[] = $bloque;
+                $hayHerramientas = true;
+            } elseif (is_string($parte['text'] ?? null) && trim($parte['text']) !== '') {
+                $bloque = ['type' => 'text', 'text' => $parte['text']];
+                if ($firma !== null) {
+                    $bloque['firma_google'] = $firma;
+                }
+                $contenido[] = $bloque;
+            }
+        }
+
+        $parada = match (true) {
+            in_array($fin, self::RECHAZOS_GOOGLE, true) => 'refusal',
+            $fin === 'MAX_TOKENS'                        => 'max_tokens',
+            $hayHerramientas                             => 'tool_use',
+            default                                      => 'end_turn',
+        };
+        return $base + ['content' => $contenido, 'stop_reason' => $parada, 'usage' => $usage];
     }
 
     // =====================================================================

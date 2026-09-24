@@ -15,6 +15,7 @@
  *   anthropic   Messages API de Anthropic. Es el valor por defecto.
  *   openrouter  OpenRouter, por su API compatible con OpenAI (Chat Completions).
  *   openai      Cualquier otra API compatible con OpenAI (AI_BASE_URL).
+ *   google      Google Gemini, por su API oficial (generateContent).
  * La traducción entre formatos la hace `ClaudeCliente`; el resto de la capa
  * de IA no sabe qué proveedor hay detrás.
  */
@@ -33,7 +34,15 @@ final class IaConfig
         'anthropic'  => self::URL_POR_DEFECTO,
         'openrouter' => 'https://openrouter.ai/api/v1',
         'openai'     => 'https://api.openai.com/v1',
+        'google'     => 'https://generativelanguage.googleapis.com',
     ];
+
+    /**
+     * Identificador de modelo de Gemini: `gemini-2.5-flash-lite`,
+     * `gemini-flash-latest`… (con o sin el prefijo `models/`). Va dentro de la
+     * ruta de la URL, así que solo minúsculas, números, punto y guion.
+     */
+    private const PATRON_MODELO_GOOGLE = '#^(models/)?[a-z0-9][a-z0-9.-]{1,80}$#';
 
     /**
      * Identificador de modelo de un proveedor compatible con OpenAI:
@@ -65,7 +74,7 @@ final class IaConfig
     }
 
     /**
-     * Proveedor configurado: anthropic, openrouter u openai.
+     * Proveedor configurado: anthropic, openrouter, openai o google.
      * Devuelve '' si AI_PROVEEDOR tiene un valor desconocido (asistentes apagados).
      */
     public static function proveedor(): string
@@ -92,6 +101,12 @@ final class IaConfig
     public static function modelo(string $agente): string
     {
         $modelo = $agente === 'admin' ? trim(Entorno::texto('AI_MODEL_ADMIN')) : '';
+        if (self::proveedor() === 'google') {
+            // Obligatorio, como con OpenRouter. Se guarda sin el prefijo
+            // `models/`, que se pone al armar la URL.
+            $modelo = $modelo !== '' ? $modelo : trim(Entorno::texto('AI_MODEL'));
+            return preg_match(self::PATRON_MODELO_GOOGLE, $modelo) ? preg_replace('#^models/#', '', $modelo) : '';
+        }
         if (self::compatibleOpenAi()) {
             $modelo = $modelo !== '' ? $modelo : trim(Entorno::texto('AI_MODEL'));
             return strlen($modelo) <= 150 && preg_match(self::PATRON_MODELO_ABIERTO, $modelo) ? $modelo : '';
@@ -130,10 +145,17 @@ final class IaConfig
      * {base}/chat/completions, con la base ya incluyendo la versión
      * (https://openrouter.ai/api/v1). Si alguien pone la ruta completa en
      * AI_BASE_URL, no se duplica.
+     *
+     * Google: la URL depende del modelo, y el del panel puede ser otro que el
+     * de la tienda; se pasa el modelo de la petición (por defecto, el de la
+     * tienda).
      */
-    public static function urlPeticion(): string
+    public static function urlPeticion(string $modelo = ''): string
     {
         $base = self::urlBase();
+        if (self::proveedor() === 'google') {
+            return self::urlGoogle($base, $modelo !== '' ? $modelo : self::modelo('cliente'));
+        }
         if (!self::compatibleOpenAi()) {
             return $base . '/v1/messages';
         }
@@ -141,6 +163,21 @@ final class IaConfig
             $base = substr($base, 0, -strlen('/chat/completions'));
         }
         return $base . '/chat/completions';
+    }
+
+    /**
+     * {base}/v1beta/models/{modelo}:generateContent. La base es la raíz del
+     * servicio (https://generativelanguage.googleapis.com); si alguien pone
+     * la versión o la ruta de modelos en AI_BASE_URL, no se duplica.
+     */
+    private static function urlGoogle(string $base, string $modelo): string
+    {
+        $base = preg_replace('#/(v1beta|v1)(/models)?$#', '', $base) ?? $base;
+        $modelo = preg_replace('#^models/#', '', $modelo) ?? '';
+        if (!preg_match(self::PATRON_MODELO_GOOGLE, $modelo)) {
+            $modelo = 'modelo-no-valido';
+        }
+        return $base . '/v1beta/models/' . $modelo . ':generateContent';
     }
 
     /**
@@ -173,10 +210,11 @@ final class IaConfig
             $p[] = 'Falta AI_API_KEY o tiene caracteres no válidos.';
         }
         if (self::proveedor() === '') {
-            $p[] = 'AI_PROVEEDOR no es válido (usa anthropic, openrouter u openai).';
-        } elseif (self::compatibleOpenAi()) {
+            $p[] = 'AI_PROVEEDOR no es válido (usa anthropic, openrouter, openai o google).';
+        } elseif (self::compatibleOpenAi() || self::proveedor() === 'google') {
             if (self::modelo('cliente') === '') {
-                $p[] = 'Con AI_PROVEEDOR=' . self::proveedor() . ' hay que indicar AI_MODEL (p. ej. autor/modelo:variante).';
+                $p[] = 'Con AI_PROVEEDOR=' . self::proveedor() . ' hay que indicar AI_MODEL ('
+                     . (self::proveedor() === 'google' ? 'p. ej. gemini-2.5-flash-lite' : 'p. ej. autor/modelo:variante') . ').';
             }
             if (self::modelo('admin') === '' && self::modelo('cliente') !== '') {
                 $p[] = 'AI_MODEL_ADMIN no es un identificador de modelo válido.';
