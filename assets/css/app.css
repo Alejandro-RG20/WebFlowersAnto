@@ -1063,18 +1063,86 @@ body:has(.aviso-cookies:not([hidden])) .whatsapp-float { bottom: 132px; }
 .btn-nav-asesora:hover { background: var(--rose-soft); }
 .btn-nav-asesora[aria-expanded="true"] { background: var(--dark); border-color: var(--dark); color: #fff; }
 .btn-nav-asesora[aria-expanded="true"] .icono-trazo { color: var(--rose-pastel); }
-/* Entrada en el menú del móvil: solo donde el botón de la barra no cabe. */
-.nav-asesora-item { display: none; }
-@media (max-width: 414px) {
+
+/* --- Botón flotante (móvil y tableta) --------------------------------
+   Hasta 900 px la barra pasa a hamburguesa y el botón de la barra le quitaba
+   sitio al nombre de la tienda (en un iPhone de 430 px lo cortaba). Ahí
+   Massiel se abre con un botón flotante, como el de WhatsApp y justo encima
+   de él, con el mismo tamaño, el mismo latido y la misma esquina. */
+.asesora-flotante { display: none; }
+@media (max-width: 900px) {
   .btn-nav-asesora { display: none; }
-  .nav-asesora-item { display: block; }
+  .asesora-flotante {
+    position: fixed; z-index: 998;
+    right: 28px; bottom: calc(28px + 60px + 16px + env(safe-area-inset-bottom));
+    display: flex; flex-direction: row-reverse; align-items: center; gap: 10px;
+    padding: 0; border: 0; background: none; font: inherit; color: inherit;
+    cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent;
+  }
+  .asesora-flotante-circulo {
+    position: relative; width: 60px; height: 60px; border-radius: 50%;
+    display: grid; place-items: center; flex-shrink: 0; color: #fff;
+    background: linear-gradient(145deg, #E07A98 0%, #C24D72 55%, #8A2E45 100%);
+    box-shadow: 0 8px 22px rgba(138, 46, 69, .38), inset 0 1px 0 rgba(255, 255, 255, .3);
+    transition: transform 180ms cubic-bezier(.34, 1.4, .64, 1);
+  }
+  .asesora-flotante-circulo .icono-trazo { stroke-width: 2; }
+  /* El halo late como el de WhatsApp: transform y opacity, sin repintar. */
+  .asesora-flotante-circulo::after {
+    content: ""; position: absolute; inset: 0; z-index: -1; border-radius: 50%;
+    background: rgba(224, 122, 152, .55); pointer-events: none; animation: pulse 2.4s infinite;
+  }
+  /* La etiqueta se presenta al cargar la página y se retira a los pocos
+     segundos: si se quedara, taparía el texto que haya debajo. El círculo,
+     con su latido, sigue a la vista. */
+  .asesora-flotante-nombre {
+    display: flex; flex-direction: column; align-items: flex-end; line-height: 1.15;
+    padding: 7px 13px; border-radius: 14px; background: var(--white); color: var(--tinta);
+    box-shadow: 0 6px 18px rgba(61, 44, 46, .16); white-space: nowrap;
+    animation: massiel-etiqueta 8s ease .6s both;
+  }
+  @keyframes massiel-etiqueta {
+    0%   { opacity: 0; transform: translateX(10px); visibility: visible; }
+    6%   { opacity: 1; transform: none; }
+    90%  { opacity: 1; transform: none; }
+    100% { opacity: 0; transform: translateX(10px); visibility: hidden; }
+  }
+  .asesora-flotante-nombre strong { font-family: 'Playfair Display', serif; font-size: 1rem; color: #8A2E45; }
+  .asesora-flotante-nombre small { font-size: .72rem; color: var(--suave); }
+  .asesora-flotante:active .asesora-flotante-circulo { transform: scale(.94); }
+  .asesora-flotante:focus-visible { outline: none; }
+  .asesora-flotante:focus-visible .asesora-flotante-circulo {
+    outline: 3px solid #fff; outline-offset: 3px; box-shadow: 0 0 0 6px rgba(194, 77, 114, .45);
+  }
+  /* Punto de aviso: llegó la respuesta con el chat cerrado. */
+  .asesora-flotante.con-novedad .asesora-flotante-circulo::before {
+    content: ""; position: absolute; top: 2px; right: 2px; width: 14px; height: 14px;
+    border-radius: 50%; background: #25D366; border: 2px solid #fff;
+  }
+  /* Con el chat abierto, el botón no se queda encima del campo de escribir. */
+  body.asesora-abierta .asesora-flotante { visibility: hidden; }
+  /* Sube con el aviso de cookies, igual que el de WhatsApp. */
+  body:has(.aviso-cookies:not([hidden])) .asesora-flotante { bottom: calc(132px + 60px + 16px); }
 }
-.nav-link-asesora {
-  display: flex; align-items: center; gap: 10px; width: 100%; background: none; border: 0;
-  font: inherit; font-weight: 600; color: var(--dark); cursor: pointer; text-align: left;
+@media (max-width: 768px) {
+  /* Mismo ajuste que WhatsApp en el móvil (18 px + zona segura del iPhone). */
+  .asesora-flotante { bottom: calc(18px + 60px + 14px + env(safe-area-inset-bottom)); }
 }
-.nav-link-asesora .icono-trazo { color: #B5607A; }
-.nav-link-asesora span { margin-left: auto; font-size: .8rem; font-weight: 400; color: var(--suave); }
+@media (max-width: 560px) {
+  body:has(.aviso-cookies:not([hidden])) .asesora-flotante { bottom: calc(216px + 60px + 14px); }
+}
+@media (max-width: 360px) {
+  /* En los teléfonos más estrechos, solo el nombre junto al círculo. */
+  .asesora-flotante-nombre small { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .asesora-flotante-circulo::after { animation: none; opacity: 0; }
+  .asesora-flotante-circulo { transition: none; }
+  /* Sin movimiento: aparece y se retira sin desplazarse. */
+  .asesora-flotante-nombre { animation-name: massiel-etiqueta-quieta; }
+  @keyframes massiel-etiqueta-quieta { 0%, 90% { opacity: 1; visibility: visible; } 100% { opacity: 0; visibility: hidden; } }
+}
+@media print { .asesora-flotante { display: none !important; } }
 
 /* Invitación del catálogo: una línea, no un anuncio. */
 .asesora-invitacion {
@@ -1088,14 +1156,6 @@ body:has(.aviso-cookies:not([hidden])) .whatsapp-float { bottom: 132px; }
 .asesora-invitacion .icono-trazo { color: #B5607A; }
 .asesora-invitacion strong { font-weight: 600; }
 
-@media (max-width: 768px) {
-  /* En el móvil queda el icono, del tamaño de los demás de la barra. El
-     nombre accesible sigue siendo el texto «Asesora», solo que oculto. */
-  .btn-nav-asesora { min-width: 44px; min-height: 44px; padding: 0; justify-content: center; border-width: 1.5px; }
-  .btn-nav-asesora span {
-    position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap;
-  }
-}
 
 /* --- Panel --------------------------------------------------------------- */
 .asesora {
@@ -1234,7 +1294,9 @@ body.asesora-abierta .whatsapp-float { visibility: hidden; }
 .asesora-error .asesora-error-acciones { margin-top: 10px; }
 
 /* Indicador de que está consultando. Tres puntos, sin rebote exagerado. */
-.asesora-escribiendo { display: flex; gap: 5px; padding: 6px 2px; }
+.asesora-escribiendo { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; padding: 6px 2px; }
+/* Qué está pasando mientras espera (a los 6, 15 y 30 segundos). */
+.asesora-progreso { flex-basis: 100%; margin-top: 4px; font-size: .82rem; color: var(--suave); }
 .asesora-punto {
   width: 7px; height: 7px; border-radius: 50%; background: var(--rose-mid);
   animation: asesora-latido 1.2s ease-in-out infinite;

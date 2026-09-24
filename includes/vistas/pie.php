@@ -127,6 +127,19 @@ $devUrl    = Ajustes::texto('dev_url');
   </svg>
 </a>
 
+<?php if (!empty($asesoraActiva)): ?>
+<?php // Massiel en el móvil y la tableta: botón flotante encima del de WhatsApp.
+      // En el escritorio se oculta (allí está el botón de la barra). ?>
+<button type="button" class="asesora-flotante" data-abrir-asesora
+        aria-label="Massiel, asesora floral: te ayudo a elegir"
+        aria-controls="asesora" aria-expanded="false" aria-haspopup="dialog">
+  <span class="asesora-flotante-circulo" aria-hidden="true">
+    <svg class="icono-trazo" viewBox="0 0 24 24" width="28" height="28" focusable="false"><circle cx="12" cy="12" r="3"/><path d="M12 16.5A4.5 4.5 0 1 1 7.5 12 4.5 4.5 0 1 1 12 7.5a4.5 4.5 0 1 1 4.5 4.5 4.5 4.5 0 1 1-4.5 4.5"/><path d="M12 7.5V9"/><path d="M7.5 12H9"/><path d="M16.5 12H15"/><path d="M12 16.5V15"/><path d="m8 8 1.88 1.88"/><path d="M14.12 9.88 16 8"/><path d="m8 16 1.88-1.88"/><path d="M14.12 14.12 16 16"/></svg>
+  </span>
+  <span class="asesora-flotante-nombre" aria-hidden="true"><strong>Massiel</strong><small>Asesora floral</small></span>
+</button>
+<?php endif; ?>
+
 <?php if (!empty($temaTemporada['estilo'])): ?>
 <!-- Formas de la temporada. Solo van las que usa el estilo vigente. -->
 <svg width="0" height="0" aria-hidden="true" focusable="false"
@@ -161,7 +174,7 @@ $devUrl    = Ajustes::texto('dev_url');
 
 <script src="<?= e(url_recurso('assets/js/app.js')) ?>" defer></script>
 <?php if (!empty($asesoraActiva)): ?>
-<script src="<?= e(url_recurso('assets/js/asistente.js')) ?>" defer></script>
+<script src="<?= e(url_recurso('assets/js/asistente.js')) ?>" data-espera="<?= IaConfig::tiempoMaximo() + 20 ?>" defer></script>
 <?php endif; ?>
 <?php if (Analitica::activo()): ?>
 <script src="<?= e(url_recurso('assets/js/analitica.js')) ?>" defer></script>

@@ -179,11 +179,12 @@ $waGeneral = enlace_whatsapp(
 <a class="saltar-contenido" href="#contenido">Saltar al contenido</a>
 
 <?php
-  // El asistente vive en la barra, junto al carrito, y no en una burbuja
-  // flotante más: la de WhatsApp ya ocupa esa esquina. En los teléfonos
-  // estrechos el botón de la barra le quitaba sitio al nombre de la tienda,
-  // así que ahí pasa al menú (y a la invitación del catálogo). En el checkout
-  // no aparece, para no distraer a quien está pagando.
+  // Massiel, la asesora floral. En el escritorio se abre desde la barra,
+  // junto al carrito. En el móvil y la tableta (hasta 900 px, donde la barra
+  // pasa a hamburguesa) el botón de la barra le quitaba sitio al nombre de la
+  // tienda: ahí se abre con un botón flotante encima del de WhatsApp (ver
+  // pie.php) y con la invitación del catálogo. En el checkout no aparece,
+  // para no distraer a quien está pagando.
   $asesoraActiva = IaConfig::clienteActivo($pdo) && basename((string)($_SERVER['SCRIPT_NAME'] ?? '')) !== 'checkout.php';
 ?>
 <nav class="navbar" id="navbar">
@@ -194,15 +195,6 @@ $waGeneral = enlace_whatsapp(
     </a>
 
     <ul class="nav-menu" id="navMenu">
-      <?php if ($asesoraActiva): ?>
-        <li class="nav-asesora-item">
-          <button type="button" class="nav-link nav-link-asesora" data-abrir-asesora
-                  aria-controls="asesora" aria-haspopup="dialog">
-            <svg class="icono-trazo" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="3"/><path d="M12 16.5A4.5 4.5 0 1 1 7.5 12 4.5 4.5 0 1 1 12 7.5a4.5 4.5 0 1 1 4.5 4.5 4.5 4.5 0 1 1-4.5 4.5"/><path d="M12 7.5V9"/><path d="M7.5 12H9"/><path d="M16.5 12H15"/><path d="M12 16.5V15"/><path d="m8 8 1.88 1.88"/><path d="M14.12 9.88 16 8"/><path d="m8 16 1.88-1.88"/><path d="M14.12 14.12 16 16"/></svg>
-            Asesora floral <span>Te ayudo a elegir</span>
-          </button>
-        </li>
-      <?php endif; ?>
       <li><a href="<?= e(url()) ?>" class="nav-link<?= ($paginaActiva ?? '') === 'inicio' ? ' active' : '' ?>">Inicio</a></li>
       <li><a href="<?= e(url('productos.php')) ?>" class="nav-link<?= ($paginaActiva ?? '') === 'productos' ? ' active' : '' ?>">Arreglos</a></li>
       <li><a href="<?= e(url('favoritos.php')) ?>" class="nav-link<?= ($paginaActiva ?? '') === 'favoritos' ? ' active' : '' ?>">Favoritos</a></li>
@@ -216,8 +208,9 @@ $waGeneral = enlace_whatsapp(
     <div class="nav-actions">
       <?php if ($asesoraActiva): ?>
         <button type="button" class="btn-nav-asesora" id="abrirAsesora"
+                aria-label="Massiel, asesora floral: te ayudo a elegir"
                 aria-controls="asesora" aria-expanded="false" aria-haspopup="dialog">
-          <svg class="icono-trazo" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="3"/><path d="M12 16.5A4.5 4.5 0 1 1 7.5 12 4.5 4.5 0 1 1 12 7.5a4.5 4.5 0 1 1 4.5 4.5 4.5 4.5 0 1 1-4.5 4.5"/><path d="M12 7.5V9"/><path d="M7.5 12H9"/><path d="M16.5 12H15"/><path d="M12 16.5V15"/><path d="m8 8 1.88 1.88"/><path d="M14.12 9.88 16 8"/><path d="m8 16 1.88-1.88"/><path d="M14.12 14.12 16 16"/></svg><span>Asesora</span>
+          <svg class="icono-trazo" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="3"/><path d="M12 16.5A4.5 4.5 0 1 1 7.5 12 4.5 4.5 0 1 1 12 7.5a4.5 4.5 0 1 1 4.5 4.5 4.5 4.5 0 1 1-4.5 4.5"/><path d="M12 7.5V9"/><path d="M7.5 12H9"/><path d="M16.5 12H15"/><path d="M12 16.5V15"/><path d="m8 8 1.88 1.88"/><path d="M14.12 9.88 16 8"/><path d="m8 16 1.88-1.88"/><path d="M14.12 14.12 16 16"/></svg><span>Massiel</span>
         </button>
       <?php endif; ?>
       <a href="<?= e($waGeneral) ?>" target="_blank" rel="noopener" class="btn-nav-whatsapp" aria-label="Escribir por WhatsApp">

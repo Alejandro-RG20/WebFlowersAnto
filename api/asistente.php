@@ -67,6 +67,13 @@ if (IaConfig::limiteDiario() > 0
     errorJson('El asistente descansa por hoy. Escríbenos por WhatsApp y te atendemos.', 503, ['codigo' => 'no_disponible']);
 }
 
+// Referencia opcional que pone el navegador en cada mensaje. Si la respuesta
+// no le llega (conexión cortada, teléfono bloqueado), la busca por ella en
+// el historial. Y el servidor termina y guarda la respuesta aunque el
+// navegador ya no esté esperando.
+$ref = preg_match('/^[a-f0-9]{16}$/', crudo('ref')) ? crudo('ref') : '';
+ignore_user_abort(true);
+
 $conversacion = $_SESSION[CLAVE_SESION] ?? ['mensajes' => [], 'turnos' => 0, 'vista' => []];
 $aviso = '';
 if ((int)($conversacion['turnos'] ?? 0) >= IaAgente::MAX_TURNOS) {
@@ -107,7 +114,7 @@ $respuesta = [
 ];
 
 $vista   = (array)($conversacion['vista'] ?? []);
-$vista[] = ['rol' => 'cliente', 'texto' => $mensaje];
+$vista[] = ['rol' => 'cliente', 'texto' => $mensaje] + ($ref !== '' ? ['ref' => $ref] : []);
 $vista[] = ['rol' => 'asistente'] + $respuesta;
 $vista   = array_slice($vista, -MAX_VISTA);
 

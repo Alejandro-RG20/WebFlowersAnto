@@ -1,5 +1,5 @@
 /**
- * Asesora floral — el asistente de compras en la tienda.
+ * Massiel, asesora floral — el asistente de compras en la tienda.
  *
  * Solo se carga si el asistente está activo, y el panel no existe en la
  * página hasta que alguien lo abre: quien no lo usa no paga nada por él.
@@ -16,8 +16,8 @@
 (function () {
   'use strict';
 
-  // Se puede abrir desde la barra, desde el menú del móvil o desde la
-  // invitación del catálogo. Todos comparten estado.
+  // Se puede abrir desde la barra (escritorio), desde el botón flotante
+  // (móvil y tableta) o desde la invitación del catálogo. Todos comparten estado.
   const boton = document.getElementById('abrirAsesora');
   const disparadores = [boton, ...document.querySelectorAll('[data-abrir-asesora]')].filter(Boolean);
   if (!disparadores.length) { return; }
@@ -29,6 +29,11 @@
   const menosMovimiento = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const esEscritorio = () => window.matchMedia('(min-width: 1024px)').matches;
   const CLAVE_ABIERTA = 'fa-asesora-abierta';
+  // Lo más que se espera una respuesta: el tiempo máximo del servidor
+  // (AI_TIMEOUT) más un margen. Sin límite, si la conexión con el hosting se
+  // quedaba colgada, los puntos de «escribiendo» no se iban nunca.
+  const guion = document.currentScript;
+  const ESPERA_MS = (parseInt(guion && guion.dataset.espera, 10) || 70) * 1000;
 
   const SUGERENCIAS = [
     'Un regalo romántico',
@@ -104,12 +109,28 @@
   async function llamar(datos) {
     const cuerpo = new URLSearchParams(datos);
     cuerpo.set('csrf_token', csrf);
-    const r = await fetch(ruta('api/asistente.php'), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-Requested-With': 'fetch' },
-      body: cuerpo,
-      credentials: 'same-origin',
-    });
+    const corte = new AbortController();
+    const reloj = setTimeout(() => corte.abort(), ESPERA_MS);
+    let r;
+    try {
+      r = await fetch(ruta('api/asistente.php'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-Requested-With': 'fetch' },
+        body: cuerpo,
+        credentials: 'same-origin',
+        signal: corte.signal,
+      });
+    } catch (e) {
+      // Sin respuesta: se cortó por tiempo, se perdió la conexión o el
+      // teléfono suspendió la página. El servidor pudo terminar igual.
+      const error = new Error(corte.signal.aborted
+        ? 'Massiel está tardando más de lo normal en responder.'
+        : 'Se cortó la conexión mientras Massiel respondía.');
+      error.codigo = 'sin_respuesta';
+      throw error;
+    } finally {
+      clearTimeout(reloj);
+    }
     let j = null;
     try { j = await r.json(); } catch (e) { /* respuesta no JSON: se trata como caída */ }
     if (!r.ok || !j || j.ok === false) {
@@ -136,10 +157,10 @@
     const sello = el('span', 'asesora-sello');
     sello.appendChild(icono('flor', 20));
     const titulos = el('div');
-    const h2 = el('h2', 'asesora-titulo', 'Tu asesora floral');
+    const h2 = el('h2', 'asesora-titulo', 'Massiel');
     h2.id = 'asesoraTitulo';
     h2.tabIndex = -1;
-    titulos.append(h2, el('p', 'asesora-subtitulo', 'Catálogo y precios de hoy'));
+    titulos.append(h2, el('p', 'asesora-subtitulo', 'Asesora floral'));
     marca.append(sello, titulos);
 
     const nueva = el('button', 'asesora-icono');
@@ -151,7 +172,7 @@
 
     const cerrarBtn = el('button', 'asesora-icono');
     cerrarBtn.type = 'button';
-    cerrarBtn.setAttribute('aria-label', 'Cerrar la asesora');
+    cerrarBtn.setAttribute('aria-label', 'Cerrar el chat con Massiel');
     cerrarBtn.appendChild(icono('cerrar', 20));
     cerrarBtn.addEventListener('click', () => cerrar(true));
     cabecera.append(marca, nueva, cerrarBtn);
@@ -159,7 +180,7 @@
     hilo = el('div', 'asesora-hilo');
     hilo.setAttribute('role', 'log');
     hilo.setAttribute('aria-live', 'polite');
-    hilo.setAttribute('aria-label', 'Conversación con la asesora');
+    hilo.setAttribute('aria-label', 'Conversación con Massiel');
     hilo.tabIndex = 0;
 
     formulario = el('form', 'asesora-form');
@@ -229,7 +250,7 @@
   function bienvenida() {
     const caja = el('div', 'asesora-bienvenida');
     const t = el('div', 'asesora-texto');
-    pintarTexto(t, 'Hola, soy la asesora de Flowers Anto. Cuéntame para quién es el arreglo, la ocasión o tu presupuesto, y te muestro opciones con su precio de hoy.');
+    pintarTexto(t, 'Hola, soy Massiel, tu asesora floral de Flowers Anto. Cuéntame para quién es el arreglo, la ocasión o tu presupuesto, y te muestro opciones con su precio de hoy.');
     const chips = el('div', 'asesora-sugerencias');
     SUGERENCIAS.forEach((s) => {
       const b = el('button', 'asesora-chip', s);
@@ -372,21 +393,72 @@
     hilo.appendChild(m);
   }
 
+  // Mientras espera, se dice qué pasa: una espera larga en silencio parece
+  // una página colgada.
+  const PROGRESO = [
+    [6000, 'Massiel está revisando el catálogo…'],
+    [15000, 'Sigue buscando, un momento más…'],
+    [30000, 'Está tardando más de lo normal. Sigo esperando su respuesta…'],
+  ];
+  let relojesProgreso = [];
+
   function pensando(mostrar) {
     ocupado = mostrar;
     hilo.setAttribute('aria-busy', mostrar ? 'true' : 'false');
     enviar.disabled = mostrar;
+    relojesProgreso.forEach(clearTimeout);
+    relojesProgreso = [];
     let ind = hilo.querySelector('.asesora-escribiendo');
     if (!mostrar) { if (ind) { ind.remove(); } return; }
     // Se muestra tras un instante: una respuesta rápida no debe parpadear.
-    setTimeout(() => {
+    relojesProgreso.push(setTimeout(() => {
       if (!ocupado || hilo.querySelector('.asesora-escribiendo')) { return; }
       ind = el('div', 'asesora-escribiendo');
-      ind.appendChild(el('span', 'visualmente-oculto', 'La asesora está consultando el catálogo…'));
+      ind.appendChild(el('span', 'visualmente-oculto', 'Massiel está consultando el catálogo…'));
       for (let i = 0; i < 3; i++) { ind.appendChild(el('span', 'asesora-punto')); }
       hilo.appendChild(ind);
       bajar();
-    }, 250);
+    }, 250));
+    PROGRESO.forEach(([ms, frase]) => relojesProgreso.push(setTimeout(() => {
+      const actual = hilo.querySelector('.asesora-escribiendo');
+      if (!ocupado || !actual) { return; }
+      let nota = actual.querySelector('.asesora-progreso');
+      if (!nota) { nota = el('span', 'asesora-progreso'); nota.setAttribute('role', 'status'); actual.appendChild(nota); }
+      nota.textContent = frase;
+      bajar();
+    }, ms)));
+  }
+
+  /*
+   * Si la respuesta no llegó al navegador (tiempo agotado, conexión cortada,
+   * teléfono bloqueado), el servidor pudo terminarla igual y guardarla en la
+   * conversación. Antes de dar el error se mira ahí, un par de veces.
+   */
+  async function recuperar(ref) {
+    for (let intento = 0; intento < 3; intento++) {
+      await new Promise((ok) => setTimeout(ok, intento === 0 ? 1500 : 5000));
+      try {
+        const m = (await llamar({ accion: 'historial' })).mensajes || [];
+        const i = m.findIndex((x) => x.rol === 'cliente' && x.ref === ref);
+        if (i >= 0 && m[i + 1] && m[i + 1].rol !== 'cliente') { return m[i + 1]; }
+      } catch (e) { /* sigue sin conexión: se vuelve a intentar */ }
+    }
+    return null;
+  }
+
+  /** Referencia de un mensaje, para reconocer su respuesta en la conversación guardada. */
+  function referencia() {
+    const b = new Uint8Array(8);
+    (window.crypto || {}).getRandomValues ? window.crypto.getRandomValues(b) : b.forEach((_, i) => { b[i] = Math.random() * 256; });
+    return Array.from(b, (x) => x.toString(16).padStart(2, '0')).join('');
+  }
+
+  // El punto verde en el botón avisa de que llegó la respuesta con el chat cerrado.
+  function marcarNovedad(si) {
+    disparadores.forEach((d) => d.classList.toggle('con-novedad', si));
+  }
+  function respuestaLista() {
+    if (!panel || panel.hidden || !panel.classList.contains('abierta')) { marcarNovedad(true); }
   }
 
   async function mandar(cadena, reintento) {
@@ -400,14 +472,24 @@
     ajustarAlto();
     bajar();
     pensando(true);
+    const ref = referencia();
     try {
-      const r = await llamar({ accion: 'mensaje', mensaje: limpio });
+      const r = await llamar({ accion: 'mensaje', mensaje: limpio, ref });
       pensando(false);
       if (r.aviso) { aviso(r.aviso); }
       respuestaAsistente(r, false);
+      respuestaLista();
     } catch (e) {
+      const guardada = e.codigo === 'sin_respuesta' ? await recuperar(ref) : null;
       pensando(false);
-      errorEnHilo(e.message, e.codigo !== 'limite');
+      if (guardada) {
+        respuestaAsistente(guardada, false);
+        respuestaLista();
+      } else {
+        errorEnHilo(e.codigo === 'sin_respuesta'
+          ? e.message + ' Puedes reintentar o escribirnos por WhatsApp.'
+          : e.message, e.codigo !== 'limite');
+      }
     }
     bajar();
     if (esEscritorio()) { texto.focus(); }
@@ -447,6 +529,7 @@
     requestAnimationFrame(() => panel.classList.add('abierta'));
     document.body.classList.add('asesora-abierta');
     disparadores.forEach((d) => d.setAttribute('aria-expanded', 'true'));
+    marcarNovedad(false);
     try { sessionStorage.setItem(CLAVE_ABIERTA, '1'); } catch (e) { /* almacenamiento bloqueado */ }
     if (!cargado) { cargarHistorial(); }
     if (enfocar) {

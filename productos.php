@@ -165,7 +165,7 @@ require __DIR__ . '/includes/vistas/cabecera.php';
   <?php if (!empty($asesoraActiva)): ?>
     <button type="button" class="asesora-invitacion" data-abrir-asesora aria-controls="asesora" aria-haspopup="dialog">
       <svg class="icono-trazo" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="3"/><path d="M12 16.5A4.5 4.5 0 1 1 7.5 12 4.5 4.5 0 1 1 12 7.5a4.5 4.5 0 1 1 4.5 4.5 4.5 4.5 0 1 1-4.5 4.5"/><path d="M12 7.5V9"/><path d="M7.5 12H9"/><path d="M16.5 12H15"/><path d="M12 16.5V15"/><path d="m8 8 1.88 1.88"/><path d="M14.12 9.88 16 8"/><path d="m8 16 1.88-1.88"/><path d="M14.12 14.12 16 16"/></svg>
-      <span>¿No sabes cuál elegir? <strong>Cuéntale a la asesora</strong> para quién es y tu presupuesto.</span>
+      <span>¿No sabes cuál elegir? <strong>Cuéntale a Massiel</strong>, nuestra asesora floral, para quién es y tu presupuesto.</span>
     </button>
   <?php endif; ?>
 
