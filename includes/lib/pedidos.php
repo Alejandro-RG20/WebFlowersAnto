@@ -82,7 +82,7 @@ final class Pedidos
      *                      metodo_pago, canal
      * @return array{ok: bool, error?: string, pedido?: array}
      */
-    public static function crearDesdeCarrito(PDO $pdo, array $datos): array
+    public static function crearDesdeCarrito(PDO $pdo, array $datos, int $intento = 0): array
     {
         // La zona se relee de la base: del formulario solo llega su id, nunca
         // el precio. El envío se calcula aquí, no se acepta del navegador.
@@ -307,6 +307,23 @@ final class Pedidos
             }
 
             $pdo->commit();
+        } catch (PDOException $ex) {
+            // Un error de la base no es un aviso para el cliente: su texto
+            // (SQL, tablas) nunca se le muestra. PDOException hereda de
+            // RuntimeException, así que antes caía en el bloque de abajo y el
+            // cliente veía «SQLSTATE[40001]… Deadlock…».
+            $pdo->rollBack();
+            // Dos compras de la última unidad a la vez pueden bloquearse entre
+            // sí (deadlock o espera agotada): la base deshace una y lo correcto
+            // es repetirla. La repetición ya ve el stock real y, si se agotó,
+            // lo dice con el aviso de siempre.
+            $bloqueo = (string)$ex->getCode() === '40001' || in_array((int)($ex->errorInfo[1] ?? 0), [1205, 1213], true);
+            if ($bloqueo && $intento < 2) {
+                usleep(random_int(20_000, 80_000));
+                return self::crearDesdeCarrito($pdo, $datos, $intento + 1);
+            }
+            error_log('Flowers Anto — crear pedido: ' . $ex->getMessage());
+            return ['ok' => false, 'error' => 'No pudimos registrar el pedido. Vuelve a intentarlo en un momento.'];
         } catch (RuntimeException $ex) {
             // Falta de existencias: es algo que el cliente puede arreglar, así
             // que se le dice exactamente qué pasó.

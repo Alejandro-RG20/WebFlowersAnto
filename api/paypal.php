@@ -162,6 +162,12 @@ try {
         'redirigir' => Pedidos::enlaceSeguimiento($resultado['pedido']),
     ]);
 
+} catch (PDOException $e) {
+    // Un error de la base no es un aviso para el cliente: su texto (SQL,
+    // tablas) solo va al registro. PDOException hereda de RuntimeException,
+    // así que sin este bloque caía en el siguiente y se mostraba tal cual.
+    error_log('Flowers Anto — PayPal: ' . $e->getMessage());
+    responderJson(['ok' => false, 'error' => 'No pudimos completar el pedido. Si ya pagaste, escríbenos por WhatsApp y lo resolvemos.']);
 } catch (RuntimeException $e) {
     error_log('Flowers Anto — PayPal: ' . $e->getMessage());
     responderJson(['ok' => false, 'error' => $e->getMessage()]);
