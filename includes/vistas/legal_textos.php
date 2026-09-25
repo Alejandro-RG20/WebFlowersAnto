@@ -33,6 +33,10 @@
       <li><strong>Si creas una cuenta:</strong> tu correo y una versión cifrada de tu
           contraseña, que nadie —tampoco nosotros— puede leer. Además tus direcciones
           guardadas y tus favoritos, para que no tengas que escribirlos otra vez.</li>
+      <li><strong>Si entras con Google o Facebook:</strong> recibimos de ellos solo tu nombre,
+          tu correo y el identificador de tu cuenta para esta tienda, para reconocerte cuando
+          vuelvas. No recibimos tu contraseña, ni publicamos nada en tu nombre, ni vemos tus
+          contactos.</li>
       <li><strong>Para que la tienda funcione:</strong> una cookie propia que mantiene tu
           carrito y tu sesión, y un registro técnico de accesos al panel de administración.</li>
     </ul>
@@ -64,6 +68,20 @@
     </ul>
     <p>Escríbenos y lo resolvemos. No cobramos por ello y no hace falta que expliques
        por qué.</p>
+
+    <h2 id="borrar-datos">Cómo borrar tus datos (también si entraste con Facebook o Google)</h2>
+    <ul>
+      <li>Para dejar de usar Facebook o Google con esta tienda: entra en tu cuenta, ve a
+          <strong>Mis datos → Cuentas conectadas</strong> y pulsa «Desconectar». También puedes
+          quitar el acceso de la tienda desde la configuración de tu cuenta de Facebook
+          (<em>Aplicaciones y sitios web</em>) o de Google.</li>
+      <li>Para borrar tu cuenta y tus datos: escríbenos<?php if ($correo !== ''): ?> a
+          <a href="mailto:<?= e($correo) ?>"><?= e($correo) ?></a><?php endif; ?> o por
+          <a href="<?= e($whatsapp) ?>" target="_blank" rel="noopener">WhatsApp</a> desde el
+          correo o el teléfono de tu cuenta, pidiendo que la borremos. Lo hacemos en un plazo
+          máximo de 30 días y te confirmamos cuando esté hecho. Solo conservamos lo que la ley
+          nos obliga a guardar de pedidos ya pagados.</li>
+    </ul>
 
     <h2>Cookies</h2>
     <p>Usamos una cookie propia imprescindible: la que mantiene tu carrito y tu sesión. Sin

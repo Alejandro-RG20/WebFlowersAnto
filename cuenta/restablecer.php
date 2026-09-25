@@ -8,6 +8,7 @@
 
 declare(strict_types=1);
 require_once __DIR__ . '/../includes/bootstrap.php';
+require_once __DIR__ . '/../includes/lib/cuentas_externas.php';
 
 /*
  * El token no se queda en la barra de direcciones.
@@ -82,6 +83,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $solicitud) {
             $gasta->execute([$solicitud['id']]);
             if ($gasta->rowCount() !== 1) {
                 throw new DomainException('usado');
+            }
+
+            // Si el correo nunca se había confirmado, quien tenga Google o
+            // Facebook conectados a esta cuenta no demostró ser el dueño del
+            // correo (pudo crearla con una dirección ajena): se desconectan.
+            $sinConfirmar = $pdo->prepare("SELECT email_verificado_en IS NULL FROM usuarios WHERE id = ?");
+            $sinConfirmar->execute([$solicitud['usuario_id']]);
+            if ((int)$sinConfirmar->fetchColumn() === 1) {
+                CuentasExternas::quitarSinConfirmar($pdo, (int)$solicitud['usuario_id']);
             }
 
             // Cambiar la contraseña con un enlace que llegó al correo

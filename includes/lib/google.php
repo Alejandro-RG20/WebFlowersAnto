@@ -8,9 +8,16 @@
  * Seguridad del flujo:
  *   - parámetro `state` aleatorio guardado en la sesión (anti-CSRF)
  *   - `nonce` incluido en la petición y verificado en el id_token
- *   - el id_token se valida contra el endpoint tokeninfo de Google, así que
- *     no hace falta implementar la verificación de firmas JWT a mano
+ *   - el id_token llega directamente del endpoint de tokens por TLS con el
+ *     secreto del cliente, y además se valida contra tokeninfo de Google
+ *     (firma y caducidad); aquí se comprueban aud, iss, exp y nonce
  *   - solo se acepta la cuenta si Google la da por verificada
+ *   - la vinculación con cuentas existentes la decide CuentasExternas: solo
+ *     sola si Google es la autoridad de ese correo (gmail o Workspace)
+ *
+ * En desarrollo, OAUTH_SIMULADOR=http://127.0.0.1:puerto manda las llamadas a
+ * un simulador local (tests/auth/simulador-oauth.js). Fuera de desarrollo se
+ * ignora siempre.
  */
 
 declare(strict_types=1);
@@ -20,6 +27,7 @@ final class Google
     private const AUTORIZAR = 'https://accounts.google.com/o/oauth2/v2/auth';
     private const TOKEN     = 'https://oauth2.googleapis.com/token';
     private const TOKENINFO = 'https://oauth2.googleapis.com/tokeninfo';
+    private const EMISORES  = ['accounts.google.com', 'https://accounts.google.com'];
 
     public static function configurado(): bool
     {
@@ -41,7 +49,7 @@ final class Google
             $_SESSION['volver_a'] = $volverA;
         }
 
-        return self::AUTORIZAR . '?' . http_build_query([
+        return self::destino(self::AUTORIZAR) . '?' . http_build_query([
             'client_id'     => Entorno::texto('GOOGLE_CLIENT_ID'),
             'redirect_uri'  => self::urlRetorno(),
             'response_type' => 'code',
@@ -66,7 +74,7 @@ final class Google
             return ['ok' => false, 'error' => 'La sesión con Google caducó. Vuelve a intentarlo.'];
         }
 
-        $respuesta = self::peticion(self::TOKEN, [
+        $respuesta = self::peticion(self::destino(self::TOKEN), [
             'code'          => $codigo,
             'client_id'     => Entorno::texto('GOOGLE_CLIENT_ID'),
             'client_secret' => Entorno::texto('GOOGLE_CLIENT_SECRET'),
@@ -79,7 +87,7 @@ final class Google
         }
 
         // Google valida el token por nosotros: firma, caducidad y emisor.
-        $datos = self::peticion(self::TOKENINFO . '?id_token=' . urlencode((string)$respuesta['id_token']), null);
+        $datos = self::peticion(self::destino(self::TOKENINFO) . '?id_token=' . urlencode((string)$respuesta['id_token']), null);
         if (!$datos || empty($datos['sub'])) {
             return ['ok' => false, 'error' => 'No pudimos verificar la respuesta de Google.'];
         }
@@ -87,10 +95,17 @@ final class Google
         if (($datos['aud'] ?? '') !== Entorno::texto('GOOGLE_CLIENT_ID')) {
             return ['ok' => false, 'error' => 'La respuesta de Google no corresponde a este sitio.'];
         }
+        // Emisor y caducidad. tokeninfo ya rechaza un token caducado; se
+        // comprueba aquí también para no depender solo de él.
+        if (!in_array($datos['iss'] ?? '', self::EMISORES, true) || (int)($datos['exp'] ?? 0) < time()) {
+            return ['ok' => false, 'error' => 'La respuesta de Google no es válida. Vuelve a intentarlo.'];
+        }
 
-        $nonce = $_SESSION['google_nonce'] ?? '';
+        // El nonce se exige siempre (antes, si faltaba en la sesión, no se
+        // comprobaba): es lo que ata el id_token a esta misma petición.
+        $nonce = (string)($_SESSION['google_nonce'] ?? '');
         unset($_SESSION['google_nonce']);
-        if ($nonce !== '' && ($datos['nonce'] ?? '') !== $nonce) {
+        if ($nonce === '' || !hash_equals($nonce, (string)($datos['nonce'] ?? ''))) {
             return ['ok' => false, 'error' => 'La respuesta de Google no coincide con la petición.'];
         }
 
@@ -99,12 +114,23 @@ final class Google
             return ['ok' => false, 'error' => 'Tu correo de Google no está verificado. Usa el registro normal.'];
         }
 
+        // Google es la autoridad del correo solo si es de Gmail o de Google
+        // Workspace (claim `hd`). Una cuenta de Google creada con un correo de
+        // otro proveedor lo tuvo verificado al crearla, pero Google no sabe si
+        // esa persona lo sigue controlando: no basta para tomar una cuenta ya
+        // existente con ese correo.
+        $email = mb_strtolower((string)($datos['email'] ?? ''));
+        $dominio = substr((string)strrchr($email, '@'), 1);
+        $autoridad = in_array($dominio, ['gmail.com', 'googlemail.com'], true) || (string)($datos['hd'] ?? '') !== '';
+
         return ['ok' => true, 'perfil' => [
-            'id'       => (string)$datos['sub'],
-            'email'    => mb_strtolower((string)($datos['email'] ?? '')),
-            'nombre'   => (string)($datos['given_name']  ?? ''),
-            'apellido' => (string)($datos['family_name'] ?? ''),
-            'avatar'   => (string)($datos['picture']     ?? ''),
+            'id'               => (string)$datos['sub'],
+            'email'            => $email,
+            'email_verificado' => true,
+            'email_vinculable' => $autoridad,
+            'nombre'           => (string)($datos['given_name']  ?? ''),
+            'apellido'         => (string)($datos['family_name'] ?? ''),
+            'avatar'           => (string)($datos['picture']     ?? ''),
         ]];
     }
 
@@ -118,6 +144,7 @@ final class Google
         $ch = curl_init($url);
         curl_setopt_array($ch, [
             CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_FOLLOWLOCATION => false,
             CURLOPT_TIMEOUT        => 15,
             CURLOPT_SSL_VERIFYPEER => true,
             CURLOPT_SSL_VERIFYHOST => 2,
@@ -141,59 +168,27 @@ final class Google
     }
 
     /**
-     * Busca o crea la cuenta local a partir del perfil de Google.
-     * Si ya existe una cuenta con ese correo, se enlaza en vez de duplicar.
+     * Busca, vincula o crea la cuenta local. La lógica (y sus reglas de
+     * seguridad) es común a Google y Facebook: ver CuentasExternas.
+     *
+     * @return array{ok: bool, usuario?: array, error?: string}
      */
-    public static function vincularUsuario(PDO $pdo, array $perfil): ?array
+    public static function vincularUsuario(PDO $pdo, array $perfil): array
     {
-        $st = $pdo->prepare("SELECT * FROM usuarios WHERE google_id = ? LIMIT 1");
-        $st->execute([$perfil['id']]);
-        $usuario = $st->fetch();
+        return CuentasExternas::entrar($pdo, 'google', $perfil);
+    }
 
-        if (!$usuario && $perfil['email'] !== '') {
-            $st = $pdo->prepare("SELECT * FROM usuarios WHERE email = ? LIMIT 1");
-            $st->execute([$perfil['email']]);
-            $usuario = $st->fetch();
-
-            if ($usuario) {
-                $pdo->prepare("UPDATE usuarios SET google_id = ?, email_verificado_en = NOW() WHERE id = ?")
-                    ->execute([$perfil['id'], $usuario['id']]);
-            }
+    /**
+     * En desarrollo, las llamadas pueden ir a un simulador local para probar
+     * el flujo completo sin Google. En cualquier otro entorno, la URL real.
+     */
+    private static function destino(string $url): string
+    {
+        $sim = rtrim(Entorno::texto('OAUTH_SIMULADOR'), '/');
+        if ($sim !== '' && defined('ENTORNO') && ENTORNO === 'dev'
+            && preg_match('#^http://127\.0\.0\.1:\d+$#', $sim)) {
+            return $sim . '/google' . (string)parse_url($url, PHP_URL_PATH);
         }
-
-        if (!$usuario) {
-            if ($perfil['email'] === '') {
-                return null;
-            }
-            $nombre   = $perfil['nombre']   !== '' ? $perfil['nombre']   : strstr($perfil['email'], '@', true);
-            $apellido = $perfil['apellido'];
-
-            $pdo->prepare(
-                "INSERT INTO usuarios (email, nombre, apellido, google_id, avatar_url, rol_id,
-                                       activo, nombre_completo, email_verificado_en, password_hash)
-                 VALUES (?,?,?,?,?,?,1,?,NOW(),NULL)"
-            )->execute([
-                $perfil['email'], mb_substr((string)$nombre, 0, 60), mb_substr($apellido, 0, 60),
-                $perfil['id'], mb_substr($perfil['avatar'], 0, 255),
-                Auth::rolId($pdo, 'cliente'),
-                trim($nombre . ' ' . $apellido),
-            ]);
-            $id = (int)$pdo->lastInsertId();
-
-            Auditoria::registrar($pdo, 'registro_google', 'usuarios', [
-                'recurso_tipo' => 'usuario', 'recurso_id' => (string)$id,
-                'descripcion'  => 'Cuenta creada mediante Google.',
-            ]);
-        }
-
-        $st = $pdo->prepare(
-            "SELECT u.*, r.codigo AS rol_codigo, r.nombre AS rol_nombre, r.es_personal
-               FROM usuarios u LEFT JOIN roles r ON r.id = u.rol_id
-              WHERE u.google_id = ? OR u.email = ? LIMIT 1"
-        );
-        $st->execute([$perfil['id'], $perfil['email']]);
-        $usuario = $st->fetch();
-
-        return ($usuario && (int)$usuario['activo'] === 1) ? $usuario : null;
+        return $url;
     }
 }

@@ -604,6 +604,18 @@ a { color: inherit; }
 }
 .btn-google:hover { border-color: var(--tenue); box-shadow: var(--sombra-sm); }
 .btn-google svg { width: 18px; height: 18px; flex-shrink: 0; }
+/* Facebook: azul de su marca, con el logo en blanco (guía de marca de Meta). */
+.acceso-social { display: flex; flex-direction: column; gap: 10px; }
+.btn-facebook { background: #1877F2; border-color: #1877F2; color: #fff; }
+.btn-facebook:hover { background: #0F66D9; border-color: #0F66D9; }
+.btn-facebook:focus-visible { outline: 3px solid var(--tinta); outline-offset: 2px; }
+/* «Mis datos» → Cuentas conectadas */
+.cuenta-conectada { padding: 14px 0; border-top: 1px solid var(--linea); }
+.cuenta-conectada:first-of-type { border-top: 0; }
+.cuenta-conectada p { display: flex; align-items: center; gap: 10px; margin: 0 0 10px; }
+.cuenta-conectada .estado-suave { font-size: .78rem; font-weight: 600; padding: 3px 10px; border-radius: 50px; }
+.cuenta-conectada .estado-suave.si { background: #E3F3E6; color: #1E5E2C; }
+.cuenta-conectada .estado-suave.no { background: var(--rose-soft); color: #7A2E43; }
 .medidor-password { height: 4px; border-radius: 3px; background: var(--linea); margin-top: 8px; overflow: hidden; }
 .medidor-password span { display: block; height: 100%; width: 0; border-radius: 3px; transition: width .3s ease, background .3s ease; }
 

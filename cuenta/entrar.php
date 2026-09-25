@@ -9,7 +9,9 @@
 
 declare(strict_types=1);
 require_once __DIR__ . '/../includes/bootstrap.php';
+require_once __DIR__ . '/../includes/lib/cuentas_externas.php';
 require_once __DIR__ . '/../includes/lib/google.php';
+require_once __DIR__ . '/../includes/lib/facebook.php';
 
 if (Auth::autenticado()) {
     redirigir('cuenta/pedidos.php');
@@ -38,10 +40,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } else {
         $usuario = Auth::buscarPorIdentificador($pdo, $identidad);
 
+        // Tope de intentos por cuenta: 5 cada 15 minutos. Se cuenta con el
+        // limitador atómico y por la identidad escrita, exista o no la
+        // cuenta. Antes era un contador en la fila del usuario que se leía y
+        // se escribía desde PHP (con 30 intentos a la vez se comprobaban
+        // unas 17 contraseñas, no 5) y que solo existía para cuentas reales:
+        // el aviso de «bloqueada» delataba qué correos estaban registrados.
+        // El intento se reserva ANTES de comprobar la clave.
+        $claveIdentidad = 'login-id:' . hash('sha256', mb_strtolower($identidad));
+        $bloqueada = !limitar($pdo, $claveIdentidad, MAX_INTENTOS, 900);
+
         // «Cuenta desactivada» solo se dice a quien acierta la contraseña.
         // Antes se decía con cualquier clave, y eso bastaba para averiguar
         // qué correos tenían una cuenta desactivada en la tienda.
-        $comprobable = $usuario && !Auth::bloqueado($usuario)
+        $comprobable = $usuario && !$bloqueada
                     && (string)($usuario['password_hash'] ?? '') !== '';
         $claveCorrecta = $comprobable && Auth::verificarPassword($pdo, $usuario, $password);
 
@@ -54,7 +66,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             password_hash($password, PASSWORD_DEFAULT);
         }
 
-        if ($usuario && Auth::bloqueado($usuario)) {
+        if ($bloqueada) {
             $error = 'Por seguridad bloqueamos la cuenta 15 minutos tras varios intentos fallidos.';
         } elseif ($claveCorrecta && (int)$usuario['activo'] !== 1) {
             $error = 'Esta cuenta está desactivada. Escríbenos si crees que es un error.';
@@ -63,6 +75,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             Favoritos::fusionarAlEntrar($pdo, (int)$usuario['id']);
             Carrito::fusionarAlEntrar($pdo, (int)$usuario['id']);
             limpiarLimite($pdo, $claveIp);
+            limpiarLimite($pdo, $claveIdentidad);
 
             Auditoria::registrar($pdo, 'inicio_sesion', 'usuarios', [
                 'recurso_tipo' => 'usuario', 'recurso_id' => (string)$usuario['id'],
@@ -78,9 +91,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             flash('exito', '¡Hola de nuevo, ' . Auth::nombreCompleto() . '!');
             redirigir($destino !== '' ? $destino : (Auth::esPersonal() ? 'admin/' : 'cuenta/pedidos.php'));
         } else {
-            if ($usuario) {
-                Auth::anotarFallo($pdo, $usuario, MAX_INTENTOS);
-            }
             Auditoria::registrar($pdo, 'inicio_sesion', 'usuarios', [
                 'resultado'   => 'fallo',
                 'descripcion' => 'Intento fallido de inicio de sesión.',
@@ -133,18 +143,7 @@ require __DIR__ . '/../includes/vistas/cabecera.php';
         <button type="submit" class="btn btn-primary btn-block">Entrar</button>
       </form>
 
-      <?php if (Google::configurado()): ?>
-        <div class="separador-o">o</div>
-        <a class="btn-google" href="<?= e(url('cuenta/google.php')) ?>">
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.76h3.57c2.08-1.92 3.27-4.74 3.27-8.09z"/>
-            <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.76c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84A11 11 0 0 0 12 23z"/>
-            <path fill="#FBBC05" d="M5.84 14.11a6.6 6.6 0 0 1 0-4.22V7.05H2.18a11 11 0 0 0 0 9.9l3.66-2.84z"/>
-            <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.05l3.66 2.84C6.71 7.31 9.14 5.38 12 5.38z"/>
-          </svg>
-          Continuar con Google
-        </a>
-      <?php endif; ?>
+      <?php require __DIR__ . '/../includes/vistas/acceso_social.php'; ?>
 
       <div class="enlaces-auth">
         <a href="<?= e(url('cuenta/recuperar.php')) ?>">Olvidé mi contraseña</a>

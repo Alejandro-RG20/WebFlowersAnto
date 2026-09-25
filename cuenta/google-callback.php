@@ -6,6 +6,7 @@
 
 declare(strict_types=1);
 require_once __DIR__ . '/../includes/bootstrap.php';
+require_once __DIR__ . '/../includes/lib/cuentas_externas.php';
 require_once __DIR__ . '/../includes/lib/google.php';
 
 if (!Google::configurado()) {
@@ -13,18 +14,26 @@ if (!Google::configurado()) {
     redirigir('cuenta/entrar.php');
 }
 
-// El usuario canceló en la pantalla de Google.
-if (texto('error', 60, $_GET) !== '') {
-    flash('info', 'Cancelaste el acceso con Google.');
-    redirigir('cuenta/entrar.php');
+// El usuario canceló en la pantalla de Google (error=access_denied) u
+// otro error del lado de Google.
+$errorGoogle = texto('error', 60, $_GET);
+if ($errorGoogle !== '') {
+    unset($_SESSION['google_state'], $_SESSION['google_nonce'], $_SESSION['vincular']);
+    if ($errorGoogle === 'access_denied') {
+        flash('info', 'Cancelaste el acceso con Google.');
+    } else {
+        flash('error', 'Google no pudo completar el acceso. Inténtalo de nuevo en unos minutos.');
+    }
+    redirigir(Auth::autenticado() ? 'cuenta/perfil.php' : 'cuenta/entrar.php');
 }
 
 $codigo = texto('code', 512, $_GET);
 $state  = texto('state', 64, $_GET);
 
 if ($codigo === '') {
+    unset($_SESSION['google_state'], $_SESSION['google_nonce'], $_SESSION['vincular']);
     flash('error', 'Google no devolvió la información necesaria.');
-    redirigir('cuenta/entrar.php');
+    redirigir(Auth::autenticado() ? 'cuenta/perfil.php' : 'cuenta/entrar.php');
 }
 
 if (!limitar($pdo, 'google:' . ip_cliente(), 15, 900)) {
@@ -32,32 +41,4 @@ if (!limitar($pdo, 'google:' . ip_cliente(), 15, 900)) {
     redirigir('cuenta/entrar.php');
 }
 
-$resultado = Google::perfilDesdeCodigo($codigo, $state);
-if (!$resultado['ok']) {
-    Auditoria::registrar($pdo, 'inicio_sesion_google', 'usuarios', [
-        'resultado' => 'fallo', 'descripcion' => $resultado['error'],
-    ]);
-    flash('error', $resultado['error']);
-    redirigir('cuenta/entrar.php');
-}
-
-$usuario = Google::vincularUsuario($pdo, $resultado['perfil']);
-if (!$usuario) {
-    flash('error', 'No pudimos abrir tu cuenta. Escríbenos y lo revisamos.');
-    redirigir('cuenta/entrar.php');
-}
-
-Auth::abrirSesion($usuario);
-Favoritos::fusionarAlEntrar($pdo, (int)$usuario['id']);
-Carrito::fusionarAlEntrar($pdo, (int)$usuario['id']);
-
-Auditoria::registrar($pdo, 'inicio_sesion_google', 'usuarios', [
-    'recurso_tipo' => 'usuario', 'recurso_id' => (string)$usuario['id'],
-    'descripcion'  => 'Inicio de sesión con Google.',
-]);
-
-$destino = $_SESSION['volver_a'] ?? '';
-unset($_SESSION['volver_a']);
-
-flash('exito', '¡Hola, ' . Auth::nombreCompleto() . '!');
-redirigir($destino !== '' ? $destino : (Auth::esPersonal() ? 'admin/' : 'cuenta/pedidos.php'));
+CuentasExternas::terminar($pdo, 'google', Google::perfilDesdeCodigo($codigo, $state));
