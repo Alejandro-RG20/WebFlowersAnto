@@ -43,8 +43,8 @@ final class Google
     /** URL a la que se manda al usuario para que elija su cuenta de Google. */
     public static function urlAutorizacion(string $volverA = ''): string
     {
-        $_SESSION['google_state'] = bin2hex(random_bytes(16));
-        $_SESSION['google_nonce'] = bin2hex(random_bytes(16));
+        $nonce = bin2hex(random_bytes(16));
+        $state = CuentasExternas::abrirPeticion('google', ['nonce' => $nonce]);
         if ($volverA !== '') {
             $_SESSION['volver_a'] = $volverA;
         }
@@ -54,8 +54,8 @@ final class Google
             'redirect_uri'  => self::urlRetorno(),
             'response_type' => 'code',
             'scope'         => 'openid email profile',
-            'state'         => $_SESSION['google_state'],
-            'nonce'         => $_SESSION['google_nonce'],
+            'state'         => $state,
+            'nonce'         => $nonce,
             'prompt'        => 'select_account',
         ]);
     }
@@ -67,10 +67,8 @@ final class Google
      */
     public static function perfilDesdeCodigo(string $codigo, string $state): array
     {
-        $esperado = $_SESSION['google_state'] ?? '';
-        unset($_SESSION['google_state']);
-
-        if ($esperado === '' || !hash_equals($esperado, $state)) {
+        $peticion = CuentasExternas::cerrarPeticion('google', $state);
+        if ($peticion === null) {
             return ['ok' => false, 'error' => 'La sesión con Google caducó. Vuelve a intentarlo.'];
         }
 
@@ -103,8 +101,7 @@ final class Google
 
         // El nonce se exige siempre (antes, si faltaba en la sesión, no se
         // comprobaba): es lo que ata el id_token a esta misma petición.
-        $nonce = (string)($_SESSION['google_nonce'] ?? '');
-        unset($_SESSION['google_nonce']);
+        $nonce = (string)($peticion['nonce'] ?? '');
         if ($nonce === '' || !hash_equals($nonce, (string)($datos['nonce'] ?? ''))) {
             return ['ok' => false, 'error' => 'La respuesta de Google no coincide con la petición.'];
         }

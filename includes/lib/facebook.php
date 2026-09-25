@@ -6,7 +6,8 @@
  * Igual que Google: cURL contra los endpoints oficiales, sin SDK.
  *
  * Seguridad del flujo:
- *   - `state` aleatorio guardado en la sesión, de un solo uso (anti-CSRF).
+ *   - `state` aleatorio guardado en la sesión, de un solo uso y con
+ *     caducidad (anti-CSRF). Ver CuentasExternas::abrirPeticion().
  *   - El código se canjea en el servidor con el secreto de la app; el
  *     secreto nunca sale del servidor ni aparece en registros.
  *   - El token se comprueba con /debug_token: tiene que ser de ESTA app, de
@@ -64,14 +65,14 @@ final class Facebook
     /** URL del diálogo de Facebook. */
     public static function urlAutorizacion(string $volverA = ''): string
     {
-        $_SESSION['facebook_state'] = bin2hex(random_bytes(16));
+        $state = CuentasExternas::abrirPeticion('facebook');
         if ($volverA !== '') {
             $_SESSION['volver_a'] = $volverA;
         }
         $consulta = [
             'client_id'     => self::appId(),
             'redirect_uri'  => self::urlRetorno(),
-            'state'         => $_SESSION['facebook_state'],
+            'state'         => $state,
             'response_type' => 'code',
             'scope'         => 'email,public_profile',
         ];
@@ -92,9 +93,7 @@ final class Facebook
      */
     public static function perfilDesdeCodigo(string $codigo, string $state): array
     {
-        $esperado = (string)($_SESSION['facebook_state'] ?? '');
-        unset($_SESSION['facebook_state']);
-        if ($esperado === '' || !hash_equals($esperado, $state)) {
+        if (CuentasExternas::cerrarPeticion('facebook', $state) === null) {
             return ['ok' => false, 'error' => 'La sesión con Facebook caducó. Vuelve a intentarlo.'];
         }
 

@@ -18,7 +18,8 @@ if (!Google::configurado()) {
 // otro error del lado de Google.
 $errorGoogle = texto('error', 60, $_GET);
 if ($errorGoogle !== '') {
-    unset($_SESSION['google_state'], $_SESSION['google_nonce'], $_SESSION['vincular']);
+    CuentasExternas::cerrarPeticion('google', texto('state', 64, $_GET));
+    unset($_SESSION['vincular']);
     if ($errorGoogle === 'access_denied') {
         flash('info', 'Cancelaste el acceso con Google.');
     } else {
@@ -31,7 +32,8 @@ $codigo = texto('code', 512, $_GET);
 $state  = texto('state', 64, $_GET);
 
 if ($codigo === '') {
-    unset($_SESSION['google_state'], $_SESSION['google_nonce'], $_SESSION['vincular']);
+    CuentasExternas::cerrarPeticion('google', texto('state', 64, $_GET));
+    unset($_SESSION['vincular']);
     flash('error', 'Google no devolvió la información necesaria.');
     redirigir(Auth::autenticado() ? 'cuenta/perfil.php' : 'cuenta/entrar.php');
 }

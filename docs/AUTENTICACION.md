@@ -76,7 +76,10 @@ demostrara ser el dueño del correo).
 - Las URLs con secreto o token nunca se escriben en registros; solo la ruta y
   el tipo de error de Meta.
 
-**Ambos**: cancelar (`error=access_denied`) muestra «Cancelaste…»; otro error
+**Ambos**: cada inicio abre una petición con su propio `state` (y `nonce`
+en Google). Se guardan las 5 últimas, 10 minutos y de un solo uso: un doble
+toque, volver atrás o dos pestañas en el móvil ya no invalidan la primera.
+Cancelar (`error=access_denied`) muestra «Cancelaste…»; otro error
 del proveedor, un aviso genérico; callbacks sin código, con `state` ajeno o
 reutilizados se rechazan. El destino tras entrar (`?volver=`) pasa por
 `url_interna()`: solo rutas del propio sitio.

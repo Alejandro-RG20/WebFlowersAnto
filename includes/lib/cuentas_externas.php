@@ -37,6 +37,10 @@ final class CuentasExternas
     /** Minutos que dura el permiso para vincular tras escribir la contraseña. */
     private const MINUTOS_VINCULAR = 10;
 
+    /** Peticiones a un proveedor que pueden estar abiertas a la vez, y su vida. */
+    private const PETICIONES_MAX = 5;
+    private const PETICION_SEGUNDOS = 600;
+
     private static array $columnas = [];
 
     /** ¿Existe la columna del proveedor? (facebook_id llega con la migración 023) */
@@ -55,6 +59,52 @@ final class CuentasExternas
             }
         }
         return self::$columnas[$columna];
+    }
+
+    // ---------------------------------------------------------------------
+    // Peticiones abiertas (state y, en Google, nonce)
+    // ---------------------------------------------------------------------
+
+    /**
+     * Abre una petición al proveedor y devuelve su `state`.
+     *
+     * Antes había un único hueco por proveedor: en el móvil, un doble toque,
+     * volver atrás y pulsar otra vez o tener dos pestañas pisaban el state
+     * de la primera, y cuando el proveedor volvía con ella la tienda la
+     * rechazaba («la sesión caducó») y había que empezar de nuevo. Ahora se
+     * guardan las últimas PETICIONES_MAX, cada una de un solo uso y con
+     * caducidad: la protección contra CSRF es la misma.
+     */
+    public static function abrirPeticion(string $proveedor, array $datos = []): string
+    {
+        $state = bin2hex(random_bytes(16));
+        $lista = self::peticionesVigentes($proveedor);
+        $lista[$state] = ['hasta' => time() + self::PETICION_SEGUNDOS] + $datos;
+        $_SESSION['oauth'][$proveedor] = array_slice($lista, -self::PETICIONES_MAX, null, true);
+        return $state;
+    }
+
+    /** Cierra (consume) la petición de ese `state`. Devuelve sus datos o null. */
+    public static function cerrarPeticion(string $proveedor, string $state): ?array
+    {
+        $lista = self::peticionesVigentes($proveedor);
+        $datos = null;
+        foreach ($lista as $clave => $peticion) {
+            if ($state !== '' && hash_equals((string)$clave, $state)) {
+                $datos = $peticion;
+                unset($lista[$clave]);
+            }
+        }
+        $_SESSION['oauth'][$proveedor] = $lista;
+        return $datos;
+    }
+
+    private static function peticionesVigentes(string $proveedor): array
+    {
+        $lista = $_SESSION['oauth'][$proveedor] ?? [];
+        return is_array($lista)
+            ? array_filter($lista, fn($p) => is_array($p) && (int)($p['hasta'] ?? 0) >= time())
+            : [];
     }
 
     // ---------------------------------------------------------------------

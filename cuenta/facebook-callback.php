@@ -21,7 +21,8 @@ if (!Facebook::disponible($pdo)) {
 $errorFacebook = texto('error', 60, $_GET);
 $motivo        = texto('error_reason', 60, $_GET);
 if ($errorFacebook !== '' || $motivo !== '') {
-    unset($_SESSION['facebook_state'], $_SESSION['vincular']);
+    CuentasExternas::cerrarPeticion('facebook', texto('state', 64, $_GET));
+    unset($_SESSION['vincular']);
     if ($errorFacebook === 'access_denied' || $motivo === 'user_denied') {
         flash('info', 'Cancelaste el acceso con Facebook.');
     } else {
@@ -34,7 +35,8 @@ $codigo = texto('code', 1024, $_GET);
 $state  = texto('state', 64, $_GET);
 
 if ($codigo === '') {
-    unset($_SESSION['facebook_state'], $_SESSION['vincular']);
+    CuentasExternas::cerrarPeticion('facebook', texto('state', 64, $_GET));
+    unset($_SESSION['vincular']);
     flash('error', 'Facebook no devolvió la información necesaria.');
     redirigir(Auth::autenticado() ? 'cuenta/perfil.php' : 'cuenta/entrar.php');
 }
