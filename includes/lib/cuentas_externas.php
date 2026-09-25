@@ -82,8 +82,9 @@ final class CuentasExternas
 
         if ($id === 0) {
             if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
-                return ['ok' => false, 'error' => "Tu cuenta de {$nombreProveedor} no comparte un correo electrónico. "
-                    . 'Crea tu cuenta con tu correo o entra con otra opción.'];
+                return ['ok' => false, 'error' => "{$nombreProveedor} no nos compartió tu correo electrónico. "
+                    . 'Vuelve a intentarlo y deja marcada «Dirección de correo electrónico» al dar permiso, '
+                    . 'o crea tu cuenta con tu correo.'];
             }
 
             $st = $pdo->prepare("SELECT * FROM usuarios WHERE email = ? LIMIT 1");

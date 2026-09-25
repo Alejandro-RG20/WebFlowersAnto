@@ -68,13 +68,21 @@ final class Facebook
         if ($volverA !== '') {
             $_SESSION['volver_a'] = $volverA;
         }
-        return self::destino('https://www.facebook.com/' . self::version() . '/dialog/oauth') . '?' . http_build_query([
+        $consulta = [
             'client_id'     => self::appId(),
             'redirect_uri'  => self::urlRetorno(),
             'state'         => $_SESSION['facebook_state'],
             'response_type' => 'code',
             'scope'         => 'email,public_profile',
-        ]);
+        ];
+        // Si la vez anterior la persona quitó el correo en «Editar acceso»,
+        // Facebook recuerda esa negativa y no vuelve a preguntarlo por su
+        // cuenta: hay que pedirlo de nuevo de forma explícita.
+        if (!empty($_SESSION['facebook_repedir'])) {
+            $consulta['auth_type'] = 'rerequest';
+            unset($_SESSION['facebook_repedir']);
+        }
+        return self::destino('https://www.facebook.com/' . self::version() . '/dialog/oauth') . '?' . http_build_query($consulta);
     }
 
     /**
@@ -128,6 +136,9 @@ final class Facebook
         }
 
         $email = mb_strtolower(trim((string)($yo['email'] ?? '')));
+        if ($email === '') {
+            $_SESSION['facebook_repedir'] = true;
+        }
         return ['ok' => true, 'perfil' => [
             'id'               => $id,
             'email'            => filter_var($email, FILTER_VALIDATE_EMAIL) ? $email : '',

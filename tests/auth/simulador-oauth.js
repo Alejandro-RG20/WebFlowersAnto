@@ -105,7 +105,7 @@ http.createServer((req, res) => {
     if (fb) {
       const ruta = fb[2];
       if (ruta === 'dialog/oauth') {
-        anotar(p, { client_id: q.client_id, redirect_uri: q.redirect_uri, scope: q.scope, con_state: !!q.state });
+        anotar(p, { client_id: q.client_id, redirect_uri: q.redirect_uri, scope: q.scope, con_state: !!q.state, auth_type: q.auth_type || '' });
         if (q.client_id !== F.id) return responder(res, 400, { error: { message: 'Invalid App ID', type: 'OAuthException', code: 101 } });
         const vuelta = new URL(q.redirect_uri);
         if (escenario === 'cancelar') {
