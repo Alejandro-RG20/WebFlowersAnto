@@ -625,3 +625,64 @@ Rama `FlowersAntoIAGemini_v.02`, creada desde `FlowersAntoIA_v0.1`.
   proveedores (evita ejecutar dos veces una herramienta).
 - Sin dependencias nuevas y sin cambios en la base de datos, la interfaz, las
   herramientas ni los endpoints.
+
+---
+
+## 16. Auditoría de autenticación y acceso con Facebook (FlowersAntoIAFacebook_v.03)
+
+Rama `FlowersAntoIAFacebook_v.03`, creada desde `FlowersAntoIAGemini_v.02`.
+Se revisó todo el sistema de cuentas y solo se tocó lo que tenía un fallo
+reproducible. Detalle técnico en [`docs/AUTENTICACION.md`](docs/AUTENTICACION.md).
+
+### Fallos encontrados y corregidos (todos reproducidos antes de arreglarlos)
+
+| # | Fallo | Arreglo |
+|---|-------|---------|
+| 1 | **Redirección abierta**: `?volver=/\evil.example` sacaba al usuario del sitio tras iniciar sesión (los navegadores leen `/\` como `//`) | `url_interna()` rechaza barras invertidas y caracteres de control |
+| 2 | **Google tomaba cuentas por el correo**: enlazaba sola cualquier cuenta con el mismo correo. Un atacante podía registrar antes el correo de otra persona con su contraseña y conservar el acceso cuando la dueña entraba con Google; y un correo que Google no controla (p. ej. de otra empresa) bastaba para entrar en una cuenta ajena | Solo se enlaza sola si Google es la autoridad del correo (Gmail o Workspace). Si el correo nunca se había confirmado, se anulan la contraseña y las otras identidades, se cierran las otras sesiones y se avisa por correo |
+| 3 | Un **administrador podía degradar o desactivar a un super administrador** | Solo quien tiene `roles.gestionar` modifica a un super administrador |
+| 4 | **Cambiar el correo** en «Mis datos» no pedía la contraseña y el correo nuevo quedaba como verificado | Pide la contraseña actual, marca el correo sin verificar, envía confirmación al nuevo, avisa al anterior e invalida los enlaces de recuperación pendientes |
+| 5 | El **bloqueo por intentos** no era atómico (con 30 intentos a la vez se comprobaban ~17 contraseñas, no 5) y el aviso de «cuenta bloqueada» revelaba qué correos existían | Limitador atómico por identidad, reservado antes de comprobar la clave, igual para correos que existen y que no |
+| 6 | Sin `session.use_strict_mode`: se aceptaban identificadores de sesión inventados | Activado (junto a `use_only_cookies`) |
+| 7 | Dos altas simultáneas con el mismo correo daban error 500 | Se trata como correo ya registrado |
+| 8 | Sin límite a los intentos de contraseña actual en «Mis datos» | 10 cada 15 minutos por cuenta |
+| 9 | El retorno de Google anunciaba «Cancelaste» ante cualquier error | Distingue cancelar de un error del proveedor |
+
+### Revisado y correcto (no se cambió)
+
+Contraseñas con bcrypt y rehash, consultas preparadas, CSRF en todos los
+formularios, cierre de sesión solo por POST, regeneración del identificador
+al entrar, cookies HttpOnly/Secure/SameSite=Lax, caducidad por inactividad,
+permisos comprobados en el servidor, el registro fija el rol `cliente` (no
+admite asignación masiva), `state` y `nonce` de Google, `redirect_uri` fija.
+
+### Continuar con Facebook
+
+- Flujo de código de autorización de Meta, sin SDK ni JavaScript de Facebook.
+  El secreto de la app solo se usa en el servidor.
+- `state` de un solo uso; el token se comprueba con `debug_token` (misma app,
+  tipo usuario, válido, no caducado, mismo usuario que `/me`); `/me` se pide
+  con `appsecret_proof`.
+- Facebook no dice si el correo está verificado, así que **nunca** entra solo
+  en una cuenta existente con ese correo: se conecta desde «Mis datos →
+  Cuentas conectadas», con la contraseña. Una cuenta nueva creada con Facebook
+  confirma su correo con el enlace de siempre. Sin correo, no se crea cuenta.
+- Un módulo común (`CuentasExternas`) decide para Google y Facebook: el mismo
+  código, las mismas reglas.
+- «Mis datos» muestra las cuentas conectadas y permite conectar y desconectar
+  (con aviso por correo; no deja desconectar la única forma de entrar).
+- Política de privacidad: qué se recibe de Google/Facebook y cómo borrar los
+  datos (`#borrar-datos`, la URL que pide Meta).
+
+### Base de datos
+
+Migración `023_facebook_login`: columna `usuarios.facebook_id` con índice
+único. Solo añade; idempotente. Sin ella el botón de Facebook no aparece y
+todo lo demás funciona igual (probado).
+
+### Cambio de comportamiento a tener en cuenta
+
+Quien tenía cuenta con un correo que **no** es Gmail/Workspace y pulsaba
+«Continuar con Google» entraba directamente; ahora se le pide entrar con su
+contraseña y conectar Google desde «Mis datos» (una sola vez). Las cuentas que
+ya tenían Google conectado siguen entrando igual.

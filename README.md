@@ -116,13 +116,15 @@ Se leen en este orden: variable de entorno real → `.env` → `config.local.php
 | Clave | Para qué sirve |
 |-------|----------------|
 | `APP_ENTORNO` | `dev` muestra errores en pantalla. En producción: `prod` |
-| `APP_URL` | URL pública completa. La usan los correos y el callback de Google |
+| `APP_URL` | URL pública completa. La usan los correos y los callbacks de Google y Facebook |
 | `APP_BASE_URL` | Ruta del sitio dentro del dominio (`/webANTO` o vacío) |
 | `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASS` | Conexión a MySQL |
 | `MAX_UPLOAD_MB` | Tamaño máximo de imagen del catálogo |
 | `MAX_COMPROBANTE_MB` | Tamaño máximo de comprobante de pago |
 | `MAX_RESPALDO_MB` | Tamaño máximo de respaldo que se puede subir |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Acceso con Google (opcional) |
+| `FACEBOOK_APP_ID`, `FACEBOOK_APP_SECRET`, `FACEBOOK_GRAPH_VERSION` | Acceso con Facebook (opcional, requiere la migración 023) |
+| `OAUTH_SIMULADOR` | Solo con `APP_ENTORNO=dev`: simulador local de Google y Facebook para pruebas |
 | `MAIL_TRANSPORTE` | `log`, `mail` o `smtp` |
 | `MAIL_REMITENTE`, `MAIL_REMITENTE_NOMBRE` | Remitente de los correos |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_SEGURIDAD`, `SMTP_USUARIO`, `SMTP_PASSWORD` | Servidor SMTP |
@@ -272,8 +274,48 @@ GOOGLE_CLIENT_SECRET=...
 Si se dejan vacíos, el botón «Continuar con Google» simplemente no aparece.
 
 El flujo usa `state` y `nonce` contra CSRF, valida el `id_token` contra el
-endpoint oficial de Google y solo acepta cuentas con el correo verificado. Si ya
-existe una cuenta con ese correo, se enlaza en lugar de duplicarla.
+endpoint oficial de Google (`aud`, `iss`, `exp`, `nonce`) y solo acepta cuentas
+con el correo verificado.
+
+Si ya existe una cuenta con ese correo, se enlaza sola **solo** cuando Google es
+la autoridad de ese correo (`@gmail.com`, `@googlemail.com` o una cuenta de
+Google Workspace, que llega con el dato `hd`). Con cualquier otro correo, la
+persona entra como siempre y conecta Google desde **Mis datos → Cuentas
+conectadas**. Detalle en [`docs/AUTENTICACION.md`](docs/AUTENTICACION.md).
+
+---
+
+## Acceso con Facebook (opcional)
+
+1. En [Meta for Developers](https://developers.facebook.com/apps) crea una app
+   de tipo **Consumidor** (o «Autenticar y solicitar datos de los usuarios con
+   el inicio de sesión con Facebook») y añade el producto **Inicio de sesión
+   con Facebook**.
+2. En *Inicio de sesión con Facebook → Configuración*:
+   - **URI de redireccionamiento de OAuth válidos:**
+     `{APP_URL}/cuenta/facebook-callback.php`
+   - *Inicio de sesión con OAuth del cliente* y *Inicio de sesión con OAuth web*: **sí**
+   - *Usar modo estricto para URI de redireccionamiento*: **sí**
+   - *Aplicar HTTPS*: **sí**
+3. En *Configuración de la app → Básica*: dominio de la app, URL de la política
+   de privacidad (`{APP_URL}/legal.php?doc=privacidad`) y URL de instrucciones
+   para eliminar datos (`{APP_URL}/legal.php?doc=privacidad#borrar-datos`).
+4. Permisos: `email` y `public_profile` (acceso estándar, sin revisión).
+5. Copia el identificador y la clave secreta en `.env`:
+
+```ini
+FACEBOOK_APP_ID=...
+FACEBOOK_APP_SECRET=...
+```
+
+6. Aplica la migración 023 (**Admin → Base de datos** o `php db/migrar.php`).
+7. Pasa la app a modo **Activo** (en desarrollo solo entran los usuarios de prueba).
+
+Sin las dos claves o sin la migración, el botón no aparece y todo lo demás
+funciona igual. Facebook no dice si el correo está verificado: una cuenta nueva
+creada con Facebook confirma su correo con el enlace de siempre, y Facebook
+**nunca** entra solo en una cuenta que ya existía con ese correo; se conecta
+desde **Mis datos**.
 
 ---
 
