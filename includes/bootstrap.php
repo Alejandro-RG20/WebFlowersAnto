@@ -345,6 +345,12 @@ if (PHP_SAPI !== 'cli' && session_status() === PHP_SESSION_NONE) {
         'samesite' => 'Lax',  // corta el CSRF desde otros dominios
     ]);
     session_name('FLOWERSANTO_SESS');
+    // Solo identificadores creados por el servidor: uno inventado por quien
+    // manda la cookie (fijación de sesión) se descarta y se crea otro. Y la
+    // cookie de sesión es la única vía: nunca el identificador en la URL.
+    ini_set('session.use_strict_mode', '1');
+    ini_set('session.use_only_cookies', '1');
+    ini_set('session.use_trans_sid', '0');
     session_start();
 
     // Rotación periódica del identificador de sesión (cada 30 minutos).

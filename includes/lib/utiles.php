@@ -171,8 +171,12 @@ function url_interna(string $destino): string
     $destino = trim($destino);
 
     // Fuera del sitio: https://otro.com, //otro.com, javascript:…
+    // También la barra invertida y los caracteres de control o espacios: los
+    // navegadores leen «/\otro.com» y «/<tab>/otro.com» como «//otro.com», así
+    // que un ?volver= con eso sacaba al cliente del sitio tras iniciar sesión.
     if ($destino === ''
         || str_starts_with($destino, '//')
+        || preg_match('#[\\\\\x00-\x20\x7F]#', $destino)
         || preg_match('#^[a-z][a-z0-9+.-]*:#i', $destino)) {
         return url();
     }
@@ -202,11 +206,13 @@ function redirigir(string $ruta, int $codigo = 302): never
  *
  * Existe aparte de `redirigir()` a propósito: así salir del sitio es siempre
  * una decisión explícita de quien escribe el código, y nunca algo que pueda
- * provocar un valor que venga de la URL. Hoy solo la usa el acceso con Google.
+ * provocar un valor que venga de la URL. La usan los accesos con Google y Facebook.
  */
 function redirigir_externo(string $url, int $codigo = 302): never
 {
-    if (!preg_match('#^https://#i', $url)) {
+    // En desarrollo, también el simulador OAuth local (tests/auth).
+    $simulador = defined('ENTORNO') && ENTORNO === 'dev' && preg_match('#^http://127\.0\.0\.1:\d+/#', $url);
+    if (!preg_match('#^https://#i', $url) && !$simulador) {
         error_log('Flowers Anto — redirección externa rechazada: ' . $url);
         redirigir('/');
     }

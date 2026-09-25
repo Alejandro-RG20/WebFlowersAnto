@@ -44,6 +44,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $empleado = $st->fetch() ?: null;
     }
 
+    // Un super administrador solo lo modifica, degrada o desactiva otro super
+    // administrador. El rol «admin» tiene empleados.gestionar pero no
+    // roles.gestionar, y antes podía quitarle el rol o desactivar a un super
+    // administrador. Enviarle un enlace para cambiar su contraseña sigue
+    // permitido: le llega a él.
+    if ($empleado && $empleado['rol_codigo'] === 'super_admin' && $accion !== 'restablecer'
+        && !Rbac::puede('roles.gestionar')) {
+        Auditoria::denegado($pdo, 'roles.gestionar', 'usuarios');
+        flash('error', 'Solo un super administrador puede modificar a otro super administrador.');
+        redirigir('admin/empleados.php');
+    }
+
     if ($accion === 'activar') {
         if (!$empleado) {
             flash('error', 'Esa cuenta ya no existe.');

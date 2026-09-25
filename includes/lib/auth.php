@@ -197,21 +197,10 @@ final class Auth
         return true;
     }
 
-    /** ¿La cuenta está bloqueada temporalmente por intentos fallidos? */
-    public static function bloqueado(array $usuario): bool
-    {
-        return !empty($usuario['bloqueado_hasta'])
-            && strtotime((string)$usuario['bloqueado_hasta']) > time();
-    }
-
-    /** Suma un intento fallido y bloquea al llegar al máximo. */
-    public static function anotarFallo(PDO $pdo, array $usuario, int $maximo = 5, int $minutos = 15): void
-    {
-        $intentos = (int)$usuario['intentos_fallidos'] + 1;
-        $hasta    = $intentos >= $maximo ? date('Y-m-d H:i:s', time() + $minutos * 60) : null;
-        $pdo->prepare("UPDATE usuarios SET intentos_fallidos = ?, bloqueado_hasta = ? WHERE id = ?")
-            ->execute([$intentos >= $maximo ? 0 : $intentos, $hasta, $usuario['id']]);
-    }
+    // El tope de intentos de acceso vive en cuenta/entrar.php, con el
+    // limitador atómico (tabla rate_limits) por identidad. Las columnas
+    // intentos_fallidos y bloqueado_hasta se conservan y abrirSesion() las
+    // deja a cero, por compatibilidad con instalaciones anteriores.
 
     /** Id del rol por su código. */
     public static function rolId(PDO $pdo, string $codigo): ?int
