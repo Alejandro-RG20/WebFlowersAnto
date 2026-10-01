@@ -109,14 +109,15 @@ reutilizados se rechazan. El destino tras entrar (`?volver=`) pasa por
 ## 5. Configuración externa
 
 ### Google Cloud (Credenciales → ID de cliente de OAuth → Aplicación web)
-- **Orígenes de JavaScript autorizados**: `https://flowersanto.site.je`
+- **Orígenes de JavaScript autorizados**: `https://flowersanto.com`
 - **URI de redireccionamiento autorizados**:
-  `https://flowersanto.site.je/cuenta/google-callback.php`
-  (añade también la del otro dominio si se usa para entrar, p. ej.
-  `https://flowersantopedidos.site.je/cuenta/google-callback.php`)
+  `https://flowersanto.com/cuenta/google-callback.php`
+  (si el sitio también abre con `www`, añade
+  `https://www.flowersanto.com/cuenta/google-callback.php` o redirige `www`
+  al dominio sin `www`)
 - Pantalla de consentimiento: publicada («En producción»), permisos `openid`,
   `email`, `profile`.
-- `.env`: `APP_URL=https://flowersanto.site.je`, `GOOGLE_CLIENT_ID`,
+- `.env`: `APP_URL=https://flowersanto.com`, `GOOGLE_CLIENT_ID`,
   `GOOGLE_CLIENT_SECRET`.
 
 La URI tiene que coincidir **exactamente** con `{APP_URL}/cuenta/google-callback.php`
@@ -126,12 +127,12 @@ La URI tiene que coincidir **exactamente** con `{APP_URL}/cuenta/google-callback
 ### Meta for Developers
 - App de tipo Consumidor con el producto **Inicio de sesión con Facebook**.
 - *Configuración de Inicio de sesión con Facebook*: URI de redireccionamiento
-  de OAuth válido `https://flowersanto.site.je/cuenta/facebook-callback.php`;
+  de OAuth válido `https://flowersanto.com/cuenta/facebook-callback.php`;
   OAuth del cliente y OAuth web activados; modo estricto y HTTPS obligatorios.
-- *Configuración → Básica*: dominio `flowersanto.site.je`; política de
-  privacidad `https://flowersanto.site.je/legal.php?doc=privacidad`;
+- *Configuración → Básica*: dominio `flowersanto.com`; política de
+  privacidad `https://flowersanto.com/legal.php?doc=privacidad`;
   instrucciones de eliminación de datos
-  `https://flowersanto.site.je/legal.php?doc=privacidad#borrar-datos`;
+  `https://flowersanto.com/legal.php?doc=privacidad#borrar-datos`;
   icono y categoría.
 - Permisos: `email`, `public_profile` (acceso estándar).
 - Modo **Activo** (en desarrollo solo entran los roles/usuarios de prueba).
