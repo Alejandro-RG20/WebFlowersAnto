@@ -753,7 +753,8 @@ todo funciona como antes.
 ### Avisos desde la ficha del cliente
 - **Clientes → ficha → Avisos al cliente**: se le escribe un aviso, una
   sugerencia o una advertencia (por ejemplo, por pedidos sin pagar). Se
-  guarda en su cuenta y, si se marca, también le llega por correo.
+  guarda en su cuenta y le llega por correo (la casilla viene marcada; el
+  cupón de cumpleaños va en el correo como un ticket con el código).
 - Debajo queda el **historial**: quién lo envió, cuándo, si ya lo leyó y si
   el correo salió.
 - El cliente ve un contador en su botón de usuario, una franja «Tienes N
@@ -780,11 +781,14 @@ todo funciona como antes.
 ### Botones flotantes en móvil
 - En portada, categorías y ficha de producto WhatsApp y Massiel siguen
   como antes.
-- En carrito, pago, pedido, comprobante, seguimiento, factura y Mi cuenta se
-  recogen hacia el borde derecho con una animación y queda una **pestaña**
-  que los vuelve a sacar (y Escape o un segundo toque los guarda). Solo se
-  animan `transform` y `opacity`: sin saltos de diseño; con «reducir
-  movimiento» no hay animación.
+- En carrito, pago, pedido, comprobante, seguimiento, factura y Mi cuenta
+  (móvil y tableta, hasta 900 px) se recogen hacia el borde derecho y asoma
+  una **pestaña de cristal** con los iconos de Massiel y WhatsApp apilados y
+  un destello al llegar. Al tocarla salen con una curva de muelle, Massiel
+  vuelve a presentarse y la pestaña muestra una X; un toque fuera, la X o
+  Escape los guardan. Solo se animan `transform` y `opacity`: sin saltos de
+  diseño; con «reducir movimiento» no hay animación. En el escritorio no
+  cambia nada.
 
 ### Base de datos
 Migración `025_avisos_y_cupones_personales`: columna `cupones.usuario_id`

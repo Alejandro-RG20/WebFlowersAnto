@@ -328,13 +328,21 @@ final class Avisos
         $cuerpo = '<p>Hola ' . e((string)$cliente['nombre']) . ',</p>'
                 . '<p>' . nl2br(e($mensaje)) . '</p>';
         if ($cupon) {
-            $cuerpo .= '<p style="margin:22px 0 6px;font-size:13px;color:#8A7A7D;">Tu cupón</p>'
-                . '<p style="margin:0 0 6px;font-size:26px;font-weight:700;letter-spacing:3px;'
+            // Ticket en tabla y estilos en línea: es lo único que respetan
+            // Gmail, Outlook y Apple Mail por igual.
+            $cuerpo .= '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:24px 0 8px;">'
+                . '<tr><td align="center" style="background:#FFF4F7;border:2px dashed #E9A3B6;border-radius:14px;padding:22px 16px;">'
+                . '<p style="margin:0 0 4px;font-size:12px;letter-spacing:2px;text-transform:uppercase;color:#A0526A;font-weight:700;">'
+                . 'Tu regalo · ' . e(Cupones::resumen($cupon)) . '</p>'
+                . '<p style="margin:0 0 10px;font-size:28px;font-weight:700;letter-spacing:4px;color:#4A3B3D;'
                 . 'font-family:\'SFMono-Regular\',Consolas,\'Liberation Mono\',monospace;">' . e((string)$cupon['codigo']) . '</p>'
-                . '<p style="margin:0 0 18px;font-size:13px;color:#8A7A7D;">' . e(Cupones::resumen($cupon))
-                . ((float)$cupon['compra_minima'] > 0 ? ' en compras desde ' . e(dinero($cupon['compra_minima'])) : '')
-                . '. Válido hasta el ' . e(date('d/m/Y', strtotime((string)$cupon['fecha_fin'])))
-                . ', una sola vez y solo con tu cuenta.</p>';
+                . '<p style="margin:0;font-size:13px;line-height:1.5;color:#8A7A7D;">'
+                . ((float)$cupon['compra_minima'] > 0 ? 'En compras desde ' . e(dinero($cupon['compra_minima'])) . '. ' : '')
+                . 'Válido hasta el ' . e(date('d/m/Y', strtotime((string)$cupon['fecha_fin'])))
+                . ', una sola vez y solo con tu cuenta.</p>'
+                . '</td></tr></table>'
+                . '<p style="margin:0 0 18px;font-size:13px;color:#8A7A7D;">Inicia sesión, elige tu arreglo y escribe el '
+                . 'código al completar el pedido.</p>';
         }
         return Correo::plantilla($titulo, $cuerpo, [
             'url'   => url_absoluta($cupon ? 'productos.php' : 'cuenta/avisos.php'),

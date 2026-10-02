@@ -879,6 +879,13 @@
       pestana.setAttribute('aria-label', (abierto ? 'Ocultar ' : 'Mostrar ') + etiquetaBase);
     };
     pestana.addEventListener('click', () => ponerAbierto(!document.body.classList.contains('flotantes-abiertos')));
+    // Un toque fuera de la pestaña y de los botones los vuelve a guardar.
+    document.addEventListener('click', (e) => {
+      if (document.body.classList.contains('flotantes-abiertos')
+          && !e.target.closest('#pestanaFlotantes, .whatsapp-float, .asesora-flotante')) {
+        ponerAbierto(false);
+      }
+    });
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape' && document.body.classList.contains('flotantes-abiertos')) {
         ponerAbierto(false);

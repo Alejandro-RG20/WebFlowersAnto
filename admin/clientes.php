@@ -412,8 +412,8 @@ require __DIR__ . '/_cabecera.php';
                   <label for="fc_cupon">Regalarle un cupón</label>
                   <select id="fc_cupon" name="cupon_base">
                     <option value="0">Sin cupón</option>
-                    <?php foreach ($plantillas as $c): ?>
-                      <option value="<?= (int)$c['id'] ?>"><?= e($c['codigo'] . ' · ' . Cupones::resumen($c)
+                    <?php foreach ($plantillas as $i => $c): ?>
+                      <option value="<?= (int)$c['id'] ?>"<?= $i === 0 ? ' selected' : '' ?>><?= e($c['codigo'] . ' · ' . Cupones::resumen($c)
                           . ((float)$c['compra_minima'] > 0 ? ' desde ' . dinero($c['compra_minima']) : '')) ?></option>
                     <?php endforeach; ?>
                   </select>
