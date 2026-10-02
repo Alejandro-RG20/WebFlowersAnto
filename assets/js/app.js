@@ -840,12 +840,41 @@
       });
     });
   }
+  // Los botones flotantes suben lo justo para no tapar el aviso, que cambia
+  // de alto según el ancho de la pantalla (ver --alto-aviso en app.css).
+  function medirAviso() {
+    if (!aviso_cookies || aviso_cookies.hidden) { return; }
+    const caja = aviso_cookies.firstElementChild || aviso_cookies;
+    document.documentElement.style.setProperty('--alto-aviso', Math.ceil(caja.getBoundingClientRect().height) + 'px');
+  }
+  window.addEventListener('resize', medirAviso, { passive: true });
+
+  // Primera visita: el aviso aparece cuando ya están las fuentes y el
+  // navegador tiene un respiro, para que no se mueva al cambiar la letra.
+  //
+  // El orden importa. La hoja de Google Fonts se carga en diferido, y hasta
+  // que llega el navegador no sabe que existe Poppins: `document.fonts.ready`
+  // se cumplía en el acto, sin esperar a nada. Por eso primero se espera al
+  // `load` de la página (que sí espera a esa hoja) y después a las fuentes.
+  if (aviso_cookies && aviso_cookies.hasAttribute('data-pendiente') && !decisionCookies()) {
+    const cargada = document.readyState === 'complete'
+      ? Promise.resolve()
+      : new Promise((listo) => window.addEventListener('load', listo, { once: true }));
+    const fuentes = cargada.then(() => (document.fonts && document.fonts.ready) ? document.fonts.ready : null);
+    const tope = new Promise((listo) => setTimeout(listo, 4000));
+    Promise.race([fuentes, tope]).then(() => {
+      const mostrar = () => { aviso_cookies.hidden = false; medirAviso(); };
+      'requestIdleCallback' in window ? requestIdleCallback(mostrar, { timeout: 1000 }) : setTimeout(mostrar, 200);
+    });
+  }
+
   // Enlace del pie para cambiar de opinión más tarde.
   $$('[data-abrir-cookies]').forEach((enlace) => {
     enlace.addEventListener('click', (ev) => {
       ev.preventDefault();
       if (!aviso_cookies) { return; }
       aviso_cookies.hidden = false;
+      medirAviso();
       const primero = $('[data-cookies]', aviso_cookies);
       primero && primero.focus();
     });

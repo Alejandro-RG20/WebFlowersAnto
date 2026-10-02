@@ -81,22 +81,27 @@ $waGeneral = enlace_whatsapp(
 <meta name="twitter:card" content="summary_large_image">
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<?php // Los iconos van en una fuente propia de pocos KB. Se pide ya: el
+      // carrito, el corazón y la cuenta salen arriba en todas las páginas. ?>
+<link rel="preload" href="<?= e(url_recurso('assets/fonts/fa-solid-900.woff2')) ?>" as="font" type="font/woff2" crossorigin>
 
 <?php
-  // Las hojas de fuera no bloquean el pintado. Son tipografías e iconos: si
-  // llegan medio segundo tarde, el texto ya se lee (las fuentes van con
-  // `display=swap`) y los iconos aparecen sobre un hueco reservado. Bloquear
-  // el render por ellas retrasaba la primera pintura varios segundos en móvil.
+  // Las tipografías de fuera no bloquean el pintado: si llegan medio segundo
+  // tarde, el texto ya se lee (van con `display=swap`). Bloquear el render
+  // por ellas retrasaba la primera pintura varios segundos en móvil.
+  //
+  // Los iconos ya no vienen de fuera: Font Awesome entero desde cdnjs eran
+  // una conexión más, una hoja de 100 KB y unos 300 KB de fuentes para usar
+  // un centenar de iconos. Ahora van en `assets/css/iconos.css`, dentro del
+  // paquete de hojas propias (ver herramientas/generar-iconos.py).
   //
   // El truco de `media="print"` es el estándar de facto: el navegador la
   // descarga con prioridad baja y sin bloquear, y al terminar se pasa a
   // `all`. El <noscript> cubre a quien no tenga JavaScript.
   $hojasExternas = [
       'https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700;900'
-    . '&family=Poppins:wght@300;400;500;600&display=swap',
-      'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css',
+    . '&family=Poppins:wght@400;500;600&display=swap',   // el 300 no lo usa ninguna regla
   ];
 ?>
 <?php foreach ($hojasExternas as $hoja): ?>
@@ -127,7 +132,7 @@ $waGeneral = enlace_whatsapp(
   // toca. `temporada.css` entra aquí y no después del <style> de abajo porque
   // ese bloque solo declara variables en :root y esta hoja no declara
   // ninguna, así que adelantarla no cambia qué regla gana.
-  $hojasPropias = ['assets/css/estilos.css', 'assets/css/app.css'];
+  $hojasPropias = ['assets/css/iconos.css', 'assets/css/estilos.css', 'assets/css/app.css'];
   foreach ((array)($cssExtra ?? []) as $hoja) {
       $hojasPropias[] = $hoja;
   }

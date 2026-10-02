@@ -31,7 +31,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     exigirToken(false, 'admin/respaldos.php');
-    $accion = opcion('accion', ['crear', 'subir', 'restaurar', 'eliminar', 'limpiar'], '');
+    $accion = opcion('accion', ['crear', 'subir', 'restaurar', 'eliminar', 'limpiar', 'preparar_fotos'], '');
     $id     = identificador('id');
 
     $respaldo = null;
@@ -109,6 +109,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                   . ' y ' . tamano_legible($bytes) . ' liberados.'
                 : 'No había nada que limpiar. Todo estaba en orden.');
             break;
+
+        case 'preparar_fotos':
+            // Por tandas con tope de tiempo: en un hosting compartido una
+            // petición larga la corta el servidor. Si quedan fotos, se vuelve
+            // a pulsar y sigue donde se quedó (lo hecho ya está en disco).
+            Rbac::exigir('sistema.mantenimiento');
+            @set_time_limit(60);
+            $hasta  = microtime(true) + 20;
+            $hechas = 0;
+            $cortado = false;
+            foreach ($pdo->query("SELECT id FROM archivos WHERE mime IN ('image/jpeg','image/png','image/webp') ORDER BY id DESC")
+                         ->fetchAll(PDO::FETCH_COLUMN) as $idFoto) {
+                $r = Miniaturas::preparar($pdo, (int)$idFoto, $hasta);
+                $hechas += $r['hechas'];
+                if (!$r['completa'] || microtime(true) > $hasta) {
+                    $cortado = true;
+                    break;
+                }
+            }
+            $estadoFotos = Miniaturas::estado($pdo);
+            flash($cortado ? 'info' : 'exito',
+                ($hechas ? 'Se crearon ' . $hechas . ' ' . unidad_plural($hechas, 'copias') . ' optimizadas. ' : '')
+                . $estadoFotos['listas'] . ' de ' . $estadoFotos['total'] . ' fotos listas.'
+                . ($cortado ? ' Vuelve a pulsar el botón para seguir.' : ''));
+            redirigir('admin/respaldos.php#fotos-optimizadas');
 
         default:
             flash('error', 'Acción no reconocida.');
@@ -318,6 +343,34 @@ require __DIR__ . '/_cabecera.php';
             <button type="submit" class="boton boton-claro" style="width:100%;">
               <i class="fa-solid fa-upload" aria-hidden="true"></i> Subir y validar</button>
           </form>
+        </div>
+      </section>
+    <?php endif; ?>
+
+    <?php if ($puedeLimpiar):
+        $estadoFotos = Miniaturas::estado($pdo); ?>
+      <section class="panel" id="fotos-optimizadas">
+        <div class="panel-cabecera"><div>
+          <h2>Fotos optimizadas</h2>
+          <p><?= (int)$estadoFotos['listas'] ?> de <?= (int)$estadoFotos['total'] ?> fotos tienen ya sus copias
+             reducidas y en WebP, que son las que se mandan a los teléfonos.</p>
+        </div></div>
+        <div class="panel-cuerpo">
+          <p class="ayuda" style="margin:0 0 12px;">Las fotos nuevas se preparan solas al subirlas. Úsalo después de
+             un cambio de hosting, de restaurar un respaldo o de limpiar la caché de imágenes, para que los
+             primeros visitantes no descarguen las fotos originales, mucho más pesadas.</p>
+          <?php if ($estadoFotos['listas'] < $estadoFotos['total']): ?>
+            <form method="post" action="<?= e(url('admin/respaldos.php')) ?>" data-una-vez>
+              <?= campoToken() ?>
+              <input type="hidden" name="accion" value="preparar_fotos">
+              <button type="submit" class="boton boton-principal">
+                <i class="fa-solid fa-images" aria-hidden="true"></i> Preparar fotos ahora</button>
+            </form>
+          <?php else: ?>
+            <div class="caja-aviso exito" style="margin:0;">
+              <i class="fa-solid fa-circle-check" aria-hidden="true"></i><span>Todas las fotos están listas.</span>
+            </div>
+          <?php endif; ?>
         </div>
       </section>
     <?php endif; ?>

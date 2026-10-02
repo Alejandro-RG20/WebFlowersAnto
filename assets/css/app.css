@@ -902,10 +902,20 @@ a.creditos-dev:hover { background: rgba(255,255,255,.13); border-color: rgba(255
 }
 /* El botón flotante de WhatsApp se aparta mientras el aviso está visible.
    Va con :has() porque en el HTML el botón está antes que el aviso, y no hay
-   selector de hermano hacia atrás. */
-body:has(.aviso-cookies:not([hidden])) .whatsapp-float { bottom: 132px; }
-@media (max-width: 560px) {
-  body:has(.aviso-cookies:not([hidden])) .whatsapp-float { bottom: 216px; }
+   selector de hermano hacia atrás.
+
+   Se mueve con `translate` y no cambiando `bottom`: el aviso aparece cuando la
+   página ya está pintada, y un cambio de posición contaría como salto de la
+   página (CLS) mientras que un desplazamiento con `translate` no. Es una
+   propiedad aparte de `transform`, así que no pisa el encogido al pulsar. */
+.whatsapp-float { transition: transform 180ms cubic-bezier(.34,1.4,.64,1), box-shadow 180ms ease, translate .3s ease; }
+/* El alto del aviso cambia con el ancho de la pantalla (el texto se parte en
+   más o menos líneas), así que app.js lo mide al mostrarlo y lo deja en
+   --alto-aviso. El botón queda 14 px por encima: 12 px de margen del aviso +
+   su alto + 14 px de aire, menos los 28 px a los que ya estaba del borde. */
+body:has(.aviso-cookies:not([hidden])) .whatsapp-float { translate: 0 calc(-1 * var(--alto-aviso, 106px) + 2px); }
+@media (max-width: 360px) {
+  body:has(.aviso-cookies:not([hidden])) .whatsapp-float { translate: 0 calc(-1 * var(--alto-aviso, 106px) - 8px); }
 }
 
 /* Enlace discreto del pie para volver a decidir sobre las cookies. */
@@ -1225,15 +1235,15 @@ body:has(.aviso-cookies:not([hidden])) .whatsapp-float { bottom: 132px; }
   }
   /* Con el chat abierto, el botón no se queda encima del campo de escribir. */
   body.asesora-abierta .asesora-flotante { visibility: hidden; }
-  /* Sube con el aviso de cookies, igual que el de WhatsApp. */
-  body:has(.aviso-cookies:not([hidden])) .asesora-flotante { bottom: calc(132px + 60px + 16px); }
+  /* Sube con el aviso de cookies, igual que el de WhatsApp (y con
+     `translate` por lo mismo: así no cuenta como salto de la página). */
+  .asesora-flotante { transition: translate .3s ease; }
+  body:has(.aviso-cookies:not([hidden])) .asesora-flotante { translate: 0 calc(-1 * var(--alto-aviso, 106px) + 4px); }
 }
 @media (max-width: 768px) {
   /* Mismo ajuste que WhatsApp en el móvil (18 px + zona segura del iPhone). */
   .asesora-flotante { bottom: calc(18px + 60px + 14px + env(safe-area-inset-bottom)); }
-}
-@media (max-width: 560px) {
-  body:has(.aviso-cookies:not([hidden])) .asesora-flotante { bottom: calc(216px + 60px + 14px); }
+  body:has(.aviso-cookies:not([hidden])) .asesora-flotante { translate: 0 calc(-1 * var(--alto-aviso, 106px) - 8px); }
 }
 @media (max-width: 360px) {
   /* En los teléfonos más estrechos, solo el nombre junto al círculo. */

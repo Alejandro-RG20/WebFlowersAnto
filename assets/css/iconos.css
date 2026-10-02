@@ -1,0 +1,127 @@
+/*!
+ * Font Awesome Free 6.5.0 by @fontawesome - https://fontawesome.com
+ * License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License)
+ * Copyright 2023 Fonticons, Inc.
+ *
+ * Solo los 111 iconos que usa la tienda. Archivo generado por
+ * herramientas/generar-iconos.py: no se edita a mano.
+ */
+@font-face{font-family:"Font Awesome 6 Free";font-style:normal;font-weight:900;font-display:block;src:url("../fonts/fa-solid-900.woff2") format("woff2")}
+@font-face{font-family:"Font Awesome 6 Free";font-style:normal;font-weight:400;font-display:block;src:url("../fonts/fa-regular-400.woff2") format("woff2")}
+@font-face{font-family:"Font Awesome 6 Brands";font-style:normal;font-weight:400;font-display:block;src:url("../fonts/fa-brands-400.woff2") format("woff2")}
+.fa,.fas,.fa-solid,.far,.fa-regular,.fab,.fa-brands{-moz-osx-font-smoothing:grayscale;-webkit-font-smoothing:antialiased;display:var(--fa-display,inline-block);font-style:normal;font-variant:normal;line-height:1;text-rendering:auto}
+.fa,.fas,.fa-solid,.far,.fa-regular{font-family:"Font Awesome 6 Free"}
+.fa,.fas,.fa-solid{font-weight:900}
+.far,.fa-regular{font-weight:400}
+.fab,.fa-brands{font-family:"Font Awesome 6 Brands";font-weight:400}
+.fa-arrow-left::before{content:"\f060"}
+.fa-arrow-right::before{content:"\f061"}
+.fa-arrow-right-from-bracket::before{content:"\f08b"}
+.fa-arrow-up-right-from-square::before{content:"\f08e"}
+.fa-bag-shopping::before{content:"\f290"}
+.fa-ban::before{content:"\f05e"}
+.fa-bars::before{content:"\f0c9"}
+.fa-basketball::before{content:"\f434"}
+.fa-box::before{content:"\f466"}
+.fa-box-open::before{content:"\f49e"}
+.fa-broom::before{content:"\f51a"}
+.fa-bug::before{content:"\f188"}
+.fa-building-columns::before{content:"\f19c"}
+.fa-bullhorn::before{content:"\f0a1"}
+.fa-calendar::before{content:"\f133"}
+.fa-calendar-day::before{content:"\f783"}
+.fa-cart-plus::before{content:"\f217"}
+.fa-cart-shopping::before{content:"\f07a"}
+.fa-champagne-glasses::before{content:"\f79f"}
+.fa-chart-line::before{content:"\f201"}
+.fa-check::before{content:"\f00c"}
+.fa-check-circle::before{content:"\f058"}
+.fa-chevron-left::before{content:"\f053"}
+.fa-chevron-right::before{content:"\f054"}
+.fa-circle-check::before{content:"\f058"}
+.fa-circle-exclamation::before{content:"\f06a"}
+.fa-circle-info::before{content:"\f05a"}
+.fa-clipboard-list::before{content:"\f46d"}
+.fa-clock::before{content:"\f017"}
+.fa-cloud-arrow-up::before{content:"\f0ee"}
+.fa-database::before{content:"\f1c0"}
+.fa-diamond-turn-right::before{content:"\f5eb"}
+.fa-download::before{content:"\f019"}
+.fa-envelope::before{content:"\f0e0"}
+.fa-envelope-circle-check::before{content:"\e4e8"}
+.fa-envelope-open-text::before{content:"\f658"}
+.fa-eye::before{content:"\f06e"}
+.fa-eye-slash::before{content:"\f070"}
+.fa-facebook-f::before{content:"\f39e"}
+.fa-file-circle-question::before{content:"\e4ef"}
+.fa-file-csv::before{content:"\f6dd"}
+.fa-file-image::before{content:"\f1c5"}
+.fa-file-invoice::before{content:"\f570"}
+.fa-file-invoice-dollar::before{content:"\f571"}
+.fa-file-pdf::before{content:"\f1c1"}
+.fa-filter::before{content:"\f0b0"}
+.fa-floppy-disk::before{content:"\f0c7"}
+.fa-folder-open::before{content:"\f07c"}
+.fa-futbol::before{content:"\f1e3"}
+.fa-gauge::before{content:"\f624"}
+.fa-ghost::before{content:"\f6e2"}
+.fa-hand-holding-heart::before{content:"\f4be"}
+.fa-hashtag::before{content:"\23"}
+.fa-heart::before{content:"\f004"}
+.fa-hourglass-end::before{content:"\f253"}
+.fa-hourglass-half::before{content:"\f252"}
+.fa-id-card::before{content:"\f2c2"}
+.fa-images::before{content:"\f302"}
+.fa-instagram::before{content:"\f16d"}
+.fa-key::before{content:"\f084"}
+.fa-link-slash::before{content:"\f127"}
+.fa-location-dot::before{content:"\f3c5"}
+.fa-lock::before{content:"\f023"}
+.fa-magnifying-glass::before{content:"\f002"}
+.fa-map-location-dot::before{content:"\f5a0"}
+.fa-medal::before{content:"\f5a2"}
+.fa-minus::before{content:"\f068"}
+.fa-motorcycle::before{content:"\f21c"}
+.fa-paper-plane::before{content:"\f1d8"}
+.fa-pen::before{content:"\f304"}
+.fa-phone::before{content:"\f095"}
+.fa-play::before{content:"\f04b"}
+.fa-plug-circle-check::before{content:"\e55c"}
+.fa-plug-circle-xmark::before{content:"\e560"}
+.fa-plus::before{content:"\2b"}
+.fa-print::before{content:"\f02f"}
+.fa-receipt::before{content:"\f543"}
+.fa-rotate::before{content:"\f2f1"}
+.fa-rotate-left::before{content:"\f2ea"}
+.fa-sack-dollar::before{content:"\f81d"}
+.fa-scissors::before{content:"\f0c4"}
+.fa-search::before{content:"\f002"}
+.fa-seedling::before{content:"\f4d8"}
+.fa-server::before{content:"\f233"}
+.fa-shield-halved::before{content:"\f3ed"}
+.fa-shopping-cart::before{content:"\f07a"}
+.fa-sliders::before{content:"\f1de"}
+.fa-spa::before{content:"\f5bb"}
+.fa-star::before{content:"\f005"}
+.fa-stethoscope::before{content:"\f0f1"}
+.fa-sun::before{content:"\f185"}
+.fa-tags::before{content:"\f02c"}
+.fa-ticket::before{content:"\f145"}
+.fa-tiktok::before{content:"\e07b"}
+.fa-trash-can::before{content:"\f2ed"}
+.fa-tree::before{content:"\f1bb"}
+.fa-triangle-exclamation::before{content:"\f071"}
+.fa-truck::before{content:"\f0d1"}
+.fa-truck-fast::before{content:"\f48b"}
+.fa-umbrella-beach::before{content:"\f5ca"}
+.fa-up-right-from-square::before{content:"\f35d"}
+.fa-upload::before{content:"\f093"}
+.fa-user::before{content:"\f007"}
+.fa-user-plus::before{content:"\f234"}
+.fa-user-shield::before{content:"\f505"}
+.fa-users::before{content:"\f0c0"}
+.fa-wand-magic-sparkles::before{content:"\e2ca"}
+.fa-water::before{content:"\f773"}
+.fa-whatsapp::before{content:"\f232"}
+.fa-xmark::before{content:"\f00d"}
+.fa-youtube::before{content:"\f167"}

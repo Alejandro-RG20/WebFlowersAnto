@@ -102,6 +102,14 @@ final class Archivos
             return ['ok' => false, 'error' => 'No se pudo guardar la imagen en la base de datos.'];
         }
 
+        // Las copias reducidas y en WebP se hacen ya, mientras quien sube
+        // espera: así el primer cliente que vea la foto no recibe el original.
+        // Con tope de tiempo; lo que no dé tiempo lo completa la propia web.
+        global $pdo;
+        if ($pdo instanceof PDO && class_exists('Miniaturas')) {
+            Miniaturas::preparar($pdo, $id, microtime(true) + 12);
+        }
+
         return ['ok' => true, 'ruta' => 'bd:' . $id, 'ancho' => $ancho, 'alto' => $alto];
     }
 

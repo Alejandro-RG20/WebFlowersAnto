@@ -64,7 +64,7 @@ if (Rbac::puede('pedidos.ver')) {
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<link rel="stylesheet" href="<?= e(url_recurso('assets/css/iconos.css')) ?>">
 <link rel="stylesheet" href="<?= e(url_recurso('assets/css/admin.css')) ?>">
 <?php // Hojas propias de una pantalla concreta, como la de la factura. ?>
 <?php foreach ((array)($cssPanelExtra ?? []) as $hojaPanel): ?>

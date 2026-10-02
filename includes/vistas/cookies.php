@@ -16,6 +16,12 @@
  * que promete lo que no cumple es peor que no tenerlo.
  */
 
+// Sale oculto también cuando falta decidir: lo enseña app.js en cuanto han
+// llegado las fuentes. Pintado desde el HTML, la caja cambiaba de alto al
+// llegar Poppins y Google lo contaba como salto de la página (CLS ≈ 0,1 en
+// cada primera visita, que es justo lo que mide PageSpeed). Sin JavaScript no
+// se guarda nada opcional, así que tampoco hay nada que pedir.
+
 declare(strict_types=1);
 
 $decision = $_COOKIE['fa_cookies'] ?? '';
@@ -23,7 +29,7 @@ $yaDecidio = in_array($decision, ['aceptado', 'rechazado'], true);
 ?>
 <div class="aviso-cookies" id="avisoCookies" role="dialog" aria-modal="false"
      aria-labelledby="cookiesTitulo" aria-describedby="cookiesTexto"
-     data-decision="<?= e($yaDecidio ? $decision : '') ?>"<?= $yaDecidio ? ' hidden' : '' ?>>
+     data-decision="<?= e($yaDecidio ? $decision : '') ?>" hidden<?= $yaDecidio ? '' : ' data-pendiente' ?>>
   <div class="ac-caja">
     <div class="ac-texto">
       <p class="ac-titulo" id="cookiesTitulo">Usamos cookies</p>
