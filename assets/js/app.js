@@ -854,35 +854,265 @@
     });
   }
 
-  // Pestaña de los botones flotantes en las páginas de compra y de cuenta.
+  // -------------------------------------------------------------------
+  // Botones flotantes recogidos como agua (catálogo, compra y cuenta)
+  // -------------------------------------------------------------------
+  // Los botones de WhatsApp y Massiel se recogen en la pestaña del borde
+  // derecho convertidos en dos gotas que se funden mientras se esconden, y
+  // salen de ella dividiéndose en dos. El líquido se dibuja en una capa SVG
+  // con el filtro clásico de «metaballs»: un desenfoque y un umbral de
+  // opacidad hacen que dos formas cercanas se unan con un cuello, como el
+  // agua. La capa solo existe mientras dura la transición y ocupa lo justo
+  // alrededor de los botones: en reposo no cuesta nada.
   const pestana = $('#pestanaFlotantes');
-  if (pestana) {
+  const wa = $('.whatsapp-float');
+  if (pestana && wa && document.body.classList.contains('flotantes-recogidos')) {
+    const cuerpo = document.body;
+    const circuloAsesora = $('.asesora-flotante .asesora-flotante-circulo');
+    const estrecha = window.matchMedia('(max-width: 900px)');
+    const quieto = window.matchMedia('(prefers-reduced-motion: reduce)');
     const etiquetaBase = pestana.getAttribute('aria-label').replace(/^Mostrar /, '');
-    const ponerAbierto = (abierto) => {
-      document.body.classList.toggle('flotantes-abiertos', abierto);
-      document.body.classList.add('flotantes-tocado');
-      pestana.setAttribute('aria-expanded', String(abierto));
-      pestana.setAttribute('aria-label', (abierto ? 'Ocultar ' : 'Mostrar ') + etiquetaBase);
+    let abiertos = false;
+    let animando = false;
+    let tocado = false;
+    cuerpo.classList.add('flot-listo');
+
+    // --- Capa del líquido --------------------------------------------
+    const NS = 'http://www.w3.org/2000/svg';
+    const nodo = (tag, atributos, padre) => {
+      const n = document.createElementNS(NS, tag);
+      Object.entries(atributos).forEach(([k, v]) => n.setAttribute(k, v));
+      if (padre) { padre.appendChild(n); }
+      return n;
     };
-    pestana.addEventListener('click', () => ponerAbierto(!document.body.classList.contains('flotantes-abiertos')));
-    // Al abrir Massiel desde su botón, los dos se guardan: su panel ocupa la
-    // pantalla y al cerrarlo la página queda como estaba, despejada.
+    let capa = null;
+    let filtro = null;
+    let color = null;
+    let ancla = null;
+    const gotas = {};
+
+    const montar = () => {
+      capa = nodo('svg', { class: 'liquido-flotantes', 'aria-hidden': 'true', focusable: 'false' });
+      capa.hidden = true;
+      const defs = nodo('defs', {}, capa);
+      filtro = nodo('filter', { id: 'liquidoFlotantes', filterUnits: 'userSpaceOnUse', 'color-interpolation-filters': 'sRGB' }, defs);
+      nodo('feGaussianBlur', { in: 'SourceGraphic', stdDeviation: '7', result: 'difuso' }, filtro);
+      nodo('feColorMatrix', { in: 'difuso', mode: 'matrix', values: '1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 19 -8', result: 'gota' }, filtro);
+      nodo('feDropShadow', { in: 'gota', dx: '0', dy: '5', stdDeviation: '5', 'flood-color': '#3B2B2F', 'flood-opacity': '.26' }, filtro);
+      // Un solo degradado vertical, rosa a la altura de Massiel y verde a la
+      // de WhatsApp: al fundirse, el rosa se diluye en el verde sin pasar por
+      // un color turbio.
+      color = nodo('linearGradient', { id: 'liquidoColor', gradientUnits: 'userSpaceOnUse', x1: '0', x2: '0' }, defs);
+      nodo('stop', { offset: '0', 'stop-color': '#CF5B82' }, color);
+      nodo('stop', { offset: '1', 'stop-color': '#25D366' }, color);
+
+      const masa = nodo('g', { filter: 'url(#liquidoFlotantes)', fill: 'url(#liquidoColor)' }, capa);
+      const brillos = nodo('g', { fill: '#fff' }, capa);
+      const iconos = nodo('g', {}, capa);
+      const gota = (icono, lado, trazo) => {
+        const g = nodo('g', trazo
+          ? { fill: 'none', stroke: '#fff', 'stroke-width': '2', 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }
+          : { style: 'color:#fff' }, iconos);
+        nodo('use', { href: icono }, g);
+        return { cuerpo: nodo('ellipse', {}, masa), brillo: nodo('ellipse', {}, brillos), icono: g, lado, x: 0, y: 0 };
+      };
+      gotas.wa = gota('#icono-wa', 32, false);
+      if (circuloAsesora) { gotas.asesora = gota('#icono-massiel', 24, true); }
+      ancla = nodo('circle', { r: '0' }, masa);
+      cuerpo.appendChild(capa);
+    };
+
+    // --- Geometría -------------------------------------------------------
+    const centro = (el) => {
+      const r = el.getBoundingClientRect();
+      return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+    };
+    const medir = () => {
+      const t = pestana.getBoundingClientRect();
+      return {
+        w: centro(wa),
+        m: circuloAsesora ? centro(circuloAsesora) : null,
+        // Justo dentro del borde izquierdo de la pestaña, ya en su sitio
+        // (la primera vez todavía está entrando desde fuera).
+        d: { x: document.documentElement.clientWidth - pestana.offsetWidth + 9, y: t.top + t.height / 2 },
+      };
+    };
+
+    const lim = (v) => Math.min(1, Math.max(0, v));
+    const tramo = (p, a, b) => lim((p - a) / (b - a));
+    const salir = (t) => 1 - Math.pow(1 - t, 3);
+    const suave = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
+    const ola = (t) => (1 - Math.cos(Math.PI * t)) / 2;
+
+    // Dibuja una gota: se estira en la dirección en que se mueve, tanto más
+    // cuanto más rápido va, como una gota de agua al deslizarse.
+    const dibujar = (g, x, y, r, iconoVisible, dt) => {
+      const dx = x - g.x;
+      const dy = y - g.y;
+      const v = dt > 0 ? Math.hypot(dx, dy) / dt : 0;
+      const s = Math.min(0.42, v * 0.75);
+      const giro = (Math.atan2(dy, dx) * 180) / Math.PI;
+      g.x = x; g.y = y;
+      const rr = Math.max(0, r);
+      g.cuerpo.setAttribute('cx', x.toFixed(1));
+      g.cuerpo.setAttribute('cy', y.toFixed(1));
+      g.cuerpo.setAttribute('rx', (rr * (1 + s)).toFixed(2));
+      g.cuerpo.setAttribute('ry', (rr * (1 - s * 0.45)).toFixed(2));
+      g.cuerpo.setAttribute('transform', `rotate(${giro.toFixed(1)} ${x.toFixed(1)} ${y.toFixed(1)})`);
+      // Brillo de la superficie, arriba a la izquierda.
+      g.brillo.setAttribute('cx', (x - rr * 0.32).toFixed(1));
+      g.brillo.setAttribute('cy', (y - rr * 0.4).toFixed(1));
+      g.brillo.setAttribute('rx', (rr * 0.32).toFixed(2));
+      g.brillo.setAttribute('ry', (rr * 0.17).toFixed(2));
+      g.brillo.setAttribute('opacity', (0.42 * lim(rr / 30)).toFixed(3));
+      // El icono se disuelve primero: lo que viaja ya es agua.
+      const k = lim(rr / 30) * (g.lado === 32 ? 30 / 32 : 28 / 24);
+      g.icono.setAttribute('transform', `translate(${x.toFixed(1)} ${y.toFixed(1)}) scale(${k.toFixed(3)}) translate(${-g.lado / 2} ${-g.lado / 2})`);
+      g.icono.setAttribute('opacity', iconoVisible.toFixed(3));
+    };
+
+    // Un fotograma del recorrido, de p = 0 (botones) a p = 1 (todo dentro de
+    // la pestaña). Abrir es el mismo recorrido hacia atrás.
+    const fotograma = (p, geo, dt) => {
+      // Avanzar y esconderse van juntos: cada gota se encoge a la par que se
+      // acerca a la pestaña y llega a ella justo cuando se acaba. La curva
+      // es simétrica (acelera y frena), así que al abrir —el mismo recorrido
+      // hacia atrás— también se posan suavemente en su sitio.
+      const avance = ola(tramo(p, 0.04, 0.9));
+      const wx = geo.w.x + (geo.d.x - geo.w.x) * avance;
+      const wy = geo.w.y + (geo.d.y - geo.w.y) * avance;
+      dibujar(gotas.wa, wx, wy, 30 * Math.sqrt(1 - avance), 1 - tramo(p, 0, 0.3), dt);
+
+      if (gotas.asesora && geo.m) {
+        // Massiel cae sobre WhatsApp mientras los dos corren hacia la
+        // pestaña: se funden por el camino, sin detenerse.
+        const avanceM = ola(tramo(p, 0.04, 0.86));
+        const mx = geo.m.x + (geo.d.x - geo.m.x) * avanceM;
+        const my = geo.m.y + (wy - geo.m.y) * suave(tramo(p, 0, 0.55));
+        const rm = 30 * (1 - 0.25 * salir(tramo(p, 0, 0.45))) * Math.sqrt(1 - avanceM);
+        dibujar(gotas.asesora, mx, my, rm, 1 - tramo(p, 0, 0.26), dt);
+      }
+
+      // La pestaña asoma un poco de líquido para recibir la gota.
+      ancla.setAttribute('cx', (geo.d.x + 3).toFixed(1));
+      ancla.setAttribute('cy', geo.d.y.toFixed(1));
+      ancla.setAttribute('r', (12 * Math.sin(Math.PI * tramo(p, 0.3, 1))).toFixed(2));
+    };
+
+    const absorber = () => {
+      cuerpo.classList.remove('flot-absorbe');
+      void pestana.offsetWidth; // reinicia la animación si se repite seguido
+      cuerpo.classList.add('flot-absorbe');
+      setTimeout(() => cuerpo.classList.remove('flot-absorbe'), 750);
+    };
+
+    const recorrer = (cerrar, geo, duracion, alTerminar) => {
+      if (!capa) { montar(); }
+      const ys = [geo.w.y, geo.d.y].concat(geo.m ? [geo.m.y] : []);
+      const x0 = Math.min(geo.w.x, geo.m ? geo.m.x : geo.w.x) - 90;
+      const x1 = document.documentElement.clientWidth + 12;
+      const y0 = Math.min(...ys) - 80;
+      const y1 = Math.max(...ys) + 80;
+      const caja = [x0, y0, x1 - x0, y1 - y0].map((n) => n.toFixed(0));
+      Object.assign(capa.style, { left: caja[0] + 'px', top: caja[1] + 'px', width: caja[2] + 'px', height: caja[3] + 'px' });
+      capa.setAttribute('viewBox', caja.join(' '));
+      ['x', 'y', 'width', 'height'].forEach((a, i) => filtro.setAttribute(a, caja[i]));
+      color.setAttribute('y1', (geo.m ? geo.m.y : geo.w.y - 1).toFixed(1));
+      color.setAttribute('y2', geo.w.y.toFixed(1));
+      color.firstChild.setAttribute('stop-color', geo.m ? '#CF5B82' : '#25D366');
+
+      // Primer fotograma en el mismo instante en que se ocultan los botones
+      // reales: el cambio de botón a gota no se nota.
+      Object.values(gotas).forEach((g) => { g.x = cerrar ? geo.w.x : geo.d.x; g.y = cerrar ? geo.w.y : geo.d.y; });
+      if (gotas.asesora && geo.m && cerrar) { gotas.asesora.x = geo.m.x; gotas.asesora.y = geo.m.y; }
+      fotograma(cerrar ? 0 : 0.82, geo, 0);
+      capa.hidden = false;
+      if (!cerrar) { absorber(); }
+
+      let previo = performance.now();
+      const inicio = previo;
+      let absorbido = false;
+      const paso = (ahora) => {
+        const t = lim((ahora - inicio) / duracion);
+        // Al abrir se empieza donde el líquido ya asoma de la pestaña: el
+        // tramo final del cierre son gotas demasiado pequeñas para verse.
+        fotograma(cerrar ? t : 0.82 * (1 - t), geo, ahora - previo);
+        previo = ahora;
+        if (cerrar && !absorbido && t >= 0.78) {
+          // El líquido ya entró: la pestaña lo recibe con una onda y enseña
+          // sus iconos mientras se apagan las últimas gotas.
+          absorbido = true;
+          absorber();
+          alTerminar();
+          cuerpo.classList.remove('flot-animando');
+        }
+        if (t < 1) { requestAnimationFrame(paso); return; }
+        capa.hidden = true;
+        animando = false;
+        if (!cerrar) { cuerpo.classList.remove('flot-animando'); alTerminar(); }
+      };
+      requestAnimationFrame(paso);
+    };
+
+    // --- Estados ----------------------------------------------------------
+    const aria = () => {
+      pestana.setAttribute('aria-expanded', String(abiertos));
+      pestana.setAttribute('aria-label', (abiertos ? 'Ocultar ' : 'Mostrar ') + etiquetaBase);
+    };
+    const conAgua = () => estrecha.matches && !quieto.matches && !document.hidden;
+
+    const guardar = (primera) => {
+      if (animando || (!abiertos && !primera)) { return; }
+      const geo = conAgua() ? medir() : null;   // se mide antes de mover nada
+      abiertos = false;
+      aria();
+      cuerpo.classList.add('flot-pestana');
+      cuerpo.classList.remove('flot-abiertos');
+      if (!geo) { cuerpo.classList.add('flot-guardados'); return; }
+      animando = true;
+      cuerpo.classList.add('flot-animando');
+      recorrer(true, geo, primera ? 950 : 820, () => cuerpo.classList.add('flot-guardados'));
+    };
+
+    const abrir = () => {
+      if (animando || abiertos) { return; }
+      abiertos = true;
+      aria();
+      cuerpo.classList.add('flot-abiertos');
+      if (!conAgua()) { cuerpo.classList.remove('flot-guardados'); return; }
+      animando = true;
+      cuerpo.classList.add('flot-animando');
+      cuerpo.classList.remove('flot-guardados');
+      recorrer(false, medir(), 760, () => {});   // se mide ya en su sitio de abiertos
+    };
+
+    pestana.addEventListener('click', () => { tocado = true; abiertos ? guardar(false) : abrir(); });
+    // Al abrir Massiel desde su botón se guardan al instante: su panel ocupa
+    // la pantalla y al cerrarlo la página queda despejada.
     $$('[data-abrir-asesora]').forEach((d) => d.addEventListener('click', () => {
-      if (document.body.classList.contains('flotantes-abiertos')) { ponerAbierto(false); }
+      if (!abiertos || animando) { return; }
+      abiertos = false;
+      aria();
+      cuerpo.classList.remove('flot-abiertos');
+      cuerpo.classList.add('flot-guardados');
     }));
     // Un toque fuera de la pestaña y de los botones los vuelve a guardar.
     document.addEventListener('click', (e) => {
-      if (document.body.classList.contains('flotantes-abiertos')
-          && !e.target.closest('#pestanaFlotantes, .whatsapp-float, .asesora-flotante')) {
-        ponerAbierto(false);
-      }
+      if (abiertos && !e.target.closest('#pestanaFlotantes, .whatsapp-float, .asesora-flotante')) { guardar(false); }
     });
     document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape' && document.body.classList.contains('flotantes-abiertos')) {
-        ponerAbierto(false);
-        pestana.focus();
-      }
+      if (e.key === 'Escape' && abiertos) { guardar(false); pestana.focus(); }
     });
+
+    // Se recogen solos al poco de llegar, cuando ya se vio que están ahí.
+    const recogerSolos = () => {
+      if (tocado || abiertos || cuerpo.classList.contains('flot-guardados') || !estrecha.matches) { return; }
+      if (document.hidden) { document.addEventListener('visibilitychange', recogerSolos, { once: true }); return; }
+      if (cuerpo.classList.contains('asesora-abierta')) { setTimeout(recogerSolos, 1500); return; }
+      guardar(true);
+    };
+    setTimeout(recogerSolos, 1300);
+    estrecha.addEventListener('change', () => { if (estrecha.matches) { setTimeout(recogerSolos, 300); } });
   }
 
   // Enlace del pie para cambiar de opinión más tarde.

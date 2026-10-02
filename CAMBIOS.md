@@ -782,16 +782,20 @@ todo funciona como antes.
 - En portada, categorías y ficha de producto WhatsApp y Massiel siguen
   como antes.
 - En el catálogo (búsqueda y filtros), carrito, pago, pedido, comprobante,
-  seguimiento, factura y Mi cuenta (móvil y tableta, hasta 900 px) se
-  recogen **como dos gotas**: Massiel baja y se funde en WhatsApp, y esa gota
-  entra bajo una **pestaña de cristal compacta** en el borde derecho, que
-  queda con sus dos iconos y un destello al llegar. Al tocarla la gota sale y
-  se divide en dos; Massiel vuelve a presentarse y la pestaña muestra una X.
-  Sin rebotes. Un toque fuera, la X o Escape los guardan. Con el chat de
-  Massiel abierto no queda nada flotando encima (antes la pestaña tapaba el
-  botón de enviar) y en el móvil la página de detrás no se desplaza. Solo se
-  animan `transform` y `opacity`: sin saltos de diseño; con «reducir
-  movimiento» no hay animación. En el escritorio no cambia nada.
+  seguimiento, factura y Mi cuenta (móvil y tableta, hasta 900 px) los
+  botones se recogen **como agua**: se vuelven dos gotas que se estiran con
+  el movimiento, se funden en una sola mientras se encogen y fluyen dentro
+  de una **pestaña de cristal compacta** en el borde derecho, que las recibe
+  con una onda y enseña sus dos iconos. Al tocarla el líquido sale de la
+  pestaña, se divide en dos gotas y cada una vuelve a ser su botón; la
+  pestaña muestra una X. Un toque fuera, la X o Escape los guardan. Con el
+  chat de Massiel abierto no queda nada flotando encima (antes la pestaña
+  tapaba el botón de enviar) y en el móvil la página de detrás no se
+  desplaza. El líquido es una capa SVG con un filtro de desenfoque y umbral
+  («metaballs») que solo existe durante la transición (menos de un segundo)
+  y ocupa lo justo alrededor de los botones; en reposo no consume nada. Con
+  «reducir movimiento» se guardan y abren sin animación. En el escritorio no
+  cambia nada.
 
 ### Base de datos
 Migración `025_avisos_y_cupones_personales`: columna `cupones.usuario_id`

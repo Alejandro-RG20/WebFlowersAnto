@@ -141,8 +141,9 @@ $devUrl    = Ajustes::texto('dev_url');
 <?php endif; ?>
 
 <?php if (flotantes_recogidos()): ?>
-<?php // Pestaña lateral: en las páginas de compra y de cuenta los botones
-      // flotantes se recogen aquí y salen de nuevo con un toque. ?>
+<?php // Pestaña lateral: en el catálogo, las páginas de compra y la cuenta los
+      // botones flotantes se recogen aquí como agua y salen de nuevo con un
+      // toque. El efecto líquido lo dibuja app.js. ?>
 <button type="button" class="pestana-flotantes" id="pestanaFlotantes" aria-expanded="false"
         aria-label="Mostrar <?= !empty($asesoraActiva) ? 'Massiel y WhatsApp' : 'WhatsApp' ?>">
   <span class="pestana-flotantes-iconos" aria-hidden="true">
@@ -154,6 +155,7 @@ $devUrl    = Ajustes::texto('dev_url');
   <span class="pestana-flotantes-asa" aria-hidden="true">
     <svg viewBox="0 0 24 24" width="14" height="14" focusable="false"><path d="M15 5 8 12l7 7" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
   </span>
+  <span class="pestana-onda" aria-hidden="true"></span>
   <span class="pestana-flotantes-cerrar" aria-hidden="true">
     <svg viewBox="0 0 24 24" width="20" height="20" focusable="false"><path d="M6 6l12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>
   </span>
