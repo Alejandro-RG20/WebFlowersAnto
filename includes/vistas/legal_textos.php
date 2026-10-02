@@ -7,7 +7,8 @@
  * política. Si el texto cambia aquí, cambia en los dos sitios a la vez; el
  * asistente nunca resume de memoria.
  *
- * Espera definidas: $doc, $tienda, $correo, $telefono, $direccion, $whatsapp.
+ * Espera definidas: $doc, $tienda, $correo, $direccion y $contacto (el enlace
+ * al correo, ya escapado).
  */
 ?>
 <?php if ($doc === 'privacidad'): ?>
@@ -16,10 +17,7 @@
 
     <h2>Quién es responsable de tus datos</h2>
     <p><?= e($tienda) ?><?= $direccion !== '' ? ', ' . e($direccion) : '' ?>.
-       Para cualquier asunto sobre tus datos puedes escribirnos
-       <?php if ($correo !== ''): ?>a <a href="mailto:<?= e($correo) ?>"><?= e($correo) ?></a><?php endif; ?>
-       <?php if ($telefono !== ''): ?> o llamarnos al <?= e($telefono) ?><?php endif; ?>,
-       o por <a href="<?= e($whatsapp) ?>" target="_blank" rel="noopener">WhatsApp</a>.</p>
+       Para cualquier asunto sobre tus datos escríbenos a <?= $contacto ?>.</p>
 
     <h2>Qué guardamos y por qué</h2>
     <ul>
@@ -33,6 +31,13 @@
       <li><strong>Si creas una cuenta:</strong> tu correo y una versión cifrada de tu
           contraseña, que nadie —tampoco nosotros— puede leer. Además tus direcciones
           guardadas y tus favoritos, para que no tengas que escribirlos otra vez.</li>
+      <li><strong>Si tú quieres:</strong> una foto de perfil y tu fecha de nacimiento. Las dos
+          son opcionales y las puedes quitar cuando quieras desde <strong>Mis datos</strong>.
+          La foto solo la ves tú y el equipo de la tienda; la fecha solo la usamos para
+          felicitarte.</li>
+      <li><strong>Para proteger tu cuenta:</strong> cuando pides recuperar la contraseña o
+          cambiar el correo te enviamos un código de un solo uso. Guardamos solo una versión
+          cifrada del código, que caduca en poco tiempo.</li>
       <li><strong>Si entras con Google o Facebook:</strong> recibimos de ellos solo tu nombre,
           tu correo y el identificador de tu cuenta para esta tienda, para reconocerte cuando
           vuelvas. No recibimos tu contraseña, ni publicamos nada en tu nombre, ni vemos tus
@@ -75,10 +80,8 @@
           <strong>Mis datos → Cuentas conectadas</strong> y pulsa «Desconectar». También puedes
           quitar el acceso de la tienda desde la configuración de tu cuenta de Facebook
           (<em>Aplicaciones y sitios web</em>) o de Google.</li>
-      <li>Para borrar tu cuenta y tus datos: escríbenos<?php if ($correo !== ''): ?> a
-          <a href="mailto:<?= e($correo) ?>"><?= e($correo) ?></a><?php endif; ?> o por
-          <a href="<?= e($whatsapp) ?>" target="_blank" rel="noopener">WhatsApp</a> desde el
-          correo o el teléfono de tu cuenta, pidiendo que la borremos. Lo hacemos en un plazo
+      <li>Para borrar tu cuenta y tus datos: escríbenos a <?= $contacto ?> desde el correo
+          de tu cuenta, pidiendo que la borremos. Lo hacemos en un plazo
           máximo de 30 días y te confirmamos cuando esté hecho. Solo conservamos lo que la ley
           nos obliga a guardar de pedidos ya pagados.</li>
     </ul>
@@ -159,8 +162,8 @@
        <strong>lo arreglamos</strong>. Así funciona.</p>
 
     <h2>Si el arreglo llega en mal estado</h2>
-    <p><strong>Avísanos el mismo día de la entrega</strong> y mándanos una foto por
-       <a href="<?= e($whatsapp) ?>" target="_blank" rel="noopener">WhatsApp</a>.
+    <p><strong>Avísanos el mismo día de la entrega</strong> escribiéndonos a <?= $contacto ?>
+       con una foto del arreglo y tu número de pedido.
        Reponemos el arreglo sin costo o te devolvemos el dinero, lo que prefieras.
        No hace falta que devuelvas las flores.</p>
 
@@ -183,7 +186,6 @@
        cuenta, según tu banco. Si pagaste por transferencia, te lo transferimos de vuelta.</p>
 
     <h2>Cómo pedirlo</h2>
-    <p>Escríbenos por <a href="<?= e($whatsapp) ?>" target="_blank" rel="noopener">WhatsApp</a>
-       <?php if ($correo !== ''): ?>o a <a href="mailto:<?= e($correo) ?>"><?= e($correo) ?></a><?php endif; ?>
-       con tu número de pedido. Te respondemos el mismo día.</p>
+    <p>Escríbenos a <?= $contacto ?> con tu número de pedido y cuéntanos qué pasó.
+       Te respondemos el mismo día.</p>
 <?php endif; ?>

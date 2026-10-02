@@ -8,10 +8,12 @@
 
 declare(strict_types=1);
 require_once __DIR__ . '/../includes/bootstrap.php';
+require_once __DIR__ . '/../includes/lib/estadisticas.php';
 
 $tituloPanel    = 'Resumen';
-$subtituloPanel = 'Cómo va el negocio hoy, ' . date('j/n/Y');
+$subtituloPanel = 'Cómo va el negocio, ' . date('j/n/Y');
 $seccion        = 'resumen';
+$jsPanel        = ['assets/js/admin-graficos.js'];
 
 // La comprobación de permisos va antes de imprimir nada: si falta el permiso
 // se muestra la página de acceso denegado, no media pantalla del panel.
@@ -22,25 +24,25 @@ $verPedidos   = Rbac::puede('pedidos.ver');
 $verProductos = Rbac::puede('productos.ver');
 $verClientes  = Rbac::puede('clientes.ver');
 
-// --- Métricas de pedidos ---------------------------------------------
-$m = ['pendientes' => 0, 'revision' => 0, 'preparacion' => 0, 'mes' => 0.0, 'hoy' => 0, 'total' => 0];
-if ($verPedidos) {
-    $fila = $pdo->query(
-        "SELECT
-            SUM(estado = 'pendiente')                                        AS pendientes,
-            SUM(estado_pago IN ('comprobante_recibido','en_revision'))       AS revision,
-            SUM(estado IN ('confirmado','preparacion','listo'))              AS preparacion,
-            SUM(DATE(created_at) = CURDATE())                                AS hoy,
-            COUNT(*)                                                         AS total
-           FROM pedidos"
-    )->fetch() ?: [];
-    $m = array_map('intval', array_map(fn($v) => $v ?? 0, $fila));
+// --- Período del análisis --------------------------------------------
+// Un solo selector arriba decide el rango de todas las cifras y gráficos de
+// la página, para que nunca se contradigan entre sí.
+$periodo = (int)opcion('periodo', array_map('strval', Estadisticas::PERIODOS), '30', $_GET);
 
-    $m['mes'] = (float)$pdo->query(
-        "SELECT COALESCE(SUM(total), 0) FROM pedidos
-          WHERE estado_pago = 'aprobado' AND estado <> 'cancelado'
-            AND YEAR(created_at) = YEAR(CURDATE()) AND MONTH(created_at) = MONTH(CURDATE())"
-    )->fetchColumn();
+// --- Lo de hoy: lo que pide atención ya --------------------------------
+$m = ['pendientes' => 0, 'revision' => 0, 'preparacion' => 0, 'hoy' => 0];
+if ($verPedidos) {
+    $inicioHoy = (new DateTimeImmutable('today'))->getTimestamp();
+    $st = $pdo->prepare(
+        "SELECT
+            COALESCE(SUM(estado = 'pendiente'), 0)                                  AS pendientes,
+            COALESCE(SUM(estado_pago IN ('comprobante_recibido','en_revision')), 0) AS revision,
+            COALESCE(SUM(estado IN ('confirmado','preparacion','listo')), 0)        AS preparacion,
+            COALESCE(SUM(created_at >= FROM_UNIXTIME(?)), 0)                        AS hoy
+           FROM pedidos"
+    );
+    $st->execute([$inicioHoy]);
+    $m = array_map('intval', $st->fetch() ?: $m);
 }
 
 $productos = ['activos' => 0, 'agotados' => 0];
@@ -61,27 +63,59 @@ if ($verClientes) {
     )->fetchColumn();
 }
 
-// --- Ventas de los últimos 7 días -------------------------------------
-$serie = [];
-if ($verPedidos) {
-    $st = $pdo->query(
-        "SELECT DATE(created_at) AS dia, COUNT(*) AS pedidos, COALESCE(SUM(total), 0) AS importe
-           FROM pedidos
-          WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL 6 DAY) AND estado <> 'cancelado'
-       GROUP BY DATE(created_at)"
-    )->fetchAll();
-    $porDia = array_column($st, null, 'dia');
+// --- Cómo va el negocio en el período ----------------------------------
+$ventas      = $verPedidos ? Estadisticas::ventas($pdo, $periodo) : null;
+$nuevos      = $verClientes ? Estadisticas::clientesNuevos($pdo, $periodo) : null;
+$masVendidos = $verPedidos ? Estadisticas::masVendidos($pdo, $periodo) : [];
+$porEstado   = $verPedidos ? Estadisticas::porEstado($pdo, $periodo) : [];
 
-    for ($i = 6; $i >= 0; $i--) {
-        $dia = date('Y-m-d', strtotime("-$i days"));
-        $serie[] = [
-            'dia'     => $dia,
-            'pedidos' => (int)($porDia[$dia]['pedidos'] ?? 0),
-            'importe' => (float)($porDia[$dia]['importe'] ?? 0),
-        ];
+$ticket = static fn(array $p): float => $p['aprobados'] > 0 ? $p['cobrado'] / $p['aprobados'] : 0.0;
+
+/** «1 oct»: la fecha corta de los ejes y las tablas. */
+$diaCorto = static function (string $iso): string {
+    static $meses = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+    $t = strtotime($iso);
+    return (int)date('j', $t) . ' ' . $meses[(int)date('n', $t) - 1];
+};
+
+/**
+ * Variación frente al período anterior. La flecha y la palabra dicen la
+ * dirección; el color solo lo refuerza.
+ */
+$delta = static function (?float $variacion) use ($periodo): string {
+    if ($variacion === null) {
+        return '<span class="delta igual">Sin datos del período anterior</span>';
     }
-}
-$maximoSerie = max(1, max(array_column($serie ?: [['pedidos' => 1]], 'pedidos')));
+    $redondeo = (int)round($variacion);
+    $clase    = $redondeo > 0 ? 'sube' : ($redondeo < 0 ? 'baja' : 'igual');
+    $flecha   = $redondeo > 0 ? '▲' : ($redondeo < 0 ? '▼' : '＝');
+    $texto    = $redondeo === 0 ? 'Igual' : ($redondeo > 0 ? '+' : '−') . abs($redondeo) . ' %';
+    return '<span class="delta ' . $clase . '"><span aria-hidden="true">' . $flecha . '</span> ' . e($texto)
+         . '</span> <span class="delta-base">vs ' . $periodo . ' días anteriores</span>';
+};
+
+/**
+ * Minigráfico de tendencia para una cifra. Gris de fondo y el último día en
+ * el color de acento: dice «hacia dónde va» sin competir con el número.
+ */
+$tendencia = static function (array $valores): string {
+    $n = count($valores);
+    if ($n < 2 || max($valores) <= 0) {
+        return '';
+    }
+    [$ancho, $alto, $margen] = [120, 32, 4];
+    $max = max($valores);
+    $puntos = [];
+    foreach (array_values($valores) as $i => $v) {
+        $x = round($margen + $i * ($ancho - 2 * $margen) / ($n - 1), 1);
+        $y = round($alto - $margen - ($v / $max) * ($alto - 2 * $margen), 1);
+        $puntos[] = $x . ',' . $y;
+    }
+    [$ux, $uy] = explode(',', end($puntos));
+    return '<svg class="tendencia" viewBox="0 0 ' . $ancho . ' ' . $alto . '" width="' . $ancho . '" height="' . $alto
+         . '" aria-hidden="true" focusable="false"><polyline points="' . implode(' ', $puntos) . '"/>'
+         . '<circle cx="' . $ux . '" cy="' . $uy . '" r="3.5"/></svg>';
+};
 
 // --- Listas ------------------------------------------------------------
 $porRevisar = $verPedidos ? $pdo->query(
@@ -143,6 +177,18 @@ require __DIR__ . '/_cabecera.php';
   </section>
 <?php endif; ?>
 
+<?php if ($verPedidos || $verClientes): ?>
+  <nav class="filtro-periodo" aria-label="Período de las cifras">
+    <span class="filtro-periodo-titulo">Período</span>
+    <?php foreach (Estadisticas::PERIODOS as $p): ?>
+      <a href="<?= e(url('admin/?periodo=' . $p)) ?>" class="<?= $p === $periodo ? 'actual' : '' ?>"
+         <?= $p === $periodo ? 'aria-current="true"' : '' ?>>Últimos <?= $p ?> días</a>
+    <?php endforeach; ?>
+  </nav>
+<?php endif; ?>
+
+<?php if ($verPedidos || $verProductos || $verClientes): ?>
+<h2 class="titulo-bloque">Para hoy</h2>
 <div class="rejilla-metricas">
   <?php if ($verPedidos): ?>
     <a class="metrica<?= $m['revision'] > 0 ? ' urgente' : '' ?>" href="<?= e(url('admin/pedidos.php?pago=revision')) ?>">
@@ -160,11 +206,11 @@ require __DIR__ . '/_cabecera.php';
       <span class="metrica-valor"><?= (int)$m['preparacion'] ?></span>
       <span class="metrica-nota">Confirmados, en taller o listos</span>
     </a>
-    <div class="metrica">
-      <span class="metrica-etiqueta"><i class="fa-solid fa-sack-dollar" aria-hidden="true"></i> Cobrado este mes</span>
-      <span class="metrica-valor"><?= e(dinero($m['mes'])) ?></span>
-      <span class="metrica-nota">Solo pedidos con pago aprobado</span>
-    </div>
+    <a class="metrica" href="<?= e(url('admin/pedidos.php')) ?>">
+      <span class="metrica-etiqueta"><i class="fa-solid fa-bag-shopping" aria-hidden="true"></i> Pedidos de hoy</span>
+      <span class="metrica-valor"><?= (int)$m['hoy'] ?></span>
+      <span class="metrica-nota">Desde las 00:00</span>
+    </a>
   <?php endif; ?>
 
   <?php if ($verProductos): ?>
@@ -179,10 +225,122 @@ require __DIR__ . '/_cabecera.php';
     <a class="metrica" href="<?= e(url('admin/clientes.php')) ?>">
       <span class="metrica-etiqueta"><i class="fa-solid fa-users" aria-hidden="true"></i> Clientes con cuenta</span>
       <span class="metrica-valor"><?= (int)$clientes ?></span>
-      <span class="metrica-nota"><?= (int)$m['hoy'] ?> pedidos hoy</span>
+      <span class="metrica-nota">Cuentas activas</span>
     </a>
   <?php endif; ?>
 </div>
+<?php endif; ?>
+
+<?php if ($ventas || $nuevos): ?>
+<h2 class="titulo-bloque">Últimos <?= (int)$periodo ?> días</h2>
+<div class="rejilla-kpi">
+  <?php if ($ventas): ?>
+    <div class="kpi">
+      <p class="kpi-etiqueta">Ventas cobradas</p>
+      <p class="kpi-valor"><?= e(dinero($ventas['actual']['cobrado'])) ?></p>
+      <p class="kpi-delta"><?= $delta(Estadisticas::variacion($ventas['actual']['cobrado'], $ventas['anterior']['cobrado'])) ?></p>
+      <?= $tendencia(array_column($ventas['serie'], 'cobrado')) ?>
+    </div>
+    <div class="kpi">
+      <p class="kpi-etiqueta">Pedidos</p>
+      <p class="kpi-valor"><?= number_format($ventas['actual']['pedidos']) ?></p>
+      <p class="kpi-delta"><?= $delta(Estadisticas::variacion($ventas['actual']['pedidos'], $ventas['anterior']['pedidos'])) ?></p>
+      <?= $tendencia(array_column($ventas['serie'], 'pedidos')) ?>
+    </div>
+    <div class="kpi">
+      <p class="kpi-etiqueta">Ticket promedio</p>
+      <p class="kpi-valor"><?= e(dinero($ticket($ventas['actual']))) ?></p>
+      <p class="kpi-delta"><?= $delta(Estadisticas::variacion($ticket($ventas['actual']), $ticket($ventas['anterior']))) ?></p>
+      <p class="kpi-nota">Por pedido con pago aprobado</p>
+    </div>
+  <?php endif; ?>
+  <?php if ($nuevos): ?>
+    <div class="kpi">
+      <p class="kpi-etiqueta">Clientes nuevos</p>
+      <p class="kpi-valor"><?= number_format($nuevos['actual']) ?></p>
+      <p class="kpi-delta"><?= $delta(Estadisticas::variacion($nuevos['actual'], $nuevos['anterior'])) ?></p>
+      <p class="kpi-nota">Cuentas creadas en el período</p>
+    </div>
+  <?php endif; ?>
+</div>
+<?php endif; ?>
+
+<?php if ($ventas): ?>
+<div class="rejilla-graficos">
+  <section class="panel">
+    <div class="panel-cabecera"><div>
+      <h2>Ventas cobradas por día</h2>
+      <p>Pedidos con pago aprobado, sin cancelados. Pasa el cursor para ver cada día.</p>
+    </div>
+    <?php
+      $hoyVentas = end($ventas['serie']);
+      $mejorDia  = array_reduce($ventas['serie'], fn($a, $d) => $a === null || $d['cobrado'] > $a['cobrado'] ? $d : $a);
+    ?>
+    <dl class="resumen-grafico">
+      <div><dt>Hoy</dt><dd><?= e(dinero($hoyVentas['cobrado'])) ?></dd></div>
+      <?php if ($mejorDia && $mejorDia['cobrado'] > 0): ?>
+        <div><dt>Mejor día · <?= e($diaCorto($mejorDia['dia'])) ?></dt><dd><?= e(dinero($mejorDia['cobrado'])) ?></dd></div>
+      <?php endif; ?>
+    </dl>
+    </div>
+    <div class="panel-cuerpo">
+      <?php
+        $datosLinea = array_map(fn($d) => [
+            'e' => $diaCorto($d['dia']), 'v' => round($d['cobrado'], 2), 'p' => $d['pedidos'],
+        ], $ventas['serie']);
+      ?>
+      <figure class="grafico-linea" data-grafico-linea data-moneda="<?= e(Ajustes::texto('moneda_local', 'C$')) ?>"
+              aria-label="Ventas cobradas por día en los últimos <?= (int)$periodo ?> días">
+        <script type="application/json"><?= json_para_html($datosLinea) ?></script>
+        <noscript><p class="celda-sub">El gráfico necesita JavaScript. Abajo tienes los mismos datos en una tabla.</p></noscript>
+      </figure>
+      <details class="vista-tabla">
+        <summary>Ver como tabla</summary>
+        <div class="tabla-envoltura">
+          <table class="tabla tabla-compacta">
+            <thead><tr><th>Día</th><th class="num">Pedidos</th><th class="num">Cobrado</th></tr></thead>
+            <tbody>
+              <?php foreach (array_reverse($ventas['serie']) as $d): ?>
+                <tr><td><?= e($diaCorto($d['dia'])) ?></td><td class="num"><?= (int)$d['pedidos'] ?></td>
+                    <td class="num"><?= e(dinero($d['cobrado'])) ?></td></tr>
+              <?php endforeach; ?>
+            </tbody>
+          </table>
+        </div>
+      </details>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-cabecera"><div>
+      <h2>Más vendidos</h2>
+      <p>Unidades pedidas en el período.</p>
+    </div></div>
+    <div class="panel-cuerpo">
+      <?php if (!$masVendidos): ?>
+        <div class="vacio vacio-compacto">
+          <i class="fa-solid fa-seedling" aria-hidden="true"></i>
+          <h3>Sin ventas en el período</h3>
+        </div>
+      <?php else:
+          $maxUnidades = max(array_column($masVendidos, 'unidades')); ?>
+        <ol class="barras-h">
+          <?php foreach ($masVendidos as $item): ?>
+            <li>
+              <span class="barras-h-etiqueta"><?= e($item['nombre']) ?></span>
+              <span class="barras-h-fila">
+                <span class="barras-h-barra" style="--v: <?= round($item['unidades'] / $maxUnidades, 4) ?>"></span>
+                <span class="barras-h-valor"><?= (int)$item['unidades'] ?>
+                  <small><?= e(dinero($item['importe'])) ?></small></span>
+              </span>
+            </li>
+          <?php endforeach; ?>
+        </ol>
+      <?php endif; ?>
+    </div>
+  </section>
+</div>
+<?php endif; ?>
 
 <div class="rejilla-detalle">
   <div>
@@ -266,20 +424,26 @@ require __DIR__ . '/_cabecera.php';
   </div>
 
   <div>
-    <?php if ($serie): ?>
+    <?php if ($porEstado): ?>
       <section class="panel">
-        <div class="panel-cabecera"><div><h2>Pedidos de los últimos 7 días</h2></div></div>
+        <div class="panel-cabecera"><div>
+          <h2>Pedidos por estado</h2>
+          <p>Los creados en los últimos <?= (int)$periodo ?> días, según cómo están ahora.</p>
+        </div></div>
         <div class="panel-cuerpo">
-          <div class="grafico">
-            <?php foreach ($serie as $dia): ?>
-              <div class="grafico-barra">
-                <span class="cifra"><?= (int)$dia['pedidos'] ?></span>
-                <span class="valor" data-altura="<?= (int)round($dia['pedidos'] / $maximoSerie * 100) ?>"
-                      style="height:0"></span>
-                <span class="etiqueta"><?= e(date('D', strtotime((string)$dia['dia']))) ?></span>
-              </div>
+          <?php $maxEstado = max(array_column($porEstado, 'cantidad')); ?>
+          <ol class="barras-h">
+            <?php foreach ($porEstado as $fila):
+                $est = Pedidos::estado($pdo, 'pedido', $fila['codigo']); ?>
+              <li>
+                <span class="barras-h-etiqueta"><?= e((string)$est['nombre']) ?></span>
+                <span class="barras-h-fila">
+                  <span class="barras-h-barra" style="--v: <?= round($fila['cantidad'] / $maxEstado, 4) ?>"></span>
+                  <span class="barras-h-valor"><?= (int)$fila['cantidad'] ?></span>
+                </span>
+              </li>
             <?php endforeach; ?>
-          </div>
+          </ol>
         </div>
       </section>
     <?php endif; ?>

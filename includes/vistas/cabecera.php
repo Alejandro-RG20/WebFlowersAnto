@@ -201,7 +201,9 @@ $waGeneral = enlace_whatsapp(
       <li><a href="<?= e(url('index.php#nosotros')) ?>" class="nav-link">Nosotros</a></li>
       <li><a href="<?= e(url('index.php#contacto')) ?>" class="nav-link">Contacto</a></li>
       <?php if (Auth::autenticado()): ?>
-        <li><a href="<?= e(url('cuenta/pedidos.php')) ?>" class="nav-link<?= ($paginaActiva ?? '') === 'cuenta' ? ' active' : '' ?>">Mi cuenta</a></li>
+        <?php // En el escritorio la cuenta se abre desde el botón del usuario, a la
+              // derecha: repetirla aquí era lo que no cabía y partía la barra. ?>
+        <li class="nav-solo-movil"><a href="<?= e(url('cuenta/pedidos.php')) ?>" class="nav-link<?= ($paginaActiva ?? '') === 'cuenta' ? ' active' : '' ?>">Mi cuenta</a></li>
       <?php endif; ?>
     </ul>
 
@@ -229,9 +231,16 @@ $waGeneral = enlace_whatsapp(
 
       <?php if (Auth::autenticado()): ?>
         <div class="menu-usuario">
+          <?php $fotoNav = FotoPerfil::url(Auth::usuario()); ?>
           <button type="button" class="icon-btn" id="btnUsuario" aria-haspopup="true" aria-expanded="false"
                   aria-label="Menú de <?= e(Auth::nombreCompleto()) ?>">
-            <i class="fa-regular fa-user" aria-hidden="true"></i>
+            <span class="avatar-nav" aria-hidden="true">
+              <?php if ($fotoNav !== ''): ?>
+                <img src="<?= e($fotoNav) ?>" alt="" width="30" height="30" decoding="async">
+              <?php else: ?>
+                <?= e(FotoPerfil::iniciales(Auth::usuario())) ?>
+              <?php endif; ?>
+            </span>
           </button>
           <div class="menu-usuario-lista" id="menuUsuario" hidden>
             <p class="menu-usuario-nombre"><?= e(Auth::nombreCompleto()) ?><span><?= e((string)($usuario['email'] ?? '')) ?></span></p>

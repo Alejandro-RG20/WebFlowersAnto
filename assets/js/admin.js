@@ -512,14 +512,6 @@
   });
 
   // -------------------------------------------------------------------
-  // Barras del gráfico: se dibujan al cargar para que la altura anime
-  // -------------------------------------------------------------------
-  requestAnimationFrame(() => {
-    $$('.grafico-barra .valor').forEach((barra) => {
-      barra.style.height = (barra.dataset.altura || '0') + '%';
-    });
-  });
-  // -------------------------------------------------------------------
   // Despacho al motorizado
   //
   // El servidor ya guardó la asignación y dejó preparado el enlace; aquí solo

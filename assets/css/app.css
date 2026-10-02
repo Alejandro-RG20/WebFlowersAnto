@@ -1133,6 +1133,41 @@ body:has(.aviso-cookies:not([hidden])) .whatsapp-float { bottom: 132px; }
 .btn-nav-asesora[aria-expanded="true"] { background: var(--dark); border-color: var(--dark); color: #fff; }
 .btn-nav-asesora[aria-expanded="true"] .icono-trazo { color: var(--rose-pastel); }
 
+/* --- Barra del escritorio con sesión iniciada -------------------------
+   Con sesión abierta, Massiel, «Escríbenos» y los tres iconos no cabían junto
+   a los cinco enlaces: el nombre de la tienda se recortaba y «Mi cuenta» se
+   partía en dos líneas. «Mi cuenta» se queda solo en el menú del móvil (en el
+   escritorio está en el botón del usuario), los enlaces no se parten nunca y,
+   en las pantallas medianas, Massiel y WhatsApp se quedan en su icono, que ya
+   lleva su nombre para el lector de pantalla. */
+.avatar-nav {
+  width: 30px; height: 30px; border-radius: 50%; overflow: hidden;
+  display: grid; place-items: center; background: var(--rose-soft); color: var(--dark);
+  font-size: .72rem; font-weight: 700; letter-spacing: .02em; line-height: 1;
+  box-shadow: 0 0 0 1.5px var(--rose-mid);
+}
+.avatar-nav img { width: 100%; height: 100%; object-fit: cover; display: block; }
+@media (min-width: 901px) {
+  .nav-solo-movil { display: none; }
+  .nav-link { white-space: nowrap; }
+  .nav-container { max-width: 1280px; }
+}
+@media (min-width: 901px) and (max-width: 1240px) {
+  .btn-nav-asesora span, .btn-nav-whatsapp span { display: none; }
+  .btn-nav-asesora, .btn-nav-whatsapp {
+    width: 40px; height: 40px; padding: 0; border-radius: 50%; justify-content: center;
+  }
+  .nav-link { padding: 6px 10px; }
+}
+@media (min-width: 901px) and (max-width: 1040px) {
+  .nav-container { gap: 10px; padding: 0 16px; }
+  .nav-menu { gap: 0; }
+  .nav-link { padding: 6px 8px; font-size: .85rem; }
+  .nav-actions { gap: 4px; }
+  .logo-icon { width: 46px; height: 46px; }
+  .logo-text { font-size: 1.3rem; }
+}
+
 /* --- Botón flotante (móvil y tableta) --------------------------------
    Hasta 900 px la barra pasa a hamburguesa y el botón de la barra le quitaba
    sitio al nombre de la tienda (en un iPhone de 430 px lo cortaba). Ahí

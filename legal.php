@@ -3,7 +3,7 @@
  * Páginas legales: privacidad, términos y devoluciones.
  *
  * Están en un solo archivo porque comparten estructura y porque el texto sale
- * de la configuración —nombre de la tienda, correo, teléfono, dirección—, así
+ * de la configuración —nombre de la tienda, correo, dirección—, así
  * que la floristería no tiene que editar HTML para cambiar un dato de contacto.
  *
  * No sustituyen a un abogado: son el mínimo honesto que la ley de protección
@@ -18,9 +18,15 @@ $doc = opcion('doc', ['privacidad', 'terminos', 'devoluciones'], 'privacidad', $
 
 $tienda    = Ajustes::texto('nombre_tienda', 'Flowers Anto');
 $correo    = Ajustes::texto('email_contacto');
-$telefono  = Ajustes::texto('telefono');
 $direccion = Ajustes::texto('direccion');
-$whatsapp  = enlace_whatsapp('Hola, tengo una consulta sobre mis datos personales.');
+
+// En los documentos legales el canal de contacto es el correo, y solo el
+// correo: deja constancia escrita de cada reclamo o solicitud, que es lo que
+// se espera de una tienda seria. Si aún no hay correo configurado, se manda a
+// la sección de contacto de la portada en vez de dejar la frase coja.
+$contacto = $correo !== ''
+    ? '<a href="mailto:' . e($correo) . '">' . e($correo) . '</a>'
+    : '<a href="' . e(url('index.php#contacto')) . '">nuestra sección de contacto</a>';
 
 $titulos = [
     'privacidad'   => 'Política de privacidad',
@@ -62,9 +68,7 @@ require __DIR__ . '/includes/vistas/cabecera.php';
 
     <hr>
     <p class="legal-contacto">
-      ¿Alguna duda sobre esto? Escríbenos por
-      <a href="<?= e($whatsapp) ?>" target="_blank" rel="noopener">WhatsApp</a><?php
-        if ($correo !== ''): ?> o a <a href="mailto:<?= e($correo) ?>"><?= e($correo) ?></a><?php endif; ?>.
+      ¿Alguna duda, queja o solicitud sobre esto? Escríbenos a <?= $contacto ?>.
     </p>
   </article>
 </div>

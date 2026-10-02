@@ -133,7 +133,7 @@ a { color: inherit; }
 .panel-cuerpo.sin-relleno { padding: 0; }
 
 /* --- Métricas ----------------------------------------------------------- */
-.rejilla-metricas { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); margin-bottom: 22px; }
+.rejilla-metricas { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(165px, 1fr)); margin-bottom: 22px; }
 .metrica {
   background: var(--p-papel); border: 1px solid var(--p-linea); border-radius: var(--p-radio);
   padding: 17px 19px; box-shadow: var(--p-sombra); text-decoration: none; display: block;
@@ -456,22 +456,6 @@ dialog.modal .modal-pie {
 .toast.error { background: #8C2F38; }
 @keyframes entra { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
 
-/* --- Gráfico de barras --------------------------------------------------------------------- */
-.grafico { display: flex; align-items: stretch; gap: 6px; height: 150px; padding-top: 10px; }
-/* La columna ocupa todo el alto del gráfico: sin eso, el `height` en
-   porcentaje de la barra no tendría contra qué calcularse y se quedaría
-   en cero, dejando el gráfico en blanco. */
-.grafico-barra {
-  flex: 1; height: 100%; min-width: 0;
-  display: flex; flex-direction: column; justify-content: flex-end; align-items: center; gap: 6px;
-}
-.grafico-barra .valor {
-  width: 100%; background: linear-gradient(180deg, var(--p-rosa), #E0A8BB); border-radius: 5px 5px 0 0;
-  min-height: 3px; transition: height .4s cubic-bezier(.4,0,.2,1);
-}
-.grafico-barra .etiqueta { font-size: .68rem; color: var(--p-tenue); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
-.grafico-barra .cifra { font-size: .72rem; color: var(--p-suave); font-weight: 600; }
-
 /* --- Móvil ---------------------------------------------------------------------------------- */
 @media (max-width: 1000px) {
   .barra-lateral { transform: translateX(-100%); transition: transform .26s cubic-bezier(.4,0,.2,1); box-shadow: var(--p-sombra2); }
@@ -773,3 +757,112 @@ dialog.modal .modal-pie {
   font-weight: 700; border: 1px solid var(--p-linea);
 }
 .avatar-cliente img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+/* =========================================================================
+   Resumen: período, indicadores y gráficos
+   El acento de los gráficos (#B5607A) es el rosa de la marca un paso más
+   profundo: el de los botones (#C4788F) se lee agrisado como marca de datos.
+   Validado contra el blanco del panel (contraste ≥ 3:1, croma suficiente).
+   ========================================================================= */
+:root {
+  --g-acento: #B5607A;
+  --g-area:   rgba(181, 96, 122, .10);
+  --g-rejilla:#EFE7E9;
+  --g-eje:    #DCCFD2;
+  --g-gris:   #C9BEC1;
+}
+
+.filtro-periodo {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0 0 22px;
+}
+.filtro-periodo-titulo { font-size: .8rem; font-weight: 600; color: var(--p-suave); margin-right: 4px; }
+.filtro-periodo a {
+  font-size: .84rem; font-weight: 500; color: var(--p-suave); text-decoration: none;
+  padding: 7px 14px; border-radius: 50px; border: 1px solid var(--p-linea); background: var(--p-papel);
+  transition: background var(--p-trans), border-color var(--p-trans), color var(--p-trans);
+}
+.filtro-periodo a:hover { border-color: var(--p-linea2); color: var(--p-tinta); }
+.filtro-periodo a.actual { background: var(--p-tinta); border-color: var(--p-tinta); color: #fff; }
+.filtro-periodo a:focus-visible { outline: 2px solid var(--p-rosa); outline-offset: 2px; }
+
+.titulo-bloque {
+  font-size: .78rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+  color: var(--p-tenue); margin: 4px 0 10px;
+}
+
+.rejilla-kpi { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); margin-bottom: 22px; }
+.kpi {
+  position: relative; background: var(--p-papel); border: 1px solid var(--p-linea); border-radius: var(--p-radio);
+  padding: 18px 20px 16px; box-shadow: var(--p-sombra); min-width: 0;
+}
+.kpi p { margin: 0; }
+.kpi-etiqueta { color: var(--p-suave); font-size: .84rem; font-weight: 500; }
+/* Cifras grandes con números proporcionales: los tabulares dejan «121» suelto. */
+.kpi-valor { font-size: 1.9rem; font-weight: 700; line-height: 1.15; margin-top: 6px !important; letter-spacing: -.02em; overflow-wrap: anywhere; }
+.kpi-delta { margin-top: 6px !important; font-size: .8rem; color: var(--p-tenue); }
+.kpi-nota  { margin-top: 6px !important; font-size: .78rem; color: var(--p-tenue); }
+.delta { font-weight: 600; white-space: nowrap; }
+.delta.sube  { color: var(--p-exito); }
+.delta.baja  { color: var(--p-alerta); }
+.delta.igual { color: var(--p-suave); font-weight: 500; }
+.delta-base { color: var(--p-tenue); }
+.tendencia { display: block; margin-top: 10px; max-width: 100%; height: auto; }
+.tendencia polyline { fill: none; stroke: var(--g-gris); stroke-width: 1.6; stroke-linejoin: round; stroke-linecap: round; }
+.tendencia circle { fill: var(--g-acento); stroke: var(--p-papel); stroke-width: 2; }
+
+.rejilla-graficos { display: grid; gap: 20px; align-items: start; }
+.rejilla-graficos > * { min-width: 0; }
+@media (min-width: 1100px) { .rejilla-graficos { grid-template-columns: 1.7fr 1fr; } }
+
+/* --- Gráfico de líneas (lo dibuja admin-graficos.js) ---------------------- */
+.grafico-linea { position: relative; margin: 0; min-height: 240px; }
+.grafico-linea svg { display: block; width: 100%; height: 240px; overflow: visible; }
+.grafico-linea .rejilla line { stroke: var(--g-rejilla); stroke-width: 1; shape-rendering: crispEdges; }
+.grafico-linea .base { stroke: var(--g-eje); stroke-width: 1; shape-rendering: crispEdges; }
+.grafico-linea .eje text { fill: var(--p-tenue); font-size: 11px; font-variant-numeric: tabular-nums; }
+.grafico-linea .area { fill: var(--g-area); }
+.grafico-linea .linea { fill: none; stroke: var(--g-acento); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.grafico-linea .punto { fill: var(--g-acento); stroke: var(--p-papel); stroke-width: 2; }
+.grafico-linea .cruz { stroke: var(--p-linea2); stroke-width: 1; shape-rendering: crispEdges; }
+.grafico-linea .capa { fill: transparent; cursor: crosshair; outline: none; }
+.grafico-linea .capa:focus-visible { stroke: var(--p-rosa); stroke-width: 2; }
+.grafico-burbuja {
+  position: absolute; top: 0; left: 0; pointer-events: none; z-index: 2;
+  background: var(--p-papel); border: 1px solid var(--p-linea); border-radius: 10px;
+  box-shadow: var(--p-sombra2); padding: 8px 12px; min-width: 130px;
+  transform: translate(-50%, calc(-100% - 12px)); transition: opacity .12s;
+}
+.grafico-burbuja[hidden] { display: block; opacity: 0; }
+.grafico-burbuja strong { display: block; font-size: 1rem; color: var(--p-tinta); }
+.grafico-burbuja span { display: block; font-size: .76rem; color: var(--p-suave); margin-top: 2px; }
+.grafico-burbuja .clave { display: inline-block; width: 12px; height: 2px; background: var(--g-acento); vertical-align: middle; margin-right: 6px; border-radius: 1px; }
+
+.vista-tabla { margin-top: 12px; }
+.vista-tabla summary { cursor: pointer; font-size: .82rem; color: var(--p-suave); font-weight: 500; width: max-content; }
+.vista-tabla summary:hover { color: var(--p-tinta); }
+.vista-tabla .tabla-envoltura { max-height: 280px; overflow-y: auto; margin-top: 8px; }
+.tabla-compacta { min-width: 0; }
+.tabla-compacta td, .tabla-compacta th { padding: 7px 10px; }
+.tabla-compacta .num { font-variant-numeric: tabular-nums; }
+
+/* --- Barras horizontales (HTML puro, sin JavaScript) ---------------------- */
+.barras-h { list-style: none; margin: 0; padding: 0; display: grid; gap: 14px; }
+.barras-h li { display: grid; gap: 5px; min-width: 0; }
+.barras-h-etiqueta { font-size: .86rem; color: var(--p-tinta); overflow-wrap: anywhere; }
+.barras-h-fila { display: flex; align-items: center; gap: 8px; min-width: 0; }
+/* Fina, con el extremo de los datos redondeado y recta contra la base. El
+   largo es la proporción (--v, de 0 a 1) del espacio que queda tras reservar
+   sitio para la cifra, que va justo en la punta de la barra. */
+.barras-h-barra {
+  display: block; height: 12px; min-width: 4px; background: var(--g-acento);
+  border-radius: 0 4px 4px 0; flex: 0 0 auto;
+  width: calc(var(--v, 0) * (100% - 128px));
+}
+.barras-h-valor { font-size: .84rem; font-weight: 600; color: var(--p-tinta); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.barras-h-valor small { font-weight: 400; color: var(--p-tenue); margin-left: 4px; }
+.vacio.vacio-compacto { padding: 26px 12px; }
+
+.resumen-grafico { display: flex; gap: 22px; margin: 0; }
+.resumen-grafico div { min-width: 0; }
+.resumen-grafico dt { font-size: .74rem; color: var(--p-tenue); }
+.resumen-grafico dd { margin: 2px 0 0; font-size: 1rem; font-weight: 700; color: var(--p-tinta); white-space: nowrap; }
