@@ -139,6 +139,11 @@ a { color: inherit; }
 .campo .error-campo { color: var(--alerta); font-size: .83rem; margin-top: 6px; }
 .campo-fila { display: grid; gap: 0 16px; }
 @media (min-width: 620px) { .campo-fila { grid-template-columns: 1fr 1fr; } }
+/* Una columna de la rejilla no encoge por debajo de lo que mide su contenido,
+   y un <select> mide lo que su opción más larga: la lista de zonas de envío
+   ensanchaba el formulario de pago y en el móvil se podía mover de lado. */
+.campo-fila > * { min-width: 0; }
+.campo select, .campo input, .campo textarea { max-width: 100%; }
 
 .campo-casilla { display: flex; gap: 10px; align-items: flex-start; margin-bottom: 15px; }
 .campo-casilla input { width: 19px; height: 19px; margin-top: 2px; flex-shrink: 0; accent-color: var(--rose-pastel); }
@@ -375,6 +380,9 @@ a { color: inherit; }
 
 /* --- Carrito y resúmenes --------------------------------------------- */
 .diseno-compra { display: grid; gap: 24px; align-items: start; }
+/* Sin esto la columna se ensanchaba con su contenido y la página de pago se
+   salía de la pantalla en el móvil. */
+.diseno-compra > * { min-width: 0; }
 @media (min-width: 940px) { .diseno-compra { grid-template-columns: 1.6fr 1fr; gap: 32px; } }
 @media (min-width: 940px) { .columna-resumen { position: sticky; top: 100px; } }
 
@@ -444,7 +452,7 @@ a { color: inherit; }
 .mini-linea-precio { font-size: .9rem; color: var(--tinta); white-space: nowrap; }
 
 /* --- Pasos del checkout ---------------------------------------------- */
-.pasos { display: flex; gap: 6px; margin: 22px 0 26px; flex-wrap: wrap; }
+.pasos { display: flex; gap: 6px; margin: 22px 0 26px; flex-wrap: wrap; list-style: none; padding: 0; }   /* el número ya va en el texto */
 .paso {
   flex: 1; min-width: 128px; padding: 11px 14px; border-radius: var(--radio-sm);
   background: var(--papel); border: 1.5px solid var(--linea); font-size: .84rem; color: var(--tenue);
@@ -656,7 +664,13 @@ a { color: inherit; }
 .perfil-resumen-desde { font-size: .85rem; color: var(--tenue); margin-top: 4px !important; }
 .perfil-foto-fila { display: flex; flex-wrap: wrap; align-items: center; gap: 14px 18px; }
 .perfil-foto-form { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; flex: 1 1 260px; min-width: 0; }
-.perfil-foto-form input[type="file"] { flex: 1 1 200px; min-width: 0; font-size: .9rem; }
+.perfil-foto-form input[type="file"] { flex: 1 1 200px; min-width: 0; font-size: .88rem; color: var(--suave); }
+.perfil-foto-form input[type="file"]::file-selector-button {
+  font: inherit; font-weight: 600; color: var(--tinta); cursor: pointer;
+  padding: 8px 14px; margin-right: 10px; border-radius: 50px;
+  border: 1.5px solid var(--linea-fuerte); background: var(--white);
+}
+.perfil-foto-form input[type="file"]::file-selector-button:hover { background: var(--rose-soft); }
 .texto-opcional { font-family: inherit; font-size: .8rem; font-weight: 400; color: var(--tenue); }
 .tarjeta-destacada { border: 1.5px solid var(--rose-mid); }
 .fila-codigo { display: flex; flex-wrap: wrap; gap: 10px; max-width: 420px; }

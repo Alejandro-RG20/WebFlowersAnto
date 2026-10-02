@@ -191,7 +191,7 @@ require __DIR__ . '/_cabecera.php';
               <?= campoToken() ?>
               <input type="hidden" name="accion" value="restablecer">
               <input type="hidden" name="id" value="<?= (int)$detalle['id'] ?>">
-              <button type="submit" class="boton boton-claro">
+              <button type="submit" class="boton boton-claro boton-multilinea">
                 <i class="fa-solid fa-key" aria-hidden="true"></i> Enviar correo para restablecer la contraseña</button>
               <p class="ayuda" style="margin-top:6px;">Le llega un enlace y un código que caducan en
                 <?= e(CodigoCorreo::plazo(Recuperacion::MINUTOS_PANEL)) ?>. Tú no los ves: solo el cliente.</p>

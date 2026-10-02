@@ -142,8 +142,8 @@ a { color: inherit; }
 a.metrica:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(44,33,36,.09); border-color: var(--p-linea2); }
 .metrica-etiqueta { display: flex; align-items: center; gap: 8px; color: var(--p-suave); font-size: .82rem; font-weight: 500; }
 .metrica-etiqueta i { color: var(--p-rosa); }
-.metrica-valor { font-size: 1.85rem; font-weight: 700; line-height: 1.15; margin-top: 7px; letter-spacing: -.02em; }
-.metrica-nota { font-size: .79rem; color: var(--p-tenue); margin-top: 3px; }
+.metrica-valor { display: block; font-size: 1.85rem; font-weight: 700; line-height: 1.15; margin-top: 7px; letter-spacing: -.02em; }
+.metrica-nota { display: block; font-size: .79rem; color: var(--p-tenue); margin-top: 3px; }
 .metrica.urgente { border-color: #E7C4C8; background: linear-gradient(180deg, #FEF7F7, #fff); }
 .metrica.urgente .metrica-etiqueta i, .metrica.urgente .metrica-valor { color: var(--p-alerta); }
 
@@ -866,3 +866,6 @@ dialog.modal .modal-pie {
 .resumen-grafico div { min-width: 0; }
 .resumen-grafico dt { font-size: .74rem; color: var(--p-tenue); }
 .resumen-grafico dd { margin: 2px 0 0; font-size: 1rem; font-weight: 700; color: var(--p-tinta); white-space: nowrap; }
+
+/* Botón de texto largo: en el móvil se parte en dos líneas en vez de salirse. */
+.boton.boton-multilinea { white-space: normal; text-align: left; max-width: 100%; }
