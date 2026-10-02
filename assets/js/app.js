@@ -772,20 +772,6 @@
   }
 
   // -------------------------------------------------------------------
-  // Formularios: evitar el doble envío
-  // -------------------------------------------------------------------
-  $$('form[data-una-vez]').forEach((form) => {
-    form.addEventListener('submit', () => {
-      const boton = form.querySelector('button[type="submit"]');
-      if (boton) {
-        boton.classList.add('btn-cargando');
-        // Se desactiva después del envío para no anular el name del botón.
-        setTimeout(() => { boton.disabled = true; }, 0);
-      }
-    });
-  });
-
-  // -------------------------------------------------------------------
   // Confirmación de acciones destructivas
   // -------------------------------------------------------------------
   document.addEventListener('submit', (ev) => {
@@ -879,6 +865,11 @@
       pestana.setAttribute('aria-label', (abierto ? 'Ocultar ' : 'Mostrar ') + etiquetaBase);
     };
     pestana.addEventListener('click', () => ponerAbierto(!document.body.classList.contains('flotantes-abiertos')));
+    // Al abrir Massiel desde su botón, los dos se guardan: su panel ocupa la
+    // pantalla y al cerrarlo la página queda como estaba, despejada.
+    $$('[data-abrir-asesora]').forEach((d) => d.addEventListener('click', () => {
+      if (document.body.classList.contains('flotantes-abiertos')) { ponerAbierto(false); }
+    }));
     // Un toque fuera de la pestaña y de los botones los vuelve a guardar.
     document.addEventListener('click', (e) => {
       if (document.body.classList.contains('flotantes-abiertos')
@@ -1163,12 +1154,29 @@
   // cancelado la dejaría bloqueada sin que llegue ninguna página nueva.
   //
   // El mensaje se puede afinar por formulario con `data-espera="…"`.
+  //
+  // Aquí también se bloquea el botón contra el doble envío: antes se hacía
+  // en cuanto se pulsaba, y si luego se cancelaba la confirmación («¿Quitar
+  // tu foto?» → Cancelar) el botón se quedaba desactivado e invisible hasta
+  // recargar la página.
   document.addEventListener('submit', (ev) => {
     const form = ev.target;
     if (ev.defaultPrevented || !form || !form.matches || !form.matches('form[data-una-vez]')) { return; }
     // Un envío que abre otra pestaña o baja un archivo no recarga esta
-    // página: no llegaría nada que retirase la capa.
+    // página: no llegaría nada que retirase la capa ni reactivase el botón.
     if (form.target && form.target !== '_self') { return; }
+    const boton = form.querySelector('button[type="submit"]');
+    if (boton) {
+      boton.classList.add('btn-cargando');
+      // Se desactiva después del envío para no anular el name del botón.
+      setTimeout(() => { boton.disabled = true; }, 0);
+    }
     espera.mostrar(form.dataset.espera, { demora: 220 });
+  });
+  // Al volver con «Atrás» la página sale de la memoria del navegador tal como
+  // se dejó: los botones vuelven a estar disponibles.
+  window.addEventListener('pageshow', (ev) => {
+    if (!ev.persisted) { return; }
+    $$('form[data-una-vez] button.btn-cargando').forEach((b) => { b.classList.remove('btn-cargando'); b.disabled = false; });
   });
 })();

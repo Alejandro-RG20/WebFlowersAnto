@@ -260,6 +260,7 @@ $tienePassword = (string)($usuario['password_hash'] ?? '') !== '';
 $conFoto       = FotoPerfil::disponible($pdo);
 $urlFoto       = FotoPerfil::url($usuario);
 $pendiente     = CambioCorreo::pendiente($pdo, (int)$usuario['id']);
+$jsExtra       = $conFoto ? ['assets/js/recorte.js'] : [];
 
 require __DIR__ . '/../includes/vistas/cabecera.php';
 ?>
@@ -414,7 +415,10 @@ require __DIR__ . '/../includes/vistas/cabecera.php';
               <input type="hidden" name="MAX_FILE_SIZE" value="<?= (int)min(MAX_UPLOAD_BYTES, limite_subida(MAX_UPLOAD_BYTES)) ?>">
               <label class="visualmente-oculto" for="foto">Elegir foto</label>
               <input type="file" id="foto" name="foto" accept="image/jpeg,image/png,image/webp" required>
-              <button type="submit" class="btn btn-secondary"><?= $urlFoto !== '' ? 'Cambiar foto' : 'Subir foto' ?></button>
+              <?php // Con el encuadre activo (recorte.js) el campo se oculta y esta
+                    // etiqueta hace de botón: elegir la foto abre el encuadre. ?>
+              <label for="foto" class="btn btn-secondary perfil-foto-elegir"><?= $urlFoto !== '' ? 'Cambiar foto' : 'Subir foto' ?></label>
+              <button type="submit" class="btn btn-secondary perfil-foto-enviar"><?= $urlFoto !== '' ? 'Cambiar foto' : 'Subir foto' ?></button>
             </form>
             <?php if ($urlFoto !== ''): ?>
               <form method="post" action="<?= e(url('cuenta/perfil.php')) ?>" data-una-vez
@@ -426,6 +430,27 @@ require __DIR__ . '/../includes/vistas/cabecera.php';
             <?php endif; ?>
           </div>
         </div>
+
+        <dialog class="recorte" id="recorteFoto" aria-labelledby="recorteTitulo">
+          <div class="recorte-caja">
+            <h2 id="recorteTitulo">Encuadra tu foto</h2>
+            <p class="recorte-ayuda">Arrástrala para centrarla y acércala con dos dedos o con el control.</p>
+            <div class="recorte-marco" tabindex="0" role="img"
+                 aria-label="Vista previa del encuadre. Las flechas mueven la foto; + y − la acercan o alejan.">
+              <img alt="" draggable="false">
+            </div>
+            <div class="recorte-zoom">
+              <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8 11h6M20 20l-4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+              <label for="recorteZoom" class="visualmente-oculto">Acercar la foto</label>
+              <input type="range" id="recorteZoom" min="1" max="4" step="0.01" value="1">
+              <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8 11h6M11 8v6M20 20l-4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            </div>
+            <div class="recorte-acciones">
+              <button type="button" class="btn btn-outline-dark" data-recorte-cancelar>Cancelar</button>
+              <button type="button" class="btn btn-primary" data-recorte-usar>Guardar foto</button>
+            </div>
+          </div>
+        </dialog>
       <?php endif; ?>
 
       <div class="tarjeta">

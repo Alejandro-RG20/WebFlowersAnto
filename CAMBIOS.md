@@ -781,14 +781,17 @@ todo funciona como antes.
 ### Botones flotantes en móvil
 - En portada, categorías y ficha de producto WhatsApp y Massiel siguen
   como antes.
-- En carrito, pago, pedido, comprobante, seguimiento, factura y Mi cuenta
-  (móvil y tableta, hasta 900 px) asoma una **pestaña de cristal** en el
-  borde derecho y los botones se meten debajo de ella, donde reaparecen como
-  sus dos iconos (separados, en el mismo orden), con un destello al llegar. Al tocarla salen con una curva de muelle, Massiel
-  vuelve a presentarse y la pestaña muestra una X; un toque fuera, la X o
-  Escape los guardan. Solo se animan `transform` y `opacity`: sin saltos de
-  diseño; con «reducir movimiento» no hay animación. En el escritorio no
-  cambia nada.
+- En el catálogo (búsqueda y filtros), carrito, pago, pedido, comprobante,
+  seguimiento, factura y Mi cuenta (móvil y tableta, hasta 900 px) se
+  recogen **como dos gotas**: Massiel baja y se funde en WhatsApp, y esa gota
+  entra bajo una **pestaña de cristal compacta** en el borde derecho, que
+  queda con sus dos iconos y un destello al llegar. Al tocarla la gota sale y
+  se divide en dos; Massiel vuelve a presentarse y la pestaña muestra una X.
+  Sin rebotes. Un toque fuera, la X o Escape los guardan. Con el chat de
+  Massiel abierto no queda nada flotando encima (antes la pestaña tapaba el
+  botón de enviar) y en el móvil la página de detrás no se desplaza. Solo se
+  animan `transform` y `opacity`: sin saltos de diseño; con «reducir
+  movimiento» no hay animación. En el escritorio no cambia nada.
 
 ### Base de datos
 Migración `025_avisos_y_cupones_personales`: columna `cupones.usuario_id`
@@ -799,3 +802,16 @@ la tienda funciona como antes y el apartado de avisos no se muestra.
 1. Subir los archivos.
 2. Panel → Base de datos → aplicar la migración 025.
 3. Vaciar la caché del CDN de Hostinger.
+
+### Foto de perfil
+- **Encuadre antes de guardar**: al elegir la foto se abre un cuadro para
+  moverla con el dedo y acercarla (pellizco, rueda, control o teclado), con
+  una guía circular. Se recorta en el navegador a 600×600 y se sube ese
+  recorte, mucho más liviano que la foto del móvil. Sin JavaScript se sube
+  la foto entera como antes.
+- **Arreglado**: al pulsar «Quitar foto» y cancelar, el botón desaparecía
+  hasta recargar. Pasaba en todos los formularios con confirmación: el
+  bloqueo contra el doble envío se aplicaba antes de preguntar.
+- **iPhone**: al volver de la galería, Safari podía dejar la vista
+  desplazada y aparecía un hueco en blanco bajo el pie. Ahora el campo
+  pierde el foco al elegir la foto y la vista se recoloca.
