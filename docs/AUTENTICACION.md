@@ -106,18 +106,59 @@ reutilizados se rechazan. El destino tras entrar (`?volver=`) pasa por
 
 ---
 
+## 4b. Códigos de verificación por correo
+
+Recuperar la contraseña, confirmar el correo y cambiar el correo mandan un
+**código de 6 dígitos** que se escribe en la tienda (como Facebook o Google).
+Los dos primeros mandan además el enlace de siempre; cualquiera de los dos
+sirve y gastan la misma solicitud. Código: `includes/lib/codigos.php`.
+
+**Por qué no JWT.** Un JWT sirve para que el servidor se fíe de un dato sin
+consultarlo; por eso mismo no se puede anular, ni contar intentos, ni gastar
+una sola vez sin guardar algo en la base. Para esto lo correcto es lo que se
+hace: un número al azar guardado en el servidor.
+
+| Regla | Valor |
+|-------|-------|
+| Generación | `random_int()`, 6 dígitos (un millón de combinaciones) |
+| Almacenamiento | `password_resets.codigo_hash` = `password_hash(código)`; nunca el código |
+| Intentos | 5 por solicitud, contados de forma atómica; al quinto fallo muere la solicitud entera (enlace incluido) |
+| Vida | recuperación 60 min (24 h si la envía el panel); cambio de correo 30 min; confirmación de correo 48 h |
+| Un solo uso | se gasta en la misma sentencia que lo comprueba (`… AND usado_en IS NULL`) |
+| Uno vivo | pedir otro anula el anterior |
+| Límites extra | recuperación: 5 envíos por IP/15 min, 3 por correo/hora, 5 intentos por correo/15 min, 20 por IP/15 min; cambio de correo: 3 por cuenta/hora y 10 intentos/15 min |
+| Enumeración | tras pedir el código siempre se pasa a la pantalla del código; código malo, caducado o agotado dan el mismo mensaje; el correo se envía después de responder |
+| Asunto | el código no va en el asunto (se vería en la pantalla bloqueada) |
+
+**Cambio de correo.** El correo nuevo no se guarda hasta escribir el código
+que llega a esa dirección (demuestra que es de quien lo pide y que existe).
+Se sigue pidiendo la contraseña actual si la cuenta tiene. Al aplicarse queda
+confirmado, se anulan las solicitudes pendientes y se avisa al correo anterior.
+
+**Desde el panel.** En la ficha del cliente, «Enviar correo para restablecer
+la contraseña» (permiso `clientes.editar`, 3 por cliente/hora, queda en la
+auditoría). El personal nunca ve el enlace ni el código.
+
+**Foto de perfil.** Opcional, se recodifica siempre (cuadrada, 400 px, WebP),
+va en su propia tabla `fotos_perfil` y se sirve por `cuenta/foto.php` solo a su
+dueño y al personal con `clientes.ver`; a cualquier otro, 404.
+
+Sin la migración `024_codigos_y_perfil` todo funciona como antes: solo
+enlaces y el perfil sin foto ni fecha de nacimiento.
+
+---
+
 ## 5. Configuración externa
 
 ### Google Cloud (Credenciales → ID de cliente de OAuth → Aplicación web)
-- **Orígenes de JavaScript autorizados**: `https://flowersanto.com`
+- **Orígenes de JavaScript autorizados**: `https://www.flowersanto.com`
 - **URI de redireccionamiento autorizados**:
-  `https://flowersanto.com/cuenta/google-callback.php`
-  (si el sitio también abre con `www`, añade
-  `https://www.flowersanto.com/cuenta/google-callback.php` o redirige `www`
-  al dominio sin `www`)
+  `https://www.flowersanto.com/cuenta/google-callback.php`
+  (`flowersanto.com` redirige a `www`; `APP_URL` tiene que llevar `www`
+  igual que esta dirección, o Google responde `redirect_uri_mismatch`)
 - Pantalla de consentimiento: publicada («En producción»), permisos `openid`,
   `email`, `profile`.
-- `.env`: `APP_URL=https://flowersanto.com`, `GOOGLE_CLIENT_ID`,
+- `.env`: `APP_URL=https://www.flowersanto.com`, `GOOGLE_CLIENT_ID`,
   `GOOGLE_CLIENT_SECRET`.
 
 La URI tiene que coincidir **exactamente** con `{APP_URL}/cuenta/google-callback.php`
@@ -127,12 +168,12 @@ La URI tiene que coincidir **exactamente** con `{APP_URL}/cuenta/google-callback
 ### Meta for Developers
 - App de tipo Consumidor con el producto **Inicio de sesión con Facebook**.
 - *Configuración de Inicio de sesión con Facebook*: URI de redireccionamiento
-  de OAuth válido `https://flowersanto.com/cuenta/facebook-callback.php`;
+  de OAuth válido `https://www.flowersanto.com/cuenta/facebook-callback.php`;
   OAuth del cliente y OAuth web activados; modo estricto y HTTPS obligatorios.
-- *Configuración → Básica*: dominio `flowersanto.com`; política de
-  privacidad `https://flowersanto.com/legal.php?doc=privacidad`;
+- *Configuración → Básica*: dominio `www.flowersanto.com`; política de
+  privacidad `https://www.flowersanto.com/legal.php?doc=privacidad`;
   instrucciones de eliminación de datos
-  `https://flowersanto.com/legal.php?doc=privacidad#borrar-datos`;
+  `https://www.flowersanto.com/legal.php?doc=privacidad#borrar-datos`;
   icono y categoría.
 - Permisos: `email`, `public_profile` (acceso estándar).
 - Modo **Activo** (en desarrollo solo entran los roles/usuarios de prueba).

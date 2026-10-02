@@ -24,6 +24,12 @@ Options -Indexes
 <IfModule mod_rewrite.c>
   RewriteEngine On
 
+  # El dominio de la tienda es con «www». Sin él se redirige en un solo salto,
+  # también desde http. Solo actúa con el dominio exacto, así que no puede
+  # entrar en bucle ni afecta a localhost ni a otros dominios.
+  RewriteCond %{HTTP_HOST} ^flowersanto\.com$ [NC]
+  RewriteRule ^(.*)$ https://www.flowersanto.com%{REQUEST_URI} [R=301,L]
+
   RewriteCond %{HTTPS} !=on
   RewriteCond %{HTTP:X-Forwarded-Proto} !=https
   RewriteCond %{HTTP_HOST} !^localhost [NC]
@@ -50,7 +56,7 @@ Options -Indexes
 
 # --- Carpetas internas ------------------------------------------------
 # Los comprobantes, los respaldos y el código no se sirven nunca por URL.
-RedirectMatch 404 ^/(.*/)?(storage|includes|db|tests)/
+RedirectMatch 404 ^/(.*/)?(storage|includes|db|tests|herramientas)/
 # `storage/` incluye respaldos, comprobantes y la caché de fotos reducidas.
 RedirectMatch 404 ^/(.*/)?\.git
 

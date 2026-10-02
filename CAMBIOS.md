@@ -686,3 +686,62 @@ Quien tenía cuenta con un correo que **no** es Gmail/Workspace y pulsaba
 «Continuar con Google» entraba directamente; ahora se le pide entrar con su
 contraseña y conectar Google desde «Mis datos» (una sola vez). Las cuentas que
 ya tenían Google conectado siguen entrando igual.
+
+---
+
+## 17. Producción en Hostinger: códigos por correo, perfil, panel y rendimiento (FlowersAntoProduccion)
+
+Rama `FlowersAntoProduccion`, creada desde `FlowersAntoIAFacebook_v.03` para el
+sitio en `https://www.flowersanto.com`.
+
+### Cuentas
+- **Códigos de 6 dígitos por correo** para recuperar la contraseña, confirmar
+  el correo y cambiar el correo (detalle en `docs/AUTENTICACION.md` § 4b). El
+  enlace de siempre sigue funcionando.
+- **Cambio de correo con código**: el correo nuevo no se aplica hasta escribir
+  el código que llega a esa dirección; se avisa al anterior.
+- **Panel → Clientes → ficha**: botón para enviar al cliente el correo con el
+  enlace y el código para crear una contraseña nueva (caduca en 24 h). El
+  personal no ve ni el enlace ni el código; queda en la auditoría. La ficha
+  muestra además foto, si el correo está confirmado, cumpleaños y cómo entra.
+- **Mis datos**: foto de perfil y fecha de nacimiento, opcionales. La foto se
+  recodifica (cuadrada, WebP), vive en su propia tabla y solo la ven su dueño
+  y el personal.
+
+### Diseño
+- **Cabecera de escritorio** con sesión iniciada: ya no se recorta el nombre
+  ni se parten los enlaces. «Mi cuenta» va en el botón del usuario (con su
+  foto o iniciales); en pantallas medianas Massiel y WhatsApp quedan en icono.
+- **Resumen del panel** rehecho: período de 7/30/90 días, ventas cobradas,
+  pedidos, ticket promedio y clientes nuevos con variación frente al período
+  anterior, gráfico de ventas por día (con lectura al pasar el cursor y por
+  teclado, y su tabla), más vendidos y pedidos por estado. Los días se cuentan
+  en la hora de la tienda.
+- **Privacidad, términos y devoluciones**: el contacto es solo el correo de
+  Ajustes, sin WhatsApp ni teléfono.
+
+### Rendimiento
+- **Iconos propios**: de Font Awesome solo los 111 iconos usados, servidos
+  desde el dominio (de ~400 KB y una conexión a cdnjs a ~20 KB). Si se usa un
+  icono nuevo: `python3 herramientas/generar-iconos.py` (instrucciones dentro).
+- **Fotos**: `archivo.php` ya no guarda un año el original pesado cuando la
+  copia reducida aún no estaba lista (pasaba con la caché vacía tras migrar de
+  hosting). Las copias se crean al subir cada foto y, para las existentes,
+  desde **Respaldos → Fotos optimizadas → Preparar fotos ahora**.
+- **Sin saltos de diseño**: el aviso de cookies aparece cuando ya cargaron las
+  fuentes y los botones flotantes se apartan a su medida. CLS de la portada
+  de ~0,10 a ~0,01 en las mediciones locales.
+- Poppins sin el grosor 300 (no lo usaba ninguna regla).
+
+### Base de datos
+Migración `024_codigos_y_perfil`: columnas `codigo_hash`, `intentos_codigo` y
+`destino` en `password_resets` (y el tipo `cambiar_email`), `usuarios.foto`,
+`usuarios.fecha_nacimiento` y la tabla `fotos_perfil`. Solo añade; sin ella
+todo funciona como antes.
+
+### Al subirlo a Hostinger
+1. Subir los archivos (la carpeta `herramientas/` no hace falta en el servidor).
+2. Panel → Base de datos → aplicar la migración 024.
+3. Panel → Respaldos → «Preparar fotos ahora» (repetir hasta que diga que
+   están todas).
+4. Vaciar la caché del CDN de Hostinger.
