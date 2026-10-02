@@ -51,6 +51,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $volver       = $desdeAqui ? 'cuenta/verificar.php' : url_interna($pedidoVolver);
 
     $usuario = Auth::usuario();
+
+    // Confirmar con el código de 6 dígitos. Solo con la sesión de la cuenta
+    // abierta: el código se compara con la solicitud de quien está dentro.
+    if (opcion('accion', ['reenviar', 'codigo'], 'reenviar') === 'codigo') {
+        if (!$usuario) {
+            flash('error', 'Entra a tu cuenta para confirmar el correo con el código.');
+            redirigir('cuenta/entrar.php');
+        }
+        $codigo = CodigoCorreo::limpiar(crudo('codigo'));
+        if (!limitar($pdo, 'verificar-codigo:' . (int)$usuario['id'], 10, 900)) {
+            flash('error', 'Demasiados intentos. Espera unos minutos o pide un código nuevo.');
+        } elseif ($codigo === '') {
+            flash('error', 'Escribe los 6 dígitos del código.');
+        } else {
+            $r = Verificacion::confirmarCodigo($pdo, $usuario, $codigo);
+            match ($r) {
+                'ok', 'ya_verificado' => flash('exito', 'Listo: tu correo quedó confirmado.'),
+                'agotado'             => flash('error', 'Ese código ya no sirve. Pide uno nuevo con el enlace de abajo.'),
+                default               => flash('error', 'Ese código no es válido o ya caducó. Usa el del último correo.'),
+            };
+        }
+        redirigir($volver);
+    }
+
     if (!$usuario) {
         $permiso = $_SESSION['verificacion_reenvio'] ?? null;
         if (is_array($permiso) && (int)($permiso['hasta'] ?? 0) >= time()) {
@@ -88,7 +112,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($desdeAqui) {
             $_SESSION['verificacion'] = ['estado' => 'enviado', 'correo' => $tapado];
         } else {
-            flash('exito', 'Te enviamos un enlace nuevo a ' . $tapado . '. Caduca en 48 horas.');
+            flash('exito', 'Te enviamos un correo nuevo a ' . $tapado . ' con el enlace y el código. Caduca en 48 horas.');
         }
         redirigir($volver);
     }

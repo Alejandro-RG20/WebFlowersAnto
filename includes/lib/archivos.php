@@ -105,6 +105,88 @@ final class Archivos
         return ['ok' => true, 'ruta' => 'bd:' . $id, 'ancho' => $ancho, 'alto' => $alto];
     }
 
+    /** Lado de la foto de perfil, en píxeles. Se pinta a 40–120 px. */
+    private const LADO_PERFIL = 400;
+
+    /**
+     * Prepara una foto de perfil: cuadrada, pequeña y siempre recodificada.
+     *
+     * Al contrario que con las fotos del catálogo, aquí no se guarda nunca el
+     * archivo tal cual llegó: se decodifica y se vuelve a codificar desde
+     * cero. Así no sobrevive nada de lo que viniera dentro aparte de los
+     * píxeles —metadatos con la ubicación, o contenido escondido en un
+     * archivo que solo aparenta ser una imagen—. Si GD no puede leerla, se
+     * rechaza.
+     *
+     * @return array{ok: bool, error?: string, datos?: string, mime?: string}
+     */
+    public static function prepararFotoPerfil(array $archivo): array
+    {
+        $error = self::validarBasico($archivo, MAX_UPLOAD_BYTES);
+        if ($error !== '') {
+            return ['ok' => false, 'error' => $error];
+        }
+        if (!function_exists('imagecreatetruecolor')) {
+            return ['ok' => false, 'error' => 'El servidor no puede procesar imágenes ahora mismo.'];
+        }
+
+        $ruta = (string)$archivo['tmp_name'];
+        $info = @getimagesize($ruta);
+        $tipo = $info[2] ?? 0;
+        if ($info === false || !in_array($tipo, [IMAGETYPE_JPEG, IMAGETYPE_PNG, IMAGETYPE_WEBP], true)) {
+            return ['ok' => false, 'error' => 'Usa una foto JPG, PNG o WEBP.'];
+        }
+        [$ancho, $alto] = [(int)$info[0], (int)$info[1]];
+        if ($ancho < 64 || $alto < 64) {
+            return ['ok' => false, 'error' => 'La foto es demasiado pequeña. Usa una de al menos 64 × 64 píxeles.'];
+        }
+        $limite = self::limiteMemoria();
+        if ($ancho > 8000 || $alto > 8000
+            || ($limite > 0 && ($ancho * $alto * 4 * 2.2) > ($limite - memory_get_usage(true)))) {
+            return ['ok' => false, 'error' => 'La foto es demasiado grande. Prueba con una más pequeña.'];
+        }
+
+        $origen = match ($tipo) {
+            IMAGETYPE_JPEG => @imagecreatefromjpeg($ruta),
+            IMAGETYPE_PNG  => @imagecreatefrompng($ruta),
+            IMAGETYPE_WEBP => function_exists('imagecreatefromwebp') ? @imagecreatefromwebp($ruta) : false,
+        };
+        if (!$origen) {
+            return ['ok' => false, 'error' => 'No pudimos leer esa foto. Prueba con otra.'];
+        }
+
+        $giro = self::giroExif($ruta, $tipo);
+        if ($giro !== 0 && function_exists('imagerotate') && ($girada = @imagerotate($origen, $giro, 0))) {
+            imagedestroy($origen);
+            $origen = $girada;
+            [$ancho, $alto] = [imagesx($origen), imagesy($origen)];
+        }
+
+        // Recorte cuadrado desde el centro: es lo que se espera de una foto
+        // de perfil y lo que cabe en un círculo sin deformarse.
+        $lado    = min($ancho, $alto);
+        $salida  = min(self::LADO_PERFIL, $lado);
+        $destino = imagecreatetruecolor($salida, $salida);
+        imagefill($destino, 0, 0, imagecolorallocate($destino, 255, 255, 255));
+        imagecopyresampled($destino, $origen, 0, 0,
+            intdiv($ancho - $lado, 2), intdiv($alto - $lado, 2), $salida, $salida, $lado, $lado);
+        imagedestroy($origen);
+
+        ob_start();
+        $webp = function_exists('imagewebp') && imagewebp($destino, null, 82);
+        if (!$webp) {
+            ob_clean();
+            imagejpeg($destino, null, 85);
+        }
+        $datos = (string)ob_get_clean();
+        imagedestroy($destino);
+
+        if ($datos === '') {
+            return ['ok' => false, 'error' => 'No pudimos procesar esa foto. Prueba con otra.'];
+        }
+        return ['ok' => true, 'datos' => $datos, 'mime' => $webp ? 'image/webp' : 'image/jpeg'];
+    }
+
     /**
      * Inserta el binario y devuelve su id.
      *

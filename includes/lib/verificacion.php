@@ -54,6 +54,9 @@ final class Verificacion
             return false;
         }
 
+        $conCodigo = CodigoCorreo::disponible($pdo);
+        $codigo    = $conCodigo ? CodigoCorreo::generar() : '';
+
         try {
             $pdo->beginTransaction();
             $pdo->prepare(
@@ -62,10 +65,17 @@ final class Verificacion
             )->execute([$usuario['id']]);
 
             $token = bin2hex(random_bytes(32));
-            $pdo->prepare(
-                "INSERT INTO password_resets (usuario_id, token_hash, expira_en, ip, tipo)
-                 VALUES (?, ?, DATE_ADD(NOW(), INTERVAL " . self::HORAS . " HOUR), ?, 'verificar_email')"
-            )->execute([$usuario['id'], hash('sha256', $token), ip_cliente()]);
+            if ($conCodigo) {
+                $pdo->prepare(
+                    "INSERT INTO password_resets (usuario_id, token_hash, codigo_hash, expira_en, ip, tipo)
+                     VALUES (?, ?, ?, DATE_ADD(NOW(), INTERVAL " . self::HORAS . " HOUR), ?, 'verificar_email')"
+                )->execute([$usuario['id'], hash('sha256', $token), CodigoCorreo::hash($codigo), ip_cliente()]);
+            } else {
+                $pdo->prepare(
+                    "INSERT INTO password_resets (usuario_id, token_hash, expira_en, ip, tipo)
+                     VALUES (?, ?, DATE_ADD(NOW(), INTERVAL " . self::HORAS . " HOUR), ?, 'verificar_email')"
+                )->execute([$usuario['id'], hash('sha256', $token), ip_cliente()]);
+            }
             $pdo->commit();
         } catch (PDOException $e) {
             if ($pdo->inTransaction()) {
@@ -86,7 +96,11 @@ final class Verificacion
                 '<p>Hola ' . e((string)($usuario['nombre'] ?? '')) . ', gracias por crear tu cuenta en '
                 . e($tienda) . '.</p>'
                 . '<p>Confirma que este correo es tuyo para que podamos enviarte el estado de '
-                . 'tus pedidos. El enlace caduca en ' . self::HORAS . ' horas y sirve una sola vez.</p>'
+                . 'tus pedidos.</p>'
+                . ($conCodigo
+                    ? CodigoCorreo::bloqueHtml($codigo, self::HORAS . ' horas')
+                      . '<p>Pulsa el botón o escribe el código en <strong>Mis datos</strong>, dentro de tu cuenta.</p>'
+                    : '<p>El enlace caduca en ' . self::HORAS . ' horas y sirve una sola vez.</p>')
                 . '<p style="font-size:13px;color:#8A7A7D;">Si no creaste ninguna cuenta, ignora '
                 . 'este correo: sin confirmar no pasa nada.</p>',
                 ['url' => $enlace, 'texto' => 'Confirmar mi correo']
@@ -177,22 +191,65 @@ final class Verificacion
             return ['estado' => 'caducado', 'usuario_id' => $usuarioId];
         }
 
+        return ['estado' => self::gastarYConfirmar($pdo, (int)$fila['id'], $usuarioId, 'enlace'),
+                'usuario_id' => $usuarioId];
+    }
+
+    /**
+     * Confirma el correo con el código de 6 dígitos del mismo correo.
+     *
+     * Solo desde la sesión de la propia cuenta: el código no lleva consigo
+     * a qué cuenta pertenece, así que se busca la solicitud de quien está
+     * dentro.
+     *
+     * @return 'ok'|'ya_verificado'|'incorrecto'|'agotado'
+     */
+    public static function confirmarCodigo(PDO $pdo, array $usuario, string $codigo): string
+    {
+        if (self::verificado($usuario)) {
+            return 'ya_verificado';
+        }
+        $fila = null;
+        if (CodigoCorreo::disponible($pdo)) {
+            $st = $pdo->prepare(
+                "SELECT id, codigo_hash, intentos_codigo FROM password_resets
+                  WHERE usuario_id = ? AND tipo = 'verificar_email'
+                    AND usado_en IS NULL AND expira_en > NOW()
+                  ORDER BY id DESC LIMIT 1"
+            );
+            $st->execute([$usuario['id']]);
+            $fila = $st->fetch() ?: null;
+        }
+
+        $estado = CodigoCorreo::comprobar($pdo, $fila, $codigo);
+        if ($estado !== 'ok') {
+            return $estado;
+        }
+        $final = self::gastarYConfirmar($pdo, (int)$fila['id'], (int)$usuario['id'], 'código');
+        return in_array($final, ['ok', 'ya_verificado'], true) ? $final : 'incorrecto';
+    }
+
+    /**
+     * Gasta la solicitud y marca la cuenta como confirmada.
+     *
+     * La solicitud se gasta aquí y solo si sigue libre y en plazo. Si otra
+     * petición la gastó un instante antes, esta no toca nada.
+     */
+    private static function gastarYConfirmar(PDO $pdo, int $filaId, int $usuarioId, string $via): string
+    {
         $pdo->beginTransaction();
         try {
-            // El token se gasta aquí y solo si sigue libre y en plazo. Si otra
-            // petición lo gastó un instante antes, esta no toca nada.
             $gasta = $pdo->prepare(
                 "UPDATE password_resets SET usado_en = NOW()
                   WHERE id = ? AND usado_en IS NULL AND expira_en > NOW()"
             );
-            $gasta->execute([$fila['id']]);
+            $gasta->execute([$filaId]);
 
             if ($gasta->rowCount() !== 1) {
                 $pdo->rollBack();
                 $ahora = $pdo->prepare("SELECT email_verificado_en FROM usuarios WHERE id = ?");
                 $ahora->execute([$usuarioId]);
-                return ['estado' => $ahora->fetchColumn() ? 'ya_verificado' : 'reemplazado',
-                        'usuario_id' => $usuarioId];
+                return $ahora->fetchColumn() ? 'ya_verificado' : 'reemplazado';
             }
 
             $pdo->prepare(
@@ -204,15 +261,14 @@ final class Verificacion
                 $pdo->rollBack();
             }
             error_log('Flowers Anto — confirmar correo: ' . $e->getMessage());
-            return ['estado' => 'invalido'];
+            return 'invalido';
         }
 
         Auditoria::registrar($pdo, 'verificar_email', 'usuarios', [
             'recurso_tipo' => 'usuario', 'recurso_id' => (string)$usuarioId,
-            'descripcion'  => 'Correo confirmado por el propio cliente.',
+            'descripcion'  => 'Correo confirmado por el propio cliente (' . $via . ').',
         ]);
-
-        return ['estado' => 'ok', 'usuario_id' => $usuarioId];
+        return 'ok';
     }
 
     /** Correo con el nombre tapado: «ma•••@gmail.com». */

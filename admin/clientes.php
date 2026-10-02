@@ -27,7 +27,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         redirigir('admin/clientes.php');
     }
 
-    switch (opcion('accion', ['activar', 'notas'], '')) {
+    switch (opcion('accion', ['activar', 'notas', 'restablecer'], '')) {
+        case 'restablecer':
+            // El panel nunca ve ni el enlace ni el código: van solo al correo
+            // del cliente. Así nadie del equipo puede entrar en una cuenta.
+            if ((int)$cliente['activo'] !== 1) {
+                flash('error', 'La cuenta está desactivada. Reactívala antes de enviarle el correo.');
+                break;
+            }
+            if (trim((string)$cliente['email']) === '') {
+                flash('error', 'Esta cuenta no tiene correo.');
+                break;
+            }
+            if (!limitar($pdo, 'panel-reset:' . $id, 3, 3600)) {
+                flash('error', 'Ya se le enviaron varios correos a este cliente en la última hora. Espera un rato.');
+                break;
+            }
+            $ok = Recuperacion::emitir($pdo, $cliente, 'panel');
+            Auditoria::registrar($pdo, 'enviar_reset', 'usuarios', [
+                'recurso_tipo' => 'usuario', 'recurso_id' => (string)$id,
+                'descripcion'  => ($ok ? 'Enviado' : 'Falló el envío de') . ' el correo para restablecer la contraseña a '
+                                . $cliente['email'],
+            ]);
+            flash($ok ? 'exito' : 'error', $ok
+                ? 'Le enviamos a ' . $cliente['email'] . ' un correo con un enlace y un código para crear una '
+                  . 'contraseña nueva. Caduca en ' . CodigoCorreo::plazo(Recuperacion::MINUTOS_PANEL) . '.'
+                : 'No se pudo enviar el correo. Revisa la configuración de correo en Ajustes.');
+            break;
+
         case 'activar':
             $nuevo = (int)$cliente['activo'] === 1 ? 0 : 1;
             $pdo->prepare("UPDATE usuarios SET activo = ? WHERE id = ?")->execute([$nuevo, $id]);
@@ -110,18 +137,37 @@ require __DIR__ . '/_cabecera.php';
   <div class="rejilla-detalle">
     <section class="panel">
       <div class="panel-cabecera">
-        <div>
-          <h2><?= e(trim((string)$detalle['nombre'] . ' ' . (string)$detalle['apellido'])) ?></h2>
-          <p>Cliente desde <?= e(fecha_corta((string)$detalle['created_at'])) ?></p>
+        <div class="cliente-cabecera">
+          <?php $fotoCliente = FotoPerfil::url($detalle, true); ?>
+          <span class="avatar-cliente" aria-hidden="true">
+            <?php if ($fotoCliente !== ''): ?>
+              <img src="<?= e($fotoCliente) ?>" alt="" width="48" height="48" loading="lazy">
+            <?php else: ?>
+              <?= e(FotoPerfil::iniciales($detalle)) ?>
+            <?php endif; ?>
+          </span>
+          <div>
+            <h2><?= e(trim((string)$detalle['nombre'] . ' ' . (string)$detalle['apellido'])) ?></h2>
+            <p>Cliente desde <?= e(fecha_corta((string)$detalle['created_at'])) ?></p>
+          </div>
         </div>
         <span class="estado-suave <?= (int)$detalle['activo'] ? 'si' : 'mal' ?>">
           <?= (int)$detalle['activo'] ? 'Activa' : 'Desactivada' ?></span>
       </div>
       <div class="panel-cuerpo">
         <dl class="lista-datos">
-          <div><dt>Correo</dt><dd><?= e((string)$detalle['email']) ?></dd></div>
+          <div><dt>Correo</dt><dd><?= e((string)$detalle['email']) ?>
+            <span class="estado-suave <?= $detalle['email_verificado_en'] ? 'si' : 'no' ?>">
+              <?= $detalle['email_verificado_en'] ? 'Confirmado' : 'Sin confirmar' ?></span></dd></div>
           <div><dt>Teléfono</dt><dd><?= e((string)$detalle['telefono']) ?></dd></div>
+          <?php if (!empty($detalle['fecha_nacimiento'])): ?>
+            <div><dt>Cumpleaños</dt><dd><?= e(date('d/m', strtotime((string)$detalle['fecha_nacimiento']))) ?></dd></div>
+          <?php endif; ?>
+          <div><dt>Contraseña</dt><dd><?= (string)$detalle['password_hash'] !== '' ? 'Sí tiene' : 'No (entra con Google o Facebook)' ?></dd></div>
           <div><dt>Acceso con Google</dt><dd><?= $detalle['google_id'] ? 'Sí' : 'No' ?></dd></div>
+          <?php if (array_key_exists('facebook_id', $detalle)): ?>
+            <div><dt>Acceso con Facebook</dt><dd><?= $detalle['facebook_id'] ? 'Sí' : 'No' ?></dd></div>
+          <?php endif; ?>
           <div><dt>Último acceso</dt><dd><?= $detalle['ultimo_acceso']
               ? e(fecha_larga((string)$detalle['ultimo_acceso'])) : 'Nunca' ?></dd></div>
         </dl>
@@ -138,6 +184,19 @@ require __DIR__ . '/_cabecera.php';
             </div>
             <button type="submit" class="boton boton-claro">Guardar nota</button>
           </form>
+
+          <?php if ((int)$detalle['activo'] === 1): ?>
+            <form method="post" action="<?= e(url('admin/clientes.php')) ?>" style="margin-top:14px;" data-una-vez
+                  data-confirmar="¿Enviar a <?= e((string)$detalle['email']) ?> un correo para crear una contraseña nueva?">
+              <?= campoToken() ?>
+              <input type="hidden" name="accion" value="restablecer">
+              <input type="hidden" name="id" value="<?= (int)$detalle['id'] ?>">
+              <button type="submit" class="boton boton-claro">
+                <i class="fa-solid fa-key" aria-hidden="true"></i> Enviar correo para restablecer la contraseña</button>
+              <p class="ayuda" style="margin-top:6px;">Le llega un enlace y un código que caducan en
+                <?= e(CodigoCorreo::plazo(Recuperacion::MINUTOS_PANEL)) ?>. Tú no los ves: solo el cliente.</p>
+            </form>
+          <?php endif; ?>
 
           <form method="post" action="<?= e(url('admin/clientes.php')) ?>" style="margin-top:14px;"
                 data-confirmar="<?= (int)$detalle['activo']

@@ -433,6 +433,8 @@ require_once __DIR__ . '/lib/repartidores.php';
 require_once __DIR__ . '/lib/archivos.php';
 require_once __DIR__ . '/lib/paypal.php';
 require_once __DIR__ . '/lib/verificacion.php';
+require_once __DIR__ . '/lib/codigos.php';
+require_once __DIR__ . '/lib/perfil.php';
 require_once __DIR__ . '/lib/checkout.php';
 require_once __DIR__ . '/lib/analitica.php';
 require_once __DIR__ . '/lib/facturas.php';

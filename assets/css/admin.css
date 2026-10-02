@@ -764,3 +764,12 @@ dialog.modal .modal-pie {
 .ia-actividad .estado-suave { justify-self: start; }
 .ia-actividad-texto { overflow-wrap: anywhere; }
 .ia-actividad small { color: var(--p-tenue); }
+
+/* --- Ficha de cliente: foto ------------------------------------------------ */
+.cliente-cabecera { display: flex; align-items: center; gap: 14px; min-width: 0; }
+.avatar-cliente {
+  width: 48px; height: 48px; flex-shrink: 0; border-radius: 50%; overflow: hidden;
+  display: grid; place-items: center; background: var(--p-rosa-sw); color: var(--p-tinta);
+  font-weight: 700; border: 1px solid var(--p-linea);
+}
+.avatar-cliente img { width: 100%; height: 100%; object-fit: cover; display: block; }

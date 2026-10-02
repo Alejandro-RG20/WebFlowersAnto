@@ -594,6 +594,22 @@ a { color: inherit; }
 .enlaces-auth { display: flex; justify-content: space-between; gap: 12px; margin-top: 18px; font-size: .87rem; flex-wrap: wrap; }
 .enlaces-auth a { color: var(--suave); text-decoration: none; }
 .enlaces-auth a:hover { color: var(--rose-mid); text-decoration: underline; }
+.enlaces-auth form { margin: 0; }
+.btn-enlace {
+  font: inherit; color: var(--suave); background: none; border: 0; cursor: pointer;
+  padding: 6px 0; min-height: 24px; text-decoration: none;
+}
+.btn-enlace:hover { color: var(--rose-mid); text-decoration: underline; }
+.btn-enlace:focus-visible { outline: 2px solid currentColor; outline-offset: 3px; border-radius: 2px; }
+.nota-codigo { font-size: .9rem; color: var(--suave); margin: 0 0 18px; }
+/* El código se lee y se copia mejor centrado, grande y con los dígitos a la
+   misma anchura. 16 px como mínimo para que Safari no amplíe al enfocar. */
+.campo-codigo {
+  font-family: ui-monospace, SFMono-Regular, Consolas, 'Liberation Mono', monospace;
+  font-size: 1.5rem !important; letter-spacing: .35em; text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.campo-codigo::placeholder { letter-spacing: .35em; color: var(--tenue); }
 .separador-o { display: flex; align-items: center; gap: 12px; margin: 20px 0; color: var(--tenue); font-size: .82rem; }
 .separador-o::before, .separador-o::after { content: ''; flex: 1; height: 1px; background: var(--linea); }
 .btn-google {
@@ -613,9 +629,45 @@ a { color: inherit; }
 .cuenta-conectada { padding: 14px 0; border-top: 1px solid var(--linea); }
 .cuenta-conectada:first-of-type { border-top: 0; }
 .cuenta-conectada p { display: flex; align-items: center; gap: 10px; margin: 0 0 10px; }
-.cuenta-conectada .estado-suave { font-size: .78rem; font-weight: 600; padding: 3px 10px; border-radius: 50px; }
-.cuenta-conectada .estado-suave.si { background: #E3F3E6; color: #1E5E2C; }
-.cuenta-conectada .estado-suave.no { background: var(--rose-soft); color: #7A2E43; }
+.cuenta-conectada .estado-suave,
+.perfil-resumen .estado-suave { font-size: .78rem; font-weight: 600; padding: 3px 10px; border-radius: 50px; white-space: nowrap; }
+.cuenta-conectada .estado-suave.si,
+.perfil-resumen .estado-suave.si { background: #E3F3E6; color: #1E5E2C; }
+.cuenta-conectada .estado-suave.no,
+.perfil-resumen .estado-suave.no { background: var(--rose-soft); color: #7A2E43; }
+
+/* --- Perfil: foto y resumen --------------------------------------------- */
+.perfil-avatar {
+  width: 64px; height: 64px; flex-shrink: 0; border-radius: 50%; overflow: hidden;
+  display: grid; place-items: center; background: var(--rose-soft); color: var(--tinta);
+  font-weight: 700; font-size: 1.2rem; letter-spacing: .02em;
+  box-shadow: 0 0 0 3px var(--white), 0 0 0 4px var(--linea);
+}
+.perfil-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.perfil-avatar-grande { width: 96px; height: 96px; font-size: 1.8rem; }
+.perfil-resumen { display: flex; align-items: center; gap: 20px; }
+.perfil-resumen-texto { min-width: 0; }
+.perfil-resumen-texto p { margin: 0; }
+.perfil-resumen-nombre { font-family: 'Playfair Display', serif; font-size: 1.35rem; color: var(--tinta); }
+.perfil-resumen-correo {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin-top: 4px !important;
+  color: var(--suave); overflow-wrap: anywhere;
+}
+.perfil-resumen-desde { font-size: .85rem; color: var(--tenue); margin-top: 4px !important; }
+.perfil-foto-fila { display: flex; flex-wrap: wrap; align-items: center; gap: 14px 18px; }
+.perfil-foto-form { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; flex: 1 1 260px; min-width: 0; }
+.perfil-foto-form input[type="file"] { flex: 1 1 200px; min-width: 0; font-size: .9rem; }
+.texto-opcional { font-family: inherit; font-size: .8rem; font-weight: 400; color: var(--tenue); }
+.tarjeta-destacada { border: 1.5px solid var(--rose-mid); }
+.fila-codigo { display: flex; flex-wrap: wrap; gap: 10px; max-width: 420px; }
+.fila-codigo .campo-codigo {
+  flex: 1 1 160px; min-width: 0; padding: 10px 12px;
+  border: 1.5px solid var(--linea-fuerte); border-radius: 10px; background: var(--white);
+}
+@media (max-width: 480px) {
+  .perfil-resumen { gap: 14px; }
+  .perfil-avatar-grande { width: 72px; height: 72px; font-size: 1.4rem; }
+}
 .medidor-password { height: 4px; border-radius: 3px; background: var(--linea); margin-top: 8px; overflow: hidden; }
 .medidor-password span { display: block; height: 100%; width: 0; border-radius: 3px; transition: width .3s ease, background .3s ease; }
 
@@ -945,6 +997,11 @@ body:has(.aviso-cookies:not([hidden])) .whatsapp-float { bottom: 132px; }
   border-color: rgba(158, 42, 53, .28); border-top-color: var(--alerta);
 }
 .aviso-verificar-nota { font-size: .85rem; opacity: .85; }
+.aviso-verificar-codigo { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 2px; max-width: 360px; }
+.aviso-verificar-codigo .campo-codigo {
+  flex: 1 1 150px; min-width: 0; padding: 9px 12px; font-size: 1.15rem !important;
+  border: 1.5px solid var(--linea-fuerte); border-radius: 10px; background: var(--white);
+}
 
 /* -------------------------------------------------------------------
    Capa de espera
