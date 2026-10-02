@@ -1318,10 +1318,11 @@ body:has(.aviso-cookies:not([hidden])) .whatsapp-float { translate: 0 calc(-1 * 
 @media print { .asesora-flotante { display: none !important; } }
 
 /* --- Botones flotantes recogidos en las páginas de compra y de cuenta ----
-   En el móvil y la tableta, al llegar se ven un momento, toman impulso y se
-   deslizan hacia el borde derecho; entonces asoma una pestaña de cristal con
-   sus dos iconos que los vuelve a sacar. En el escritorio no estorban y se
-   quedan como siempre.
+   En el móvil y la tableta, al llegar se ven un momento; asoma una pestaña
+   de cristal en el borde derecho y los botones toman impulso y se meten
+   debajo de ella (la pestaña va por encima), donde reaparecen como sus dos
+   iconos. Al abrirla salen de debajo de la pestaña. En el escritorio no
+   estorban y se quedan como siempre.
 
    Solo se animan transform y opacity: no mueven nada de la página (no cuenta
    como salto de diseño) y el navegador lo compone sin repintar. Ocultos
@@ -1367,8 +1368,8 @@ body:has(.aviso-cookies:not([hidden])) .whatsapp-float { translate: 0 calc(-1 * 
 
 .pestana-flotantes { display: none; }
 @media (max-width: 900px) {
-  .flotantes-recogidos .whatsapp-float     { animation: flotante-recoger .7s var(--recoger) 1.1s both; }
-  .flotantes-recogidos .asesora-flotante   { animation: flotante-recoger .7s var(--recoger) 1.18s both; }
+  .flotantes-recogidos .whatsapp-float     { animation: flotante-recoger .7s var(--recoger) 1.35s both; }
+  .flotantes-recogidos .asesora-flotante   { animation: flotante-recoger .7s var(--recoger) 1.43s both; }
   /* Después del primer toque se recogen al momento, y más rápido de lo que
      salen: la salida acompaña, la entrada se luce. */
   .flotantes-recogidos.flotantes-tocado .whatsapp-float,
@@ -1384,8 +1385,8 @@ body:has(.aviso-cookies:not([hidden])) .whatsapp-float { translate: 0 calc(-1 * 
   .flotantes-recogidos.flotantes-abiertos .asesora-flotante-nombre { animation: massiel-etiqueta-abierta 4.5s ease .4s both; }
 
   .flotantes-recogidos .pestana-flotantes {
-    position: fixed; right: 0; bottom: calc(32px + env(safe-area-inset-bottom)); z-index: 997;
-    display: flex; flex-direction: column; align-items: center; gap: 4px;
+    position: fixed; right: 0; bottom: calc(32px + env(safe-area-inset-bottom)); z-index: 999;
+    display: flex; flex-direction: column; align-items: center; gap: 5px;
     padding: 8px 7px 6px 9px; cursor: pointer; overflow: hidden; isolation: isolate;
     font: inherit; color: var(--suave);
     /* Cristal claro: se distingue igual sobre la página que sobre el pie
@@ -1397,7 +1398,7 @@ body:has(.aviso-cookies:not([hidden])) .whatsapp-float { translate: 0 calc(-1 * 
     box-shadow: 0 0 0 1px rgba(74, 59, 61, .1), -12px 16px 34px -12px rgba(59, 43, 47, .5),
                 -2px 3px 8px rgba(59, 43, 47, .12), inset 1px 1px 0 rgba(255, 255, 255, .9);
     -webkit-tap-highlight-color: transparent; touch-action: manipulation; transform-origin: right center;
-    animation: pestana-entrar .7s var(--muelle) 1.6s backwards;
+    animation: pestana-entrar .7s var(--muelle) 1.2s backwards;
     transition: translate .3s ease, transform .25s var(--muelle);
   }
   @supports ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
@@ -1420,18 +1421,19 @@ body:has(.aviso-cookies:not([hidden])) .whatsapp-float { translate: 0 calc(-1 * 
   .pestana-flotantes:active { transform: scale(.94); }
   .pestana-flotantes:focus-visible { outline: 3px solid var(--rose-mid); outline-offset: 2px; }
 
-  /* Los dos iconos apilados, como avatares: el mismo orden que los botones. */
+  /* Los dos iconos, separados y en el mismo orden que los botones. Aparecen
+     justo cuando cada botón termina de meterse bajo la pestaña. */
   .pestana-flotantes-iconos {
-    display: flex; flex-direction: column; align-items: center;
+    display: flex; flex-direction: column; align-items: center; gap: 7px;
     transition: transform .45s var(--muelle), opacity .2s ease;
   }
   .pestana-icono {
     position: relative; width: 32px; height: 32px; border-radius: 50%;
     display: grid; place-items: center; color: #fff;
-    box-shadow: 0 0 0 2px #fff, 0 5px 12px -3px rgba(40, 20, 25, .35), inset 0 1px 0 rgba(255, 255, 255, .35);
-    animation: pestana-icono-entrar .55s var(--muelle) 1.95s backwards;
+    box-shadow: 0 4px 10px -3px rgba(40, 20, 25, .35), inset 0 1px 0 rgba(255, 255, 255, .35);
+    animation: pestana-icono-entrar .55s var(--muelle) 1.85s backwards;
   }
-  .pestana-icono + .pestana-icono { margin-top: -5px; animation-delay: 2.04s; }
+  .pestana-icono + .pestana-icono { animation-delay: 1.93s; }
   .pestana-icono-asesora { background: linear-gradient(145deg, #E07A98 0%, #C24D72 55%, #8A2E45 100%); }
   .pestana-icono-asesora .icono-trazo { stroke-width: 2.3; }
   .pestana-icono-wa { background: linear-gradient(150deg, #5DEB92 0%, #25D366 45%, #128C4B 100%); }

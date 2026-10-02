@@ -782,9 +782,9 @@ todo funciona como antes.
 - En portada, categorías y ficha de producto WhatsApp y Massiel siguen
   como antes.
 - En carrito, pago, pedido, comprobante, seguimiento, factura y Mi cuenta
-  (móvil y tableta, hasta 900 px) se recogen hacia el borde derecho y asoma
-  una **pestaña de cristal** con los iconos de Massiel y WhatsApp apilados y
-  un destello al llegar. Al tocarla salen con una curva de muelle, Massiel
+  (móvil y tableta, hasta 900 px) asoma una **pestaña de cristal** en el
+  borde derecho y los botones se meten debajo de ella, donde reaparecen como
+  sus dos iconos (separados, en el mismo orden), con un destello al llegar. Al tocarla salen con una curva de muelle, Massiel
   vuelve a presentarse y la pestaña muestra una X; un toque fuera, la X o
   Escape los guardan. Solo se animan `transform` y `opacity`: sin saltos de
   diseño; con «reducir movimiento» no hay animación. En el escritorio no
