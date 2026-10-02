@@ -10,6 +10,12 @@ $seccion = $seccionCuenta ?? '';
     <i class="fa-solid fa-id-card" aria-hidden="true"></i> Mis datos</a>
   <a href="<?= e(url('cuenta/direcciones.php')) ?>" class="<?= $seccion === 'direcciones' ? 'activo' : '' ?>">
     <i class="fa-solid fa-location-dot" aria-hidden="true"></i> Mis direcciones</a>
+  <?php if (Avisos::disponible($pdo)):
+      $nuevosMenu = Avisos::noLeidos($pdo, (int)Auth::id()); ?>
+    <a href="<?= e(url('cuenta/avisos.php')) ?>" class="<?= $seccion === 'avisos' ? 'activo' : '' ?>">
+      <i class="fa-solid fa-bell" aria-hidden="true"></i> Mis avisos
+      <?php if ($nuevosMenu > 0): ?><span class="menu-cuenta-cifra"><?= $nuevosMenu ?></span><?php endif; ?></a>
+  <?php endif; ?>
   <a href="<?= e(url('favoritos.php')) ?>">
     <i class="fa-regular fa-heart" aria-hidden="true"></i> Favoritos</a>
   <a href="<?= e(url('carrito.php')) ?>">

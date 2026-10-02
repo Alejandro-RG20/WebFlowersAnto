@@ -3,7 +3,7 @@
  * License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License)
  * Copyright 2023 Fonticons, Inc.
  *
- * Solo los 111 iconos que usa la tienda. Archivo generado por
+ * Solo los 115 iconos que usa la tienda. Archivo generado por
  * herramientas/generar-iconos.py: no se edita a mano.
  */
 @font-face{font-family:"Font Awesome 6 Free";font-style:normal;font-weight:900;font-display:block;src:url("../fonts/fa-solid-900.woff2") format("woff2")}
@@ -22,12 +22,14 @@
 .fa-ban::before{content:"\f05e"}
 .fa-bars::before{content:"\f0c9"}
 .fa-basketball::before{content:"\f434"}
+.fa-bell::before{content:"\f0f3"}
 .fa-box::before{content:"\f466"}
 .fa-box-open::before{content:"\f49e"}
 .fa-broom::before{content:"\f51a"}
 .fa-bug::before{content:"\f188"}
 .fa-building-columns::before{content:"\f19c"}
 .fa-bullhorn::before{content:"\f0a1"}
+.fa-cake-candles::before{content:"\f1fd"}
 .fa-calendar::before{content:"\f133"}
 .fa-calendar-day::before{content:"\f783"}
 .fa-cart-plus::before{content:"\f217"}
@@ -65,6 +67,7 @@
 .fa-futbol::before{content:"\f1e3"}
 .fa-gauge::before{content:"\f624"}
 .fa-ghost::before{content:"\f6e2"}
+.fa-gift::before{content:"\f06b"}
 .fa-hand-holding-heart::before{content:"\f4be"}
 .fa-hashtag::before{content:"\23"}
 .fa-heart::before{content:"\f004"}
@@ -74,6 +77,7 @@
 .fa-images::before{content:"\f302"}
 .fa-instagram::before{content:"\f16d"}
 .fa-key::before{content:"\f084"}
+.fa-lightbulb::before{content:"\f0eb"}
 .fa-link-slash::before{content:"\f127"}
 .fa-location-dot::before{content:"\f3c5"}
 .fa-lock::before{content:"\f023"}

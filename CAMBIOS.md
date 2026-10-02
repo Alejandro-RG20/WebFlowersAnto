@@ -721,7 +721,7 @@ sitio en `https://www.flowersanto.com`.
   Ajustes, sin WhatsApp ni teléfono.
 
 ### Rendimiento
-- **Iconos propios**: de Font Awesome solo los 111 iconos usados, servidos
+- **Iconos propios**: de Font Awesome solo los iconos usados (115 hoy), servidos
   desde el dominio (de ~400 KB y una conexión a cdnjs a ~20 KB). Si se usa un
   icono nuevo: `python3 herramientas/generar-iconos.py` (instrucciones dentro).
 - **Fotos**: `archivo.php` ya no guarda un año el original pesado cuando la
@@ -745,3 +745,53 @@ todo funciona como antes.
 3. Panel → Respaldos → «Preparar fotos ahora» (repetir hasta que diga que
    están todas).
 4. Vaciar la caché del CDN de Hostinger.
+
+---
+
+## 18. Avisos al cliente, cumpleaños con cupón y botones flotantes (FlowersAntoProduccion.02)
+
+### Avisos desde la ficha del cliente
+- **Clientes → ficha → Avisos al cliente**: se le escribe un aviso, una
+  sugerencia o una advertencia (por ejemplo, por pedidos sin pagar). Se
+  guarda en su cuenta y, si se marca, también le llega por correo.
+- Debajo queda el **historial**: quién lo envió, cuándo, si ya lo leyó y si
+  el correo salió.
+- El cliente ve un contador en su botón de usuario, una franja «Tienes N
+  avisos nuevos» y la página **Mi cuenta → Mis avisos**; al abrirla pasan a
+  leídos.
+- Límites contra abusos o errores: 10 avisos por cliente al día y 40 por
+  administrador a la hora. Todo queda en la auditoría (`enviar_aviso`).
+
+### Cumpleaños
+- El **Resumen** del panel muestra quién cumple años hoy o en los próximos
+  7 días (el 29 de febrero se celebra el 28 en años no bisiestos) y si ya
+  se le felicitó este año.
+- En la ficha aparece una banda «Cumple años hoy / mañana / en N días» con
+  el botón **Felicitar y regalar un cupón**, que abre un cuadro con el
+  mensaje ya escrito, el cupón base y la vigencia (7, 15 o 30 días).
+- El cupón base se elige de los cupones existentes (activos, vigentes y con
+  usos libres). Con él se crea un **cupón personal** `CUMPLE-XXXXXX` con el
+  mismo descuento y mínimo, de **un solo uso** y que **solo puede canjear
+  ese cliente** con su sesión iniciada; para cualquier otro responde «no
+  existe», sin revelar que es de otra persona. En **Cupones** se marca como
+  «Personal» con enlace a la ficha. Regalar cupones requiere el permiso
+  `cupones.gestionar`.
+
+### Botones flotantes en móvil
+- En portada, categorías y ficha de producto WhatsApp y Massiel siguen
+  como antes.
+- En carrito, pago, pedido, comprobante, seguimiento, factura y Mi cuenta se
+  recogen hacia el borde derecho con una animación y queda una **pestaña**
+  que los vuelve a sacar (y Escape o un segundo toque los guarda). Solo se
+  animan `transform` y `opacity`: sin saltos de diseño; con «reducir
+  movimiento» no hay animación.
+
+### Base de datos
+Migración `025_avisos_y_cupones_personales`: columna `cupones.usuario_id`
+(con índice y clave foránea) y tabla `notificaciones`. Solo añade; sin ella
+la tienda funciona como antes y el apartado de avisos no se muestra.
+
+### Al subirlo a Hostinger
+1. Subir los archivos.
+2. Panel → Base de datos → aplicar la migración 025.
+3. Vaciar la caché del CDN de Hostinger.

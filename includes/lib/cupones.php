@@ -88,6 +88,14 @@ final class Cupones
             return $no('Ese cupón no existe o ya no está disponible.');
         }
 
+        // Un cupón personal (el regalo de cumpleaños, por ejemplo) solo vale
+        // para su dueño y con la sesión iniciada. A cualquier otro se le dice
+        // lo mismo que si no existiera: así el código no sirve a quien se lo
+        // pasen ni confirma que es válido.
+        if (!empty($cupon['usuario_id']) && (int)$cupon['usuario_id'] !== (int)$usuarioId) {
+            return $no('Ese cupón no existe o ya no está disponible.');
+        }
+
         $hoy = date('Y-m-d');
         if ($cupon['fecha_inicio'] && $cupon['fecha_inicio'] > $hoy) {
             return $no('Ese cupón todavía no está vigente.');

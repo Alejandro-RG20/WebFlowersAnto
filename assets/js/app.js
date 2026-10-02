@@ -868,6 +868,25 @@
     });
   }
 
+  // Pestaña de los botones flotantes en las páginas de compra y de cuenta.
+  const pestana = $('#pestanaFlotantes');
+  if (pestana) {
+    const etiquetaBase = pestana.getAttribute('aria-label').replace(/^Mostrar /, '');
+    const ponerAbierto = (abierto) => {
+      document.body.classList.toggle('flotantes-abiertos', abierto);
+      document.body.classList.add('flotantes-tocado');
+      pestana.setAttribute('aria-expanded', String(abierto));
+      pestana.setAttribute('aria-label', (abierto ? 'Ocultar ' : 'Mostrar ') + etiquetaBase);
+    };
+    pestana.addEventListener('click', () => ponerAbierto(!document.body.classList.contains('flotantes-abiertos')));
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && document.body.classList.contains('flotantes-abiertos')) {
+        ponerAbierto(false);
+        pestana.focus();
+      }
+    });
+  }
+
   // Enlace del pie para cambiar de opinión más tarde.
   $$('[data-abrir-cookies]').forEach((enlace) => {
     enlace.addEventListener('click', (ev) => {

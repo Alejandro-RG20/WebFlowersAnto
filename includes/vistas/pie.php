@@ -140,6 +140,20 @@ $devUrl    = Ajustes::texto('dev_url');
 </button>
 <?php endif; ?>
 
+<?php if (flotantes_recogidos()): ?>
+<?php // Pestaña lateral: en las páginas de compra y de cuenta los botones
+      // flotantes se recogen aquí y salen de nuevo con un toque. ?>
+<button type="button" class="pestana-flotantes" id="pestanaFlotantes" aria-expanded="false"
+        aria-label="Mostrar WhatsApp<?= !empty($asesoraActiva) ? ' y Massiel' : '' ?>">
+  <span class="pestana-flotantes-puntos" aria-hidden="true">
+    <span class="punto-wa"></span><?php if (!empty($asesoraActiva)): ?><span class="punto-asesora"></span><?php endif; ?>
+  </span>
+  <svg class="pestana-flotantes-flecha" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">
+    <path d="M15 5 8 12l7 7" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+  </svg>
+</button>
+<?php endif; ?>
+
 <?php if (!empty($temaTemporada['estilo'])): ?>
 <!-- Formas de la temporada. Solo van las que usa el estilo vigente. -->
 <svg width="0" height="0" aria-hidden="true" focusable="false"

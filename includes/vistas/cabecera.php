@@ -28,6 +28,9 @@ $imagenOg    = $imagenOg    ?? Ajustes::texto('og_imagen', Ajustes::texto('hero_
 // incluye la subcarpeta del sitio y no la vuelve a anteponer.
 $urlCanonica = $urlCanonica ?? url_absoluta((string)parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH));
 $cuerpoClase = $cuerpoClase ?? '';
+if (flotantes_recogidos()) {
+    $cuerpoClase = trim($cuerpoClase . ' flotantes-recogidos');
+}
 
 // Tema de la temporada vigente. Se resuelve aquí, en la cabecera, para que el
 // color llegue a TODAS las páginas: antes solo se aplicaba al fondo de la tira
@@ -236,9 +239,10 @@ $waGeneral = enlace_whatsapp(
 
       <?php if (Auth::autenticado()): ?>
         <div class="menu-usuario">
-          <?php $fotoNav = FotoPerfil::url(Auth::usuario()); ?>
+          <?php $fotoNav = FotoPerfil::url(Auth::usuario());
+                $avisosNuevos = Avisos::noLeidos($pdo, (int)Auth::id()); ?>
           <button type="button" class="icon-btn" id="btnUsuario" aria-haspopup="true" aria-expanded="false"
-                  aria-label="Menú de <?= e(Auth::nombreCompleto()) ?>">
+                  aria-label="Menú de <?= e(Auth::nombreCompleto()) ?><?= $avisosNuevos ? ' (' . $avisosNuevos . ' ' . ($avisosNuevos === 1 ? 'aviso nuevo' : 'avisos nuevos') . ')' : '' ?>">
             <span class="avatar-nav" aria-hidden="true">
               <?php if ($fotoNav !== ''): ?>
                 <img src="<?= e($fotoNav) ?>" alt="" width="30" height="30" decoding="async">
@@ -246,11 +250,18 @@ $waGeneral = enlace_whatsapp(
                 <?= e(FotoPerfil::iniciales(Auth::usuario())) ?>
               <?php endif; ?>
             </span>
+            <?php if ($avisosNuevos > 0): ?>
+              <span class="icon-count" aria-hidden="true"><?= $avisosNuevos > 9 ? '9+' : $avisosNuevos ?></span>
+            <?php endif; ?>
           </button>
           <div class="menu-usuario-lista" id="menuUsuario" hidden>
             <p class="menu-usuario-nombre"><?= e(Auth::nombreCompleto()) ?><span><?= e((string)($usuario['email'] ?? '')) ?></span></p>
             <a href="<?= e(url('cuenta/pedidos.php')) ?>"><i class="fa-solid fa-box" aria-hidden="true"></i> Mis pedidos</a>
             <a href="<?= e(url('cuenta/perfil.php')) ?>"><i class="fa-solid fa-id-card" aria-hidden="true"></i> Mis datos</a>
+            <?php if (Avisos::disponible($pdo)): ?>
+              <a href="<?= e(url('cuenta/avisos.php')) ?>"><i class="fa-solid fa-bell" aria-hidden="true"></i> Mis avisos
+                <?php if ($avisosNuevos > 0): ?><span class="menu-cuenta-cifra"><?= $avisosNuevos ?></span><?php endif; ?></a>
+            <?php endif; ?>
             <a href="<?= e(url('favoritos.php')) ?>"><i class="fa-regular fa-heart" aria-hidden="true"></i> Favoritos</a>
             <?php if (Auth::esPersonal()): ?>
               <a href="<?= e(url('admin/')) ?>"><i class="fa-solid fa-gauge" aria-hidden="true"></i> Panel</a>
@@ -282,6 +293,16 @@ $waGeneral = enlace_whatsapp(
     <i class="fa-solid <?= $mensajeFlash['tipo'] === 'error' ? 'fa-circle-exclamation'
         : ($mensajeFlash['tipo'] === 'exito' ? 'fa-circle-check' : 'fa-circle-info') ?>" aria-hidden="true"></i>
     <span><?= e((string)$mensajeFlash['mensaje']) ?></span>
+  </div>
+</div>
+<?php endif; ?>
+
+<?php if (!empty($avisosNuevos) && ($seccionCuenta ?? '') !== 'avisos'): ?>
+<div class="aviso-global aviso-info franja-avisos" role="status">
+  <div class="container">
+    <i class="fa-solid fa-bell" aria-hidden="true"></i>
+    <span><?= $avisosNuevos === 1 ? 'Tienes un aviso nuevo de la tienda.' : 'Tienes ' . (int)$avisosNuevos . ' avisos nuevos de la tienda.' ?>
+      <a href="<?= e(url('cuenta/avisos.php')) ?>">Verlos</a></span>
   </div>
 </div>
 <?php endif; ?>

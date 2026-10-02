@@ -489,3 +489,22 @@ function enlace_whatsapp(string $mensaje, ?string $numero = null): string
     }
     return 'https://wa.me/' . $numero . '?text=' . rawurlencode($mensaje);
 }
+
+/**
+ * ¿Van recogidos los botones flotantes (WhatsApp y Massiel) en esta página?
+ *
+ * Mientras alguien mira arreglos ayudan; cuando ya está comprando o en su
+ * cuenta estorban: tapan el botón de pagar o el campo que está rellenando.
+ * Ahí se esconden en una pestaña lateral que los vuelve a sacar con un toque.
+ * Una página puede decidirlo ella misma con `$flotantesRecogidos`.
+ */
+function flotantes_recogidos(): bool
+{
+    if (isset($GLOBALS['flotantesRecogidos'])) {
+        return (bool)$GLOBALS['flotantesRecogidos'];
+    }
+    $script = str_replace('\\', '/', (string)($_SERVER['SCRIPT_NAME'] ?? ''));
+    return in_array(basename($script), ['carrito.php', 'checkout.php', 'pedido.php', 'comprobante.php',
+                                       'seguimiento.php', 'factura.php'], true)
+        || str_contains($script, '/cuenta/');
+}

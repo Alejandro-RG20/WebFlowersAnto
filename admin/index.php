@@ -68,6 +68,7 @@ $ventas      = $verPedidos ? Estadisticas::ventas($pdo, $periodo) : null;
 $nuevos      = $verClientes ? Estadisticas::clientesNuevos($pdo, $periodo) : null;
 $masVendidos = $verPedidos ? Estadisticas::masVendidos($pdo, $periodo) : [];
 $porEstado   = $verPedidos ? Estadisticas::porEstado($pdo, $periodo) : [];
+$cumpleaneros = $verClientes ? Avisos::cumpleaneros($pdo) : [];
 
 $ticket = static fn(array $p): float => $p['aprobados'] > 0 ? $p['cobrado'] / $p['aprobados'] : 0.0;
 
@@ -424,6 +425,34 @@ require __DIR__ . '/_cabecera.php';
   </div>
 
   <div>
+    <?php if ($cumpleaneros): ?>
+      <section class="panel">
+        <div class="panel-cabecera"><div>
+          <h2><i class="fa-solid fa-cake-candles" aria-hidden="true" style="color:var(--p-rosa)"></i> Cumpleaños</h2>
+          <p>Clientes que cumplen años hoy o en los próximos <?= Avisos::DIAS_AVISO ?> días.</p>
+        </div></div>
+        <div class="panel-cuerpo">
+          <?php foreach ($cumpleaneros as $c): ?>
+            <div class="linea-articulo">
+              <span class="avatar-cliente" aria-hidden="true">
+                <?php if (($fc = FotoPerfil::url($c, true)) !== ''): ?>
+                  <img src="<?= e($fc) ?>" alt="" width="48" height="48" loading="lazy">
+                <?php else: ?><?= e(FotoPerfil::iniciales($c)) ?><?php endif; ?>
+              </span>
+              <div class="linea-articulo-datos">
+                <strong><?= e(trim($c['nombre'] . ' ' . $c['apellido'])) ?></strong>
+                <small><?= $c['dias'] === 0 ? 'Hoy' : ($c['dias'] === 1 ? 'Mañana' : 'En ' . (int)$c['dias'] . ' días') ?>
+                  · <?= e(date('d/m', strtotime(date('Y') . substr((string)$c['fecha_nacimiento'], 4)))) ?>
+                  <?= $c['felicitado'] ? ' · Ya felicitado' : '' ?></small>
+              </div>
+              <a class="boton <?= $c['dias'] === 0 && !$c['felicitado'] ? 'boton-principal' : 'boton-claro' ?> boton-mini"
+                 href="<?= e(url('admin/clientes.php?ver=' . (int)$c['id'])) ?>"><?= $c['felicitado'] ? 'Ver ficha' : 'Felicitar' ?></a>
+            </div>
+          <?php endforeach; ?>
+        </div>
+      </section>
+    <?php endif; ?>
+
     <?php if ($porEstado): ?>
       <section class="panel">
         <div class="panel-cabecera"><div>

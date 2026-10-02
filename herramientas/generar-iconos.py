@@ -64,7 +64,8 @@ def usados() -> set:
                 continue
             texto = ruta.read_text(encoding='utf-8', errors='ignore')
             nombres.update(re.findall(r'\bfa-[a-z0-9]+(?:-[a-z0-9]+)*', texto))
-    return {n for n in nombres if n not in NO_SON_ICONOS and not re.fullmatch(r'fa-\d+x|fa-(lg|sm|xs|fw|spin)', n)}
+    return {n for n in nombres if n not in NO_SON_ICONOS
+            and not re.fullmatch(r'fa-\d+x|fa-(lg|sm|xs|fw|spin)|fa-(solid|regular|brands)-\d+', n)}
 
 
 def caracteres(hoja: str) -> dict:

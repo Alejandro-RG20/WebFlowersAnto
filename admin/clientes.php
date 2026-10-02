@@ -27,7 +27,52 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         redirigir('admin/clientes.php');
     }
 
-    switch (opcion('accion', ['activar', 'notas', 'restablecer'], '')) {
+    switch (opcion('accion', ['activar', 'notas', 'restablecer', 'aviso', 'felicitar'], '')) {
+        case 'aviso':
+        case 'felicitar':
+            if ((int)$cliente['activo'] !== 1) {
+                flash('error', 'La cuenta está desactivada: reactívala antes de mandarle avisos.');
+                break;
+            }
+            $felicitar = ($_POST['accion'] ?? '') === 'felicitar';
+            $tipo      = $felicitar ? 'cumpleanos'
+                       : opcion('tipo', ['aviso', 'sugerencia', 'advertencia'], 'aviso');
+
+            // El cupón de regalo es crear un cupón nuevo: hace falta el permiso
+            // de cupones, y la plantilla tiene que ser una de las que se pueden
+            // regalar (activa, vigente, sin dueño), no cualquier id del POST.
+            $plantilla = null;
+            $idBase    = $felicitar ? identificador('cupon_base') : 0;
+            if ($idBase > 0) {
+                Rbac::exigir('cupones.gestionar');
+                foreach (Avisos::plantillasCupon($pdo) as $c) {
+                    if ((int)$c['id'] === $idBase) {
+                        $plantilla = $c;
+                        break;
+                    }
+                }
+                if ($plantilla === null) {
+                    flash('error', 'Ese cupón ya no se puede regalar. Elige otro.');
+                    break;
+                }
+            }
+
+            $r = Avisos::enviar($pdo, $cliente, $tipo, texto('titulo', 120), textoLargo('mensaje', 2000),
+                casilla('por_correo') === 1, $plantilla, entero('vigencia', 1, 90, 15));
+            if (!$r['ok']) {
+                flash('error', $r['error']);
+                break;
+            }
+            $partes = [$felicitar ? 'Felicitación enviada.' : 'Aviso enviado.'];
+            if ($r['cupon'] !== '') {
+                $partes[] = 'Cupón ' . $r['cupon'] . ' creado: solo lo puede usar este cliente, una vez.';
+            }
+            $partes[] = casilla('por_correo') === 1
+                ? ($r['correo'] ? 'También le llegó por correo.' : 'No se pudo enviar el correo; lo verá en su cuenta.')
+                : 'Lo verá en «Mis avisos» al entrar a su cuenta.';
+            flash($r['correo'] || casilla('por_correo') !== 1 ? 'exito' : 'alerta', implode(' ', $partes));
+            break;
+
         case 'restablecer':
             // El panel nunca ve ni el enlace ni el código: van solo al correo
             // del cliente. Así nadie del equipo puede entrar en una cuenta.
@@ -123,6 +168,11 @@ if ($verId > 0) {
         $detalle['pedidos'] = Pedidos::deUsuario($pdo, $verId, 20);
     }
 }
+$conAvisos     = $detalle !== null && Avisos::disponible($pdo);
+$avisosCliente = $conAvisos ? Avisos::deUsuario($pdo, (int)$detalle['id'], 15) : [];
+$diasCumple    = $conAvisos ? Avisos::diasParaCumple($detalle['fecha_nacimiento'] ?? null) : null;
+$felicitado    = ($conAvisos && $diasCumple !== null) ? Avisos::felicitadoEsteAnio($pdo, (int)$detalle['id']) : null;
+$plantillas    = ($conAvisos && Rbac::puede('cupones.gestionar')) ? Avisos::plantillasCupon($pdo) : [];
 
 $tituloPanel    = 'Clientes';
 $subtituloPanel = $total . ' ' . ($total === 1 ? 'cuenta de cliente' : 'cuentas de cliente');
@@ -133,6 +183,23 @@ require __DIR__ . '/_cabecera.php';
 <?php if ($detalle): ?>
   <a class="boton boton-claro boton-mini" href="<?= e(url('admin/clientes.php')) ?>" style="margin-bottom:16px;">
     <i class="fa-solid fa-arrow-left" aria-hidden="true"></i> Volver a la lista</a>
+
+  <?php if ($diasCumple !== null && $diasCumple <= Avisos::DIAS_AVISO): ?>
+    <div class="cumple-banda">
+      <span class="cumple-icono" aria-hidden="true"><i class="fa-solid fa-cake-candles"></i></span>
+      <div class="cumple-texto">
+        <strong><?= $diasCumple === 0 ? '¡Hoy es su cumpleaños!'
+            : 'Cumple años ' . ($diasCumple === 1 ? 'mañana' : 'en ' . $diasCumple . ' días') ?></strong>
+        <span><?= e(fecha_corta(date('Y') . substr((string)$detalle['fecha_nacimiento'], 4))) ?>
+          <?= $felicitado ? ' · Ya lo felicitaste el ' . e(date('d/m', strtotime($felicitado))) . '.' : '' ?></span>
+      </div>
+      <?php if (Rbac::puede('clientes.editar') && (int)$detalle['activo'] === 1): ?>
+        <button type="button" class="boton boton-principal" data-abrir-modal="modalCumple">
+          <i class="fa-solid fa-gift" aria-hidden="true"></i>
+          <?= $felicitado ? 'Felicitar otra vez' : 'Felicitar y regalar un cupón' ?></button>
+      <?php endif; ?>
+    </div>
+  <?php endif; ?>
 
   <div class="rejilla-detalle">
     <section class="panel">
@@ -243,6 +310,144 @@ require __DIR__ . '/_cabecera.php';
       <?php endif; ?>
     </section>
   </div>
+
+  <?php if ($conAvisos): ?>
+    <section class="panel" id="avisos">
+      <div class="panel-cabecera"><div>
+        <h2>Avisos al cliente</h2>
+        <p>Lo ve en «Mis avisos» al entrar a su cuenta y, si lo marcas, también le llega por correo.
+           Es texto: no admite enlaces ni formato.</p>
+      </div></div>
+      <div class="panel-cuerpo avisos-rejilla">
+        <?php if (Rbac::puede('clientes.editar') && (int)$detalle['activo'] === 1): ?>
+          <form method="post" action="<?= e(url('admin/clientes.php')) ?>#avisos" class="avisos-formulario" data-una-vez>
+            <?= campoToken() ?>
+            <input type="hidden" name="accion" value="aviso">
+            <input type="hidden" name="id" value="<?= (int)$detalle['id'] ?>">
+            <div class="campo">
+              <label for="av_tipo">Tipo</label>
+              <select id="av_tipo" name="tipo">
+                <option value="aviso">Aviso</option>
+                <option value="sugerencia">Sugerencia</option>
+                <option value="advertencia">Advertencia</option>
+              </select>
+            </div>
+            <div class="campo">
+              <label for="av_titulo">Título</label>
+              <input type="text" id="av_titulo" name="titulo" required minlength="3" maxlength="120"
+                     placeholder="Tu pedido del viernes">
+            </div>
+            <div class="campo">
+              <label for="av_mensaje">Mensaje</label>
+              <textarea id="av_mensaje" name="mensaje" required minlength="3" maxlength="2000" rows="5"
+                        placeholder="Escribe lo que quieras decirle…"></textarea>
+            </div>
+            <div class="interruptor">
+              <input type="checkbox" id="av_correo" name="por_correo" value="1" checked>
+              <label for="av_correo">Enviárselo también por correo</label>
+            </div>
+            <button type="submit" class="boton boton-principal">
+              <i class="fa-solid fa-paper-plane" aria-hidden="true"></i> Enviar aviso</button>
+          </form>
+        <?php endif; ?>
+
+        <div class="avisos-historial">
+          <p class="etiqueta">Enviados</p>
+          <?php if (!$avisosCliente): ?>
+            <p class="celda-sub">Todavía no se le ha enviado ningún aviso.</p>
+          <?php else: ?>
+            <ul class="lista-avisos">
+              <?php foreach ($avisosCliente as $a):
+                  [$nombreTipo, $iconoTipo] = Avisos::TIPOS[$a['tipo']] ?? Avisos::TIPOS['aviso']; ?>
+                <li class="aviso-item tipo-<?= e((string)$a['tipo']) ?>">
+                  <span class="aviso-icono" aria-hidden="true"><i class="fa-solid <?= e($iconoTipo) ?>"></i></span>
+                  <div class="aviso-cuerpo">
+                    <p class="aviso-titulo"><strong><?= e((string)$a['titulo']) ?></strong>
+                      <span class="aviso-tipo"><?= e($nombreTipo) ?></span></p>
+                    <p class="aviso-texto"><?= nl2br(e((string)$a['mensaje'])) ?></p>
+                    <?php if (!empty($a['cupon_codigo'])):
+                        $estadoCupon = Avisos::estadoCupon($a); ?>
+                      <p class="aviso-cupon">Cupón <code><?= e((string)$a['cupon_codigo']) ?></code>
+                        <span class="estado-suave <?= $estadoCupon === 'disponible' ? 'si' : ($estadoCupon === 'usado' ? 'aviso' : 'no') ?>">
+                          <?= e(['disponible' => 'Sin usar', 'usado' => 'Usado', 'vencido' => 'Vencido', 'anulado' => 'Desactivado'][$estadoCupon]) ?></span></p>
+                    <?php endif; ?>
+                    <p class="celda-sub">
+                      <?= e(fecha_larga((string)$a['created_at'])) ?>
+                      <?= $a['autor'] ? ' · ' . e((string)$a['autor']) : '' ?>
+                      · <?= $a['leida_en'] ? 'Leído' : 'Sin leer' ?>
+                      <?= (int)$a['por_correo'] ? ' · ' . ((int)$a['correo_enviado'] ? 'Enviado por correo' : 'El correo no salió') : '' ?>
+                    </p>
+                  </div>
+                </li>
+              <?php endforeach; ?>
+            </ul>
+          <?php endif; ?>
+        </div>
+      </div>
+    </section>
+
+    <?php if ($diasCumple !== null && Rbac::puede('clientes.editar') && (int)$detalle['activo'] === 1): ?>
+      <dialog class="modal" id="modalCumple">
+        <form method="post" action="<?= e(url('admin/clientes.php')) ?>#avisos" data-una-vez>
+          <?= campoToken() ?>
+          <input type="hidden" name="accion" value="felicitar">
+          <input type="hidden" name="id" value="<?= (int)$detalle['id'] ?>">
+          <div class="modal-cabecera"><h2><i class="fa-solid fa-cake-candles" aria-hidden="true"></i>
+            Felicitar a <?= e((string)$detalle['nombre']) ?></h2></div>
+          <div class="modal-cuerpo">
+            <div class="campo">
+              <label for="fc_titulo">Título</label>
+              <input type="text" id="fc_titulo" name="titulo" required minlength="3" maxlength="120"
+                     value="<?= e('¡Feliz cumpleaños, ' . $detalle['nombre'] . '!') ?>">
+            </div>
+            <div class="campo">
+              <label for="fc_mensaje">Mensaje</label>
+              <textarea id="fc_mensaje" name="mensaje" required minlength="3" maxlength="2000" rows="5"><?= e(
+                  'En ' . Ajustes::texto('nombre_tienda', 'Flowers Anto') . ' te deseamos un día precioso. '
+                . 'Gracias por elegirnos para tus momentos especiales: hoy el regalo te lo hacemos nosotros.') ?></textarea>
+            </div>
+            <?php if (Rbac::puede('cupones.gestionar')): ?>
+              <div class="rejilla-campos dos">
+                <div class="campo">
+                  <label for="fc_cupon">Regalarle un cupón</label>
+                  <select id="fc_cupon" name="cupon_base">
+                    <option value="0">Sin cupón</option>
+                    <?php foreach ($plantillas as $c): ?>
+                      <option value="<?= (int)$c['id'] ?>"><?= e($c['codigo'] . ' · ' . Cupones::resumen($c)
+                          . ((float)$c['compra_minima'] > 0 ? ' desde ' . dinero($c['compra_minima']) : '')) ?></option>
+                    <?php endforeach; ?>
+                  </select>
+                  <p class="ayuda">Se crea un cupón nuevo con ese mismo descuento, de un solo uso y que solo
+                    puede usar <?= e((string)$detalle['nombre']) ?> con su cuenta. El original no cambia.</p>
+                </div>
+                <div class="campo">
+                  <label for="fc_vigencia">Válido durante</label>
+                  <select id="fc_vigencia" name="vigencia">
+                    <?php foreach (Avisos::VIGENCIAS as $d): ?>
+                      <option value="<?= $d ?>"<?= $d === 15 ? ' selected' : '' ?>><?= $d ?> días</option>
+                    <?php endforeach; ?>
+                  </select>
+                </div>
+              </div>
+              <?php if (!$plantillas): ?>
+                <p class="ayuda">No hay cupones activos para usar de base. Crea uno en
+                  <a href="<?= e(url('admin/cupones.php')) ?>">Cupones</a>.</p>
+              <?php endif; ?>
+            <?php endif; ?>
+            <div class="interruptor">
+              <input type="checkbox" id="fc_correo" name="por_correo" value="1" checked>
+              <label for="fc_correo">Enviárselo también por correo</label>
+            </div>
+          </div>
+          <div class="modal-pie">
+            <button type="button" class="boton boton-claro" data-cerrar-modal>Cancelar</button>
+            <button type="submit" class="boton boton-principal"><i class="fa-solid fa-gift" aria-hidden="true"></i>
+              Enviar felicitación</button>
+          </div>
+        </form>
+      </dialog>
+    <?php endif; ?>
+  <?php endif; ?>
 
 <?php else: ?>
   <section class="panel">

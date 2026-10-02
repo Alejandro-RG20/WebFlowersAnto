@@ -869,3 +869,41 @@ dialog.modal .modal-pie {
 
 /* Botón de texto largo: en el móvil se parte en dos líneas en vez de salirse. */
 .boton.boton-multilinea { white-space: normal; text-align: left; max-width: 100%; }
+
+/* --- Ficha de cliente: cumpleaños y avisos --------------------------------- */
+.cumple-banda {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; margin-bottom: 18px;
+  padding: 14px 18px; border-radius: var(--p-radio);
+  background: linear-gradient(120deg, var(--p-rosa-sw), #FFF7EC); border: 1px solid #F1D6DE;
+}
+.cumple-icono {
+  width: 42px; height: 42px; border-radius: 50%; display: grid; place-items: center; flex-shrink: 0;
+  background: var(--p-papel); color: var(--p-rosa); font-size: 1.15rem; box-shadow: var(--p-sombra);
+}
+.cumple-texto { flex: 1 1 220px; min-width: 0; display: grid; gap: 2px; }
+.cumple-texto strong { font-size: .98rem; }
+.cumple-texto span { font-size: .84rem; color: var(--p-suave); }
+
+.avisos-rejilla { display: grid; gap: 24px; }
+@media (min-width: 1000px) { .avisos-rejilla { grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); } }
+.avisos-formulario { display: grid; gap: 4px; align-content: start; }
+.avisos-formulario .boton { justify-self: start; }
+.avisos-historial { min-width: 0; }
+.avisos-historial .etiqueta { margin: 0 0 10px; }
+.lista-avisos { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; max-height: 520px; overflow-y: auto; }
+.aviso-item { display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 12px; padding: 12px 14px;
+  border: 1px solid var(--p-linea); border-radius: 10px; background: var(--p-papel); }
+.aviso-icono { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--p-info-bg); color: var(--p-info); }
+.aviso-item.tipo-sugerencia  .aviso-icono { background: var(--p-aviso-bg);  color: var(--p-aviso); }
+.aviso-item.tipo-advertencia .aviso-icono { background: var(--p-alerta-bg); color: var(--p-alerta); }
+.aviso-item.tipo-cumpleanos  .aviso-icono { background: var(--p-rosa-sw);   color: var(--p-rosa); }
+.aviso-cuerpo { min-width: 0; display: grid; gap: 4px; }
+.aviso-cuerpo p { margin: 0; }
+.aviso-titulo { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; }
+.aviso-tipo { font-size: .74rem; color: var(--p-tenue); }
+.aviso-texto { font-size: .88rem; color: var(--p-suave); overflow-wrap: anywhere; }
+.aviso-cupon { font-size: .84rem; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.aviso-cupon code { font-weight: 700; letter-spacing: .04em; background: var(--p-fondo); padding: 2px 7px; border-radius: 6px; }
+.linea-articulo .avatar-cliente { width: 40px; height: 40px; font-size: .82rem; }
+.linea-articulo .avatar-cliente img { width: 100%; height: 100%; border-radius: 0; }

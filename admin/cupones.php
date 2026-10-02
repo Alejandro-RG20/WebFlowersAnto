@@ -197,6 +197,10 @@ require __DIR__ . '/_cabecera.php';
             <tr>
               <td class="celda-principal">
                 <code style="font-size:.95rem; letter-spacing:.05em;"><?= e((string)$c['codigo']) ?></code>
+                <?php if (!empty($c['usuario_id'])): ?>
+                  <a class="estado-suave oferta" href="<?= e(url('admin/clientes.php?ver=' . (int)$c['usuario_id'])) ?>"
+                     title="Solo lo puede usar este cliente">Personal</a>
+                <?php endif; ?>
                 <?php if ((string)$c['descripcion'] !== ''): ?>
                   <br><span class="celda-sub"><?= e((string)$c['descripcion']) ?></span>
                 <?php endif; ?>
