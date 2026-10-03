@@ -892,8 +892,7 @@
     const gotas = {};
 
     const montar = () => {
-      capa = nodo('svg', { class: 'liquido-flotantes', 'aria-hidden': 'true', focusable: 'false' });
-      capa.hidden = true;
+      capa = nodo('svg', { class: 'liquido-flotantes', 'aria-hidden': 'true', focusable: 'false', hidden: '' });
       const defs = nodo('defs', {}, capa);
       filtro = nodo('filter', { id: 'liquidoFlotantes', filterUnits: 'userSpaceOnUse', 'color-interpolation-filters': 'sRGB' }, defs);
       nodo('feGaussianBlur', { in: 'SourceGraphic', stdDeviation: '7', result: 'difuso' }, filtro);
@@ -1006,6 +1005,13 @@
       setTimeout(() => cuerpo.classList.remove('flot-absorbe'), 750);
     };
 
+    // La capa es un <svg>: la propiedad `hidden` solo existe en los
+    // elementos HTML, y en un SVG asignarla no hace nada (la capa se quedaba
+    // pintada con el último fotograma: dos gotas fijas que parecían los
+    // botones). Se maneja el atributo, que es lo que el CSS ve.
+    const verCapa = (ver) => { if (capa) { capa.toggleAttribute('hidden', !ver); } };
+    let enCurso = null;
+
     const recorrer = (cerrar, geo, duracion, alTerminar) => {
       if (!capa) { montar(); }
       const ys = [geo.w.y, geo.d.y].concat(geo.m ? [geo.m.y] : []);
@@ -1014,7 +1020,13 @@
       const y0 = Math.min(...ys) - 80;
       const y1 = Math.max(...ys) + 80;
       const caja = [x0, y0, x1 - x0, y1 - y0].map((n) => n.toFixed(0));
-      Object.assign(capa.style, { left: caja[0] + 'px', top: caja[1] + 'px', width: caja[2] + 'px', height: caja[3] + 'px' });
+      // Anclada abajo a la derecha, como los botones y la pestaña: si Safari
+      // encoge o estira su barra mientras dura, todo se mueve a la vez.
+      Object.assign(capa.style, {
+        right: (document.documentElement.clientWidth - x1).toFixed(0) + 'px',
+        bottom: (window.innerHeight - y1).toFixed(0) + 'px',
+        width: caja[2] + 'px', height: caja[3] + 'px',
+      });
       capa.setAttribute('viewBox', caja.join(' '));
       ['x', 'y', 'width', 'height'].forEach((a, i) => filtro.setAttribute(a, caja[i]));
       color.setAttribute('y1', (geo.m ? geo.m.y : geo.w.y - 1).toFixed(1));
@@ -1026,33 +1038,52 @@
       Object.values(gotas).forEach((g) => { g.x = cerrar ? geo.w.x : geo.d.x; g.y = cerrar ? geo.w.y : geo.d.y; });
       if (gotas.asesora && geo.m && cerrar) { gotas.asesora.x = geo.m.x; gotas.asesora.y = geo.m.y; }
       fotograma(cerrar ? 0 : 0.82, geo, 0);
-      capa.hidden = false;
+      verCapa(true);
       if (!cerrar) { absorber(); }
 
       let previo = performance.now();
       const inicio = previo;
-      let absorbido = false;
+      let id = 0;
+      let entregado = false;   // ¿ya se aplicó el estado final?
+      const entregar = () => {
+        if (entregado) { return; }
+        entregado = true;
+        alTerminar();
+        cuerpo.classList.remove('flot-animando');
+      };
+      // Termina la transición, a su hora o antes (si cambia el ancho de la
+      // pantalla a mitad): capa fuera y estado final aplicado, siempre.
+      const acabar = () => {
+        cancelAnimationFrame(id);
+        verCapa(false);
+        enCurso = null;
+        animando = false;
+        entregar();
+      };
       const paso = (ahora) => {
         const t = lim((ahora - inicio) / duracion);
         // Al abrir se empieza donde el líquido ya asoma de la pestaña: el
         // tramo final del cierre son gotas demasiado pequeñas para verse.
         fotograma(cerrar ? t : 0.82 * (1 - t), geo, ahora - previo);
         previo = ahora;
-        if (cerrar && !absorbido && t >= 0.78) {
+        if (cerrar && !entregado && t >= 0.78) {
           // El líquido ya entró: la pestaña lo recibe con una onda y enseña
           // sus iconos mientras se apagan las últimas gotas.
-          absorbido = true;
           absorber();
-          alTerminar();
-          cuerpo.classList.remove('flot-animando');
+          entregar();
         }
-        if (t < 1) { requestAnimationFrame(paso); return; }
-        capa.hidden = true;
-        animando = false;
-        if (!cerrar) { cuerpo.classList.remove('flot-animando'); alTerminar(); }
+        if (t < 1) { id = requestAnimationFrame(paso); return; }
+        acabar();
       };
-      requestAnimationFrame(paso);
+      enCurso = { acabar, ancho: document.documentElement.clientWidth };
+      id = requestAnimationFrame(paso);
     };
+    // Girar el móvil a mitad de la transición deja las posiciones medidas
+    // sin sentido: se da por terminada. Los cambios de alto (la barra de
+    // Safari al desplazarse) no la interrumpen; la capa va anclada abajo.
+    window.addEventListener('resize', () => {
+      if (enCurso && document.documentElement.clientWidth !== enCurso.ancho) { enCurso.acabar(); }
+    }, { passive: true });
 
     // --- Estados ----------------------------------------------------------
     const aria = () => {

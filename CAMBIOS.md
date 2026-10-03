@@ -796,6 +796,15 @@ todo funciona como antes.
   y ocupa lo justo alrededor de los botones; en reposo no consume nada. Con
   «reducir movimiento» se guardan y abren sin animación. En el escritorio no
   cambia nada.
+- **Arreglado**: tras abrir los botones, la capa del líquido no se ocultaba
+  nunca y se quedaba pintada con su último fotograma: dos gotas fijas que
+  parecían los botones (seguían «visibles» con la pestaña ya recogida, por
+  ejemplo después de usar el chat de Massiel) y, al desplazarse en el iPhone,
+  aparecían botones duplicados porque la barra de Safari movía los reales y
+  no la copia. La causa: la capa es un `<svg>` y se ocultaba con la
+  propiedad `hidden`, que solo existe en los elementos HTML. Ahora se usa el
+  atributo, la capa va anclada abajo como los botones y, si cambia el ancho
+  de la pantalla a mitad de la transición, esta termina en su estado final.
 
 ### Base de datos
 Migración `025_avisos_y_cupones_personales`: columna `cupones.usuario_id`
