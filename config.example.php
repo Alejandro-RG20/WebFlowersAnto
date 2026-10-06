@@ -22,6 +22,7 @@ return [
     'DB_USER'    => 'root',
     'DB_PASS'    => '',
     'DB_CHARSET' => 'utf8mb4',
+    'DB_COLLATION' => 'utf8mb4_unicode_ci',
 
     'MAX_UPLOAD_MB'      => '5',
     'MAX_COMPROBANTE_MB' => '8',

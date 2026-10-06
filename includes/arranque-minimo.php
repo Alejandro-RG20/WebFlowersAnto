@@ -35,24 +35,9 @@ if (PHP_SAPI !== 'cli') {
     header_remove('X-Powered-By');
 }
 
+require_once __DIR__ . '/conexion.php';
 try {
-    $pdo = new PDO(
-        sprintf(
-            'mysql:host=%s;port=%s;dbname=%s;charset=%s',
-            Entorno::texto('DB_HOST', 'localhost'),
-            Entorno::texto('DB_PORT', '3306'),
-            Entorno::texto('DB_NAME', 'flowers_anto'),
-            Entorno::texto('DB_CHARSET', 'utf8mb4')
-        ),
-        Entorno::texto('DB_USER', 'root'),
-        Entorno::texto('DB_PASS', ''),
-        [
-            PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
-            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-            PDO::ATTR_EMULATE_PREPARES   => false,
-            PDO::ATTR_STRINGIFY_FETCHES  => false,
-        ]
-    );
+    $pdo = conexion_bd();
 } catch (PDOException $e) {
     error_log('Flowers Anto — archivo, fallo de conexión: ' . $e->getMessage());
     http_response_code(503);

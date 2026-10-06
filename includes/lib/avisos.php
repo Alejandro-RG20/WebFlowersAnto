@@ -222,29 +222,33 @@ final class Avisos
         if (!self::disponible($pdo) || !FotoPerfil::disponible($pdo)) {
             return [];
         }
+        // Cada día se busca como número mes·100 + día (14 de octubre = 1014):
+        // comparar números no depende de la intercalación de la conexión, y
+        // es lo que falló al comparar textos en otro servidor.
         $claves = [];
         for ($i = 0; $i <= $dias; $i++) {
             $t = strtotime("+$i days", strtotime('today'));
-            $claves[date('m-d', $t)] = $i;
+            $claves[(int)date('n', $t) * 100 + (int)date('j', $t)] = $i;
             if (date('m-d', $t) === '02-28' && !checkdate(2, 29, (int)date('Y', $t))) {
-                $claves['02-29'] = $i;
+                $claves[229] = $i;
             }
         }
         $marcas = implode(',', array_fill(0, count($claves), '?'));
         $st = $pdo->prepare(
             "SELECT u.id, u.nombre, u.apellido, u.email, u.fecha_nacimiento, u.foto,
-                    DATE_FORMAT(u.fecha_nacimiento, '%m-%d') AS md,
+                    MONTH(u.fecha_nacimiento) * 100 + DAY(u.fecha_nacimiento) AS md,
                     (SELECT MAX(DATE(n.created_at)) FROM notificaciones n
                       WHERE n.usuario_id = u.id AND n.tipo = 'cumpleanos'
-                        AND n.created_at >= DATE_FORMAT(CURDATE(), '%Y-01-01')) AS felicitado
+                        AND n.created_at >= MAKEDATE(YEAR(CURDATE()), 1)) AS felicitado
                FROM usuarios u JOIN roles r ON r.id = u.rol_id
               WHERE r.codigo = 'cliente' AND u.activo = 1 AND u.fecha_nacimiento IS NOT NULL
-                AND DATE_FORMAT(u.fecha_nacimiento, '%m-%d') IN ($marcas)"
+                AND MONTH(u.fecha_nacimiento) * 100 + DAY(u.fecha_nacimiento) IN ($marcas)"
         );
         $st->execute(array_keys($claves));
         $lista = [];
         foreach ($st->fetchAll() as $f) {
-            $f['dias'] = $claves[$f['md']];
+            $f['dias'] = $claves[(int)$f['md']];
+            unset($f['md']);
             $lista[] = $f;
         }
         usort($lista, fn($a, $b) => [$a['dias'], $a['nombre']] <=> [$b['dias'], $b['nombre']]);
@@ -277,7 +281,7 @@ final class Avisos
         }
         $st = $pdo->prepare(
             "SELECT MAX(created_at) FROM notificaciones
-              WHERE usuario_id = ? AND tipo = 'cumpleanos' AND created_at >= DATE_FORMAT(CURDATE(), '%Y-01-01')"
+              WHERE usuario_id = ? AND tipo = 'cumpleanos' AND created_at >= MAKEDATE(YEAR(CURDATE()), 1)"
         );
         $st->execute([$usuarioId]);
         $f = $st->fetchColumn();

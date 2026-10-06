@@ -828,3 +828,27 @@ la tienda funciona como antes y el apartado de avisos no se muestra.
 - **iPhone**: al volver de la galería, Safari podía dejar la vista
   desplazada y aparecía un hueco en blanco bajo el pie. Ahora el campo
   pierde el foco al elegir la foto y la vista se recoloca.
+
+### Arreglado en producción: «Illegal mix of collations» en el Resumen
+- **Síntoma**: en Hostinger, `/admin/` respondía «No pudimos completar la
+  operación» y el registro decía `Illegal mix of collations for operation
+  'in'` en `includes/lib/avisos.php`. El resto del panel funcionaba.
+- **Causa**: la conexión no fijaba su intercalación y quedaba la del
+  servidor. En el MariaDB de Hostinger los textos escritos en la consulta y
+  los valores que manda PHP llegan con intercalaciones distintas, y la lista
+  de cumpleaños comparaba unos con otros (`DATE_FORMAT(...) IN (?, ?…)`). En
+  local (MariaDB 10.11) coinciden y no fallaba.
+- **Arreglo**:
+  - `includes/conexion.php`: una sola función de conexión para el arranque
+    normal y el mínimo, que fija `SET NAMES utf8mb4 COLLATE
+    utf8mb4_unicode_ci`, la de las tablas. Configurable con `DB_COLLATION`
+    (no hace falta tocar el `.env`).
+  - La consulta de cumpleaños compara el mes y el día como números.
+  - Migración `026_intercalacion_unica`: pasa a `utf8mb4_unicode_ci` cualquier
+    tabla con otra (la de control de migraciones se creaba con la del
+    servidor) y la deja como predeterminada de la base.
+
+### Al subirlo a Hostinger
+1. Subir los archivos (incluido el nuevo `includes/conexion.php`).
+2. Panel → Base de datos → aplicar la migración 026.
+3. Vaciar la caché del CDN.
