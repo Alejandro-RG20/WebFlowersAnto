@@ -3,7 +3,7 @@
  * License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License)
  * Copyright 2023 Fonticons, Inc.
  *
- * Solo los 115 iconos que usa la tienda. Archivo generado por
+ * Solo los 120 iconos que usa la tienda. Archivo generado por
  * herramientas/generar-iconos.py: no se edita a mano.
  */
 @font-face{font-family:"Font Awesome 6 Free";font-style:normal;font-weight:900;font-display:block;src:url("../fonts/fa-solid-900.woff2") format("woff2")}
@@ -17,6 +17,7 @@
 .fa-arrow-left::before{content:"\f060"}
 .fa-arrow-right::before{content:"\f061"}
 .fa-arrow-right-from-bracket::before{content:"\f08b"}
+.fa-arrow-trend-up::before{content:"\e098"}
 .fa-arrow-up-right-from-square::before{content:"\f08e"}
 .fa-bag-shopping::before{content:"\f290"}
 .fa-ban::before{content:"\f05e"}
@@ -79,6 +80,7 @@
 .fa-key::before{content:"\f084"}
 .fa-lightbulb::before{content:"\f0eb"}
 .fa-link-slash::before{content:"\f127"}
+.fa-list-check::before{content:"\f0ae"}
 .fa-location-dot::before{content:"\f3c5"}
 .fa-lock::before{content:"\f023"}
 .fa-magnifying-glass::before{content:"\f002"}
@@ -97,6 +99,7 @@
 .fa-receipt::before{content:"\f543"}
 .fa-rotate::before{content:"\f2f1"}
 .fa-rotate-left::before{content:"\f2ea"}
+.fa-rotate-right::before{content:"\f2f9"}
 .fa-sack-dollar::before{content:"\f81d"}
 .fa-scissors::before{content:"\f0c4"}
 .fa-search::before{content:"\f002"}
@@ -121,8 +124,10 @@
 .fa-up-right-from-square::before{content:"\f35d"}
 .fa-upload::before{content:"\f093"}
 .fa-user::before{content:"\f007"}
+.fa-user-check::before{content:"\f4fc"}
 .fa-user-plus::before{content:"\f234"}
 .fa-user-shield::before{content:"\f505"}
+.fa-user-slash::before{content:"\f506"}
 .fa-users::before{content:"\f0c0"}
 .fa-wand-magic-sparkles::before{content:"\e2ca"}
 .fa-water::before{content:"\f773"}

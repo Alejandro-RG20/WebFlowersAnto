@@ -133,143 +133,263 @@
     });
   });
   // -------------------------------------------------------------------
-  // Acciones sobre varios productos
+  // Selección de varias filas (productos, clientes)
   //
-  // La barra solo aparece cuando hay algo marcado: enseñarla siempre vacía
-  // invita a pulsar botones que no harían nada. El formulario se envía
-  // entero, así que quien manda es el servidor; esto solo decide qué se ve.
+  // «Seleccionar» enseña las casillas y una barra con lo que se puede hacer
+  // con lo marcado. Si todo lo de la página está marcado y el filtro tiene
+  // más, se ofrece marcar todos los del filtro: entonces no viajan ids, sino
+  // `todo_filtro=1` y los filtros, y el servidor vuelve a buscarlos.
+  //
+  // Los formularios con `data-seleccion-form` reciben la selección al
+  // enviarse; así cada acción —la directa de la barra o la de una ventana
+  // con sus campos— es su propio formulario y no hay formularios anidados.
+  // El servidor comprueba permisos, ids y valores: aquí solo se decide qué
+  // se ve.
   // -------------------------------------------------------------------
-  (function () {
-    const barra = $('[data-barra-masiva]');
-    if (!barra) { return; }
-    const casillas = $$('[data-masiva-item]');
-    const todos    = $('[data-masiva-todos]');
-    const cuenta   = $('[data-masiva-n]', barra);
-    const palabra  = $('[data-masiva-palabra]', barra);
-    const vista    = $('[data-masiva-vista]', barra);
-    const pct      = $('[data-masiva-pct]', barra);
-    const monto    = $('[data-masiva-monto]', barra);
-    const simbolo  = barra.dataset.moneda || 'C$';
-    const TOPE_PCT = 95;
+  $$('[data-seleccion]').forEach((zona) => {
+    const barra    = $('[data-seleccion-barra]', zona);
+    const casillas = $$('[data-sel-item]', zona);
+    const todos    = $('[data-sel-todos]', zona);
+    const verN     = $$('[data-sel-n]', document);
+    const palabras = $$('[data-sel-palabra]', document);
+    const filtro   = $('[data-sel-filtro]', zona);
+    const total    = parseInt(zona.dataset.total, 10) || casillas.length;
+    const singular = zona.dataset.singular || 'elemento';
+    const plural   = zona.dataset.plural || 'elementos';
+    const nombre   = zona.dataset.seleccion || 'seleccion';
+    let delFiltro  = false;
 
-    /** Mismo formato que `dinero()` en el servidor, para que no canten. */
-    function importe(v) {
-      return simbolo + (Math.round(v * 100) / 100)
-        .toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-    }
-
-    /** Lo que se cobra: el precio de siempre menos su porcentaje. */
-    function efectivo(base, p) {
-      const n = Math.max(0, Math.min(TOPE_PCT, p));
-      return n <= 0 || base <= 0 ? base : Math.round(base * (100 - n)) / 100;
-    }
-
-    function marcadas() {
-      return casillas.filter((c) => c.checked);
-    }
-
-    /**
-     * El renglón que dice en qué queda la acción.
-     *
-     * Se calculan las tres a la vez —oferta, retirada y aumento— porque
-     * cualquiera de los tres botones está a un clic, y enseñar solo una
-     * obligaría a adivinar las otras. Se escribe con `textContent`: los
-     * nombres de los arreglos los teclea una persona y aquí no se convierten
-     * en HTML.
-     */
-    function repintarVista() {
-      if (!vista) { return; }
-      const sel = marcadas();
-      if (!sel.length) { vista.textContent = ''; return; }
-
-      let ahora = 0, siOferta = 0, siQuita = 0, siSube = 0, enOferta = 0;
-      const nuevoPct = pct ? parseInt(pct.value, 10) || 0 : 0;
-      const sube     = monto ? parseFloat(monto.value) || 0 : 0;
-
-      sel.forEach((c) => {
-        const base = parseFloat(c.dataset.precio) || 0;
-        const p    = parseInt(c.dataset.pct, 10) || 0;
-        if (p > 0) { enOferta++; }
-        ahora    += efectivo(base, p);
-        siOferta += efectivo(base, nuevoPct);
-        siQuita  += base;
-        siSube   += efectivo(base + Math.max(0, sube), p);
-      });
-
-      const partes = ['Ahora suman ' + importe(ahora) + '.'];
-      if (nuevoPct > 0) {
-        partes.push('Con el ' + nuevoPct + '%: ' + importe(siOferta) +
-                    ' (' + importe(ahora - siOferta) + ' menos).');
-      }
-      if (enOferta > 0) {
-        partes.push('Quitando la oferta de ' + enOferta +
-                    (enOferta === 1 ? ' arreglo' : ' arreglos') + ': ' + importe(siQuita) + '.');
-      }
-      if (sube > 0) {
-        partes.push('Subiendo ' + importe(sube) + ' cada uno: ' + importe(siSube) + '.');
-      }
-      vista.textContent = partes.join(' ');
-    }
+    const marcadas = () => casillas.filter((c) => c.checked);
+    const cuantos  = () => (delFiltro ? total : marcadas().length);
 
     function refrescar() {
-      const n = marcadas().length;
-      barra.hidden = n === 0;
-      if (cuenta)  { cuenta.textContent = String(n); }
-      if (palabra) { palabra.textContent = n === 1 ? 'arreglo' : 'arreglos'; }
+      const n = cuantos();
+      verN.forEach((el) => { el.textContent = String(n); });
+      palabras.forEach((el) => { el.textContent = n === 1 ? singular : plural; });
       if (todos) {
-        todos.checked = n > 0 && n === casillas.length;
-        todos.indeterminate = n > 0 && n < casillas.length;
+        const m = marcadas().length;
+        todos.checked = m > 0 && m === casillas.length;
+        todos.indeterminate = m > 0 && m < casillas.length;
       }
-      repintarVista();
+      if (filtro) {
+        const todaLaPagina = casillas.length > 0 && marcadas().length === casillas.length;
+        filtro.hidden = !(todaLaPagina && total > casillas.length);
+        filtro.textContent = delFiltro
+          ? 'Quitar la selección del filtro'
+          : 'Seleccionar los ' + total + ' ' + plural + ' del filtro';
+        filtro.classList.toggle('activo', delFiltro);
+      }
+      // Los botones dicen sobre cuántos van a actuar antes de pulsarlos.
+      $$('[data-sel-accion]', document).forEach((b) => {
+        b.disabled = n === 0;
+        if (b.dataset.selConfirmar) {
+          b.dataset.confirmar = b.dataset.selConfirmar
+            .replace('{n}', String(n)).replace('{palabra}', n === 1 ? singular : plural);
+        }
+      });
+      zona.dispatchEvent(new CustomEvent('seleccion:cambio', { detail: { n, delFiltro, marcadas: marcadas() } }));
     }
 
-    casillas.forEach((c) => c.addEventListener('change', refrescar));
+    function alternar(activar) {
+      const activo = activar ?? !zona.classList.contains('seleccionando');
+      zona.classList.toggle('seleccionando', activo);
+      if (barra) { barra.hidden = !activo; }
+      $$('[data-seleccion-alternar]', zona).forEach((b) => {
+        b.setAttribute('aria-pressed', String(activo));
+        if (b.dataset.textoActivo) {
+          b.querySelector('span') && (b.querySelector('span').textContent = activo ? b.dataset.textoActivo : b.dataset.textoInactivo);
+        }
+      });
+      if (!activo) {
+        casillas.forEach((c) => { c.checked = false; });
+        delFiltro = false;
+      }
+      refrescar();
+      try { sessionStorage.setItem('fa-sel-' + nombre, activo ? '1' : ''); } catch (e) { /* sin almacenamiento */ }
+    }
+
+    $$('[data-seleccion-alternar]', zona).forEach((b) => {
+      b.dataset.textoInactivo = b.querySelector('span') ? b.querySelector('span').textContent : '';
+      b.addEventListener('click', () => alternar());
+    });
+    casillas.forEach((c) => c.addEventListener('change', () => { delFiltro = false; refrescar(); }));
     todos && todos.addEventListener('change', () => {
       casillas.forEach((c) => { c.checked = todos.checked; });
+      delFiltro = false;
       refrescar();
     });
-    pct   && pct.addEventListener('change', repintarVista);
-    monto && monto.addEventListener('input', repintarVista);
-
-    /**
-     * Lo que se pregunta antes de tocar nada.
-     *
-     * Subir el precio cambia el precio guardado y no hay botón para
-     * deshacerlo, así que se nombra la cifra concreta en lugar de un «¿seguro?»
-     * genérico. Quitar la oferta y ponerla se ven al instante en la tabla y se
-     * rehacen en dos clics: ahí basta con el renglón de la vista previa.
-     *
-     * Las tres comprobaciones de aquí abajo existen también en el servidor;
-     * esta copia solo evita un viaje y un mensaje de error.
-     */
-    const formulario = barra.closest('form');
-    formulario && formulario.addEventListener('submit', (ev) => {
-      const emisor = ev.submitter;
-      const accion = emisor && emisor.dataset ? emisor.dataset.masivaAccion : '';
-      if (!accion) { return; }
-
-      const sel = marcadas();
-      if (!sel.length) {
-        ev.preventDefault();
-        aviso('Marca al menos un arreglo antes de aplicar la acción.', 'error');
-        return;
+    filtro && filtro.addEventListener('click', () => { delFiltro = !delFiltro; refrescar(); });
+    document.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Escape' && zona.classList.contains('seleccionando') && !document.querySelector('dialog[open]')) {
+        alternar(false);
       }
-      if (accion !== 'aumentar') { return; }
-
-      const cifra = monto ? parseFloat(monto.value) : NaN;
-      if (!(cifra > 0)) {
-        ev.preventDefault();
-        aviso('Escribe cuánto quieres subir el precio.', 'error');
-        monto && monto.focus();
-        return;
-      }
-      const texto = 'Vas a subir ' + importe(cifra) + ' el precio de siempre de ' +
-        sel.length + (sel.length === 1 ? ' arreglo' : ' arreglos') +
-        '. No hay forma de deshacerlo desde aquí. ¿Seguimos?';
-      if (!window.confirm(texto)) { ev.preventDefault(); }
     });
 
-    refrescar();
+    // Cada formulario de acción se lleva la selección al enviarse. Va en la
+    // fase de captura: así los ids ya están puestos cuando otros manejadores
+    // (la confirmación, el bloqueo de doble envío) miran el formulario.
+    $$('form[data-seleccion-form]', document).forEach((form) => {
+      if (form.dataset.seleccionForm && form.dataset.seleccionForm !== nombre) { return; }
+      form.addEventListener('submit', (ev) => {
+        $$('.sel-inyectado', form).forEach((i) => i.remove());
+        const meter = (name, value) => {
+          const i = document.createElement('input');
+          i.type = 'hidden'; i.name = name; i.value = value; i.className = 'sel-inyectado';
+          form.appendChild(i);
+        };
+        if (delFiltro) {
+          meter('todo_filtro', '1');
+        } else {
+          const sel = marcadas();
+          if (!sel.length && !form.hasAttribute('data-seleccion-opcional')) {
+            ev.preventDefault();
+            return;
+          }
+          sel.forEach((c) => meter('ids[]', c.value));
+        }
+      }, true);
+    });
+
+    // Al volver de aplicar una acción se sigue en modo selección.
+    let seguir = false;
+    try { seguir = sessionStorage.getItem('fa-sel-' + nombre) === '1'; } catch (e) { /* sin almacenamiento */ }
+    alternar(seguir && casillas.length > 0);
+  });
+
+  // -------------------------------------------------------------------
+  // Avisos masivos: los correos salen en tandas mientras la página está abierta
+  //
+  // Cada llamada manda unos pocos y devuelve el avance. Si algo falla (sin
+  // conexión, límite del hosting), se para y se ofrece continuar: el servidor
+  // sabe por dónde iba, así que continuar nunca repite correos.
+  // -------------------------------------------------------------------
+  (function () {
+    const caja = $('[data-campana-progreso]');
+    if (!caja) { return; }
+    const relleno = $('[data-envio-relleno]', caja);
+    const texto = $('[data-envio-texto]', caja);
+    const barra = $('[role="progressbar"]', caja);
+    const reintentar = $('[data-envio-reintentar]', caja);
+    const total = parseInt(caja.dataset.conCorreo, 10) || 0;
+    if (!total || !texto) { return; }
+    let enMarcha = false;
+
+    function pintar(d) {
+      const pct = Math.round(100 * d.enviados / Math.max(1, total));
+      if (relleno) { relleno.style.width = pct + '%'; }
+      if (barra) { barra.setAttribute('aria-valuenow', String(d.enviados)); }
+      texto.textContent = d.enviados + ' de ' + total + ' correos enviados. '
+        + (d.terminado
+          ? (d.fallidos ? d.fallidos + ' no se pudieron enviar (revisa la configuración de correo).' : 'Envío terminado.')
+          : 'Enviando… deja esta página abierta.');
+      caja.classList.toggle('terminado', !!d.terminado);
+    }
+
+    async function seguir() {
+      if (enMarcha) { return; }
+      enMarcha = true;
+      if (reintentar) { reintentar.hidden = true; }
+      try {
+        for (;;) {
+          const datos = new FormData();
+          datos.append('csrf_token', csrf);
+          datos.append('campana', caja.dataset.campana);
+          const r = await fetch(caja.dataset.url, { method: 'POST', body: datos, credentials: 'same-origin',
+                                                    headers: { Accept: 'application/json' } });
+          const d = await r.json();
+          if (!r.ok || !d.ok) { throw new Error(d.error || 'Error'); }
+          pintar(d);
+          if (d.terminado) { break; }
+        }
+      } catch (e) {
+        texto.textContent = 'El envío se detuvo (' + e.message + '). Lo enviado ya salió; puedes continuar con el resto.';
+        if (reintentar) { reintentar.hidden = false; }
+      } finally {
+        enMarcha = false;
+      }
+    }
+    reintentar && reintentar.addEventListener('click', seguir);
+    if ((parseInt(caja.dataset.pendientes, 10) || 0) > 0) { seguir(); }
+  })();
+
+  // La nota de las promociones solo aparece cuando el tipo es «Promoción».
+  $$('[data-aviso-tipo]').forEach((sel) => {
+    const nota = $('[data-aviso-nota-promo]', sel.closest('form'));
+    if (!nota) { return; }
+    const ver = () => { nota.hidden = sel.value !== 'promocion'; };
+    sel.addEventListener('change', ver);
+    ver();
+  });
+
+  // -------------------------------------------------------------------
+  // Productos: vista previa de lo que harán las acciones de precio
+  //
+  // Cada casilla lleva el precio de siempre y el descuento del arreglo. Con
+  // eso se enseña en qué quedan antes de confirmar. El servidor rehace la
+  // cuenta al aplicar; esto solo informa.
+  // -------------------------------------------------------------------
+  (function () {
+    const zona = $('[data-seleccion="productos"]');
+    if (!zona) { return; }
+    const simbolo = zona.dataset.moneda || 'C$';
+    const importe = (v) => simbolo + (Math.round(v * 100) / 100).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    const efectivo = (base, p) => (p > 0 && base > 0 ? Math.round(base * (100 - Math.min(95, p))) / 100 : base);
+    let ultima = { marcadas: [], delFiltro: false };
+
+    function redondear(v, paso) {
+      return paso > 0.01 ? Math.round(v / paso) * paso : Math.round(v * 100) / 100;
+    }
+
+    function pintar() {
+      const sel = ultima.marcadas;
+      const nota = ultima.delFiltro ? ' (cálculo con los de esta página)' : '';
+      const vistaOferta = $('[data-vista-oferta]');
+      const pct = $('#selPct');
+      if (vistaOferta && pct) {
+        let antes = 0, despues = 0;
+        sel.forEach((c) => {
+          const b = parseFloat(c.dataset.precio) || 0;
+          antes += efectivo(b, parseInt(c.dataset.pct, 10) || 0);
+          despues += efectivo(b, parseInt(pct.value, 10) || 0);
+        });
+        vistaOferta.textContent = sel.length
+          ? 'Ahora suman ' + importe(antes) + '; con el ' + pct.value + '% quedarían en ' + importe(despues) + nota + '.'
+          : '';
+      }
+      const vistaPrecio = $('[data-vista-precio]');
+      const dir = $('input[name="direccion"]:checked');
+      const modo = $('input[name="modo"]:checked');
+      const valor = $('#selValor');
+      const paso = $('#selRedondeo');
+      if (vistaPrecio && dir && modo && valor) {
+        const v = parseFloat(valor.value) || 0;
+        const r = parseFloat(paso ? paso.value : '0.01') || 0.01;
+        const ejemplos = [];
+        let bajoMinimo = 0;
+        sel.forEach((c) => {
+          const b = parseFloat(c.dataset.precio) || 0;
+          let n = modo.value === 'porcentaje' ? b * (1 + (dir.value === 'bajar' ? -v : v) / 100)
+                                              : b + (dir.value === 'bajar' ? -v : v);
+          n = redondear(n, r);
+          if (n < 1) { bajoMinimo++; return; }
+          if (ejemplos.length < 3) { ejemplos.push((c.dataset.nombre || '') + ': ' + importe(b) + ' → ' + importe(n)); }
+        });
+        vistaPrecio.textContent = v > 0 && sel.length
+          ? ejemplos.join(' · ') + (sel.length > 3 ? ' …' : '')
+            + (bajoMinimo ? ' · ' + bajoMinimo + ' quedarían por debajo de ' + importe(1) + ' y no se cambian.' : '')
+            + nota
+          : '';
+      }
+    }
+
+    zona.addEventListener('seleccion:cambio', (ev) => { ultima = ev.detail; pintar(); });
+    ['#selPct', '#selValor', '#selRedondeo'].forEach((s) => { const el = $(s); el && el.addEventListener('input', pintar); });
+    $$('input[name="direccion"], input[name="modo"]').forEach((el) => el.addEventListener('change', () => {
+      const modo = $('input[name="modo"]:checked');
+      const unidad = $('[data-precio-unidad]');
+      if (unidad && modo) { unidad.textContent = modo.value === 'porcentaje' ? '%' : simbolo; }
+      pintar();
+    }));
   })();
 
   // -------------------------------------------------------------------

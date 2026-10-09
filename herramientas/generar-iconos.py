@@ -45,6 +45,7 @@ RAIZ = pathlib.Path(__file__).resolve().parent.parent
 NO_SON_ICONOS = {
     'fa', 'fa-solid', 'fa-regular', 'fa-brands', 'fa-classic', 'fa-sharp',
     'fa-asesora-abierta',   # clave de almacenamiento del asistente, no un icono
+    'fa-sel',               # prefijo de la clave de almacenamiento de la selección del panel
 }
 FUENTES = {
     'solid':   'fa-solid-900',
@@ -65,7 +66,7 @@ def usados() -> set:
             texto = ruta.read_text(encoding='utf-8', errors='ignore')
             nombres.update(re.findall(r'\bfa-[a-z0-9]+(?:-[a-z0-9]+)*', texto))
     return {n for n in nombres if n not in NO_SON_ICONOS
-            and not re.fullmatch(r'fa-\d+x|fa-(lg|sm|xs|fw|spin)|fa-(solid|regular|brands)-\d+', n)}
+            and not re.fullmatch(r'fa-\d+x?|fa-(lg|sm|xs|fw|spin)|fa-(solid|regular|brands)-\d+', n)}
 
 
 def caracteres(hoja: str) -> dict:

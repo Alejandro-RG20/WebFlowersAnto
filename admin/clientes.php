@@ -10,6 +10,107 @@ $seccion = 'clientes';
 Rbac::exigirPanel();
 Rbac::exigir('clientes.ver');
 
+/**
+ * Condición del listado de clientes según los filtros. La comparten el
+ * listado y las acciones sobre «todos los del filtro».
+ *
+ * @return array{0: string, 1: list<mixed>}
+ */
+function filtro_clientes(string $q, string $estado): array
+{
+    $where  = ["r.codigo = 'cliente'"];
+    $params = [];
+    if ($q !== '') {
+        $t = '%' . str_replace(['%', '_'], ['\%', '\_'], $q) . '%';
+        $where[] = '(u.nombre LIKE ? OR u.apellido LIKE ? OR u.email LIKE ? OR u.telefono LIKE ?)';
+        array_push($params, $t, $t, $t, $t);
+    }
+    if ($estado === 'activos') {
+        $where[] = 'u.activo = 1';
+    } elseif ($estado === 'inactivos') {
+        $where[] = 'u.activo = 0';
+    }
+    return [implode(' AND ', $where), $params];
+}
+
+const ESTADOS_CLIENTE = ['todos', 'activos', 'inactivos'];
+
+// --- Acciones sobre varios clientes -----------------------------------
+//
+// De la barra de selección (ids marcados) o de «Aviso a todos» y «todos los
+// del filtro» (`todo_filtro`, se vuelven a buscar aquí con los filtros).
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && crudo('accion_masiva') !== '') {
+    $qs = (string)crudo('volver_qs');
+    $volver = 'admin/clientes.php' . ($qs !== '' && preg_match('/^[\w=&%+.\-@]*$/', $qs) ? '?' . $qs : '');
+    exigirToken(false, $volver);
+    Rbac::exigir('clientes.editar');
+    $accion = opcion('accion_masiva', ['aviso', 'activar', 'desactivar'], '');
+
+    if (casilla('todo_filtro') === 1) {
+        [$w, $p] = filtro_clientes(texto('f_q', 80), opcion('f_estado', ESTADOS_CLIENTE, 'todos'));
+        $st = $pdo->prepare("SELECT u.id FROM usuarios u JOIN roles r ON r.id = u.rol_id WHERE $w
+                              ORDER BY u.id LIMIT " . Campanas::MAX_DESTINATARIOS);
+        $st->execute($p);
+        $ids = array_map('intval', $st->fetchAll(PDO::FETCH_COLUMN));
+    } else {
+        $ids = array_slice(array_values(array_unique(array_filter(
+            array_map('intval', (array)($_POST['ids'] ?? [])), static fn(int $v): bool => $v > 0
+        ))), 0, Campanas::MAX_DESTINATARIOS);
+        if ($ids) {
+            // Solo cuentas de cliente: los empleados no se tocan desde aquí.
+            $huecos = implode(',', array_fill(0, count($ids), '?'));
+            $st = $pdo->prepare("SELECT u.id FROM usuarios u JOIN roles r ON r.id = u.rol_id
+                                  WHERE u.id IN ($huecos) AND r.codigo = 'cliente'");
+            $st->execute($ids);
+            $ids = array_map('intval', $st->fetchAll(PDO::FETCH_COLUMN));
+        }
+    }
+    if (!$ids) {
+        flash('error', 'No hay clientes seleccionados (o ya no existen).');
+        redirigir($volver);
+    }
+    $cuantos = count($ids) . ' ' . unidad_plural(count($ids), 'clientes');
+
+    if ($accion === 'aviso') {
+        $tipo = opcion('tipo', Campanas::TIPOS, 'aviso');
+        $r = Campanas::crear($pdo, $ids, $tipo, texto('titulo', 120), textoLargo('mensaje', 2000), casilla('por_correo') === 1);
+        if (!$r['ok']) {
+            flash('error', $r['error']);
+            redirigir($volver);
+        }
+        $partes = ['Aviso enviado a ' . $r['destinatarios'] . ' ' . unidad_plural($r['destinatarios'], 'clientes')
+                 . ': ya lo ven en su cuenta.'];
+        if ($r['con_correo'] > 0) {
+            $partes[] = 'Los correos (' . $r['con_correo'] . ') salen ahora en tandas: deja esta página abierta hasta que termine.';
+        }
+        if ($r['de_baja'] > 0) {
+            $partes[] = $r['de_baja'] . ' ' . unidad_plural($r['de_baja'], 'clientes')
+                      . ($r['de_baja'] === 1 ? ' se dio de baja de las promociones: no se le manda el correo.'
+                                             : ' se dieron de baja de las promociones: a ellos no se les manda el correo.');
+        }
+        flash('exito', implode(' ', $partes));
+        redirigir('admin/clientes.php?campana=' . $r['id'] . ($qs !== '' ? '&' . $qs : ''));
+    }
+
+    if ($accion === 'activar' || $accion === 'desactivar') {
+        $nuevo  = $accion === 'activar' ? 1 : 0;
+        $huecos = implode(',', array_fill(0, count($ids), '?'));
+        $pdo->prepare("UPDATE usuarios SET activo = ? WHERE id IN ($huecos)")->execute(array_merge([$nuevo], $ids));
+        Auditoria::registrar($pdo, $nuevo ? 'activar' : 'desactivar', 'usuarios', [
+            'recurso_tipo' => 'usuario', 'recurso_id' => count($ids) . ' clientes',
+            'descripcion'  => ($nuevo ? 'Cuentas reactivadas: ' : 'Cuentas desactivadas: ') . $cuantos . '.',
+            'detalles'     => ['ids' => $ids],
+        ]);
+        flash('exito', $nuevo
+            ? "Listo: {$cuantos} con la cuenta activa."
+            : "Listo: {$cuantos} con la cuenta desactivada: ya no pueden iniciar sesión.");
+        redirigir($volver);
+    }
+
+    flash('error', 'Acción no reconocida.');
+    redirigir($volver);
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     exigirToken(false, 'admin/clientes.php');
     Rbac::exigir('clientes.editar');
@@ -124,18 +225,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $q      = texto('q', 80, $_GET);
+$estado = opcion('estado', ESTADOS_CLIENTE, 'todos', $_GET);
 $verId  = identificador('ver', $_GET);
 $pagina = entero('pagina', 1, 9999, 1, $_GET);
 $porPagina = 25;
 
-$where  = ["r.codigo = 'cliente'"];
-$params = [];
-if ($q !== '') {
-    $t = '%' . str_replace(['%', '_'], ['\%', '\_'], $q) . '%';
-    $where[] = '(u.nombre LIKE ? OR u.apellido LIKE ? OR u.email LIKE ? OR u.telefono LIKE ?)';
-    array_push($params, $t, $t, $t, $t);
-}
-$sqlWhere = implode(' AND ', $where);
+[$sqlWhere, $params] = filtro_clientes($q, $estado);
 
 $stTotal = $pdo->prepare("SELECT COUNT(*) FROM usuarios u JOIN roles r ON r.id = u.rol_id WHERE $sqlWhere");
 $stTotal->execute($params);
@@ -173,6 +268,18 @@ $avisosCliente = $conAvisos ? Avisos::deUsuario($pdo, (int)$detalle['id'], 15) :
 $diasCumple    = $conAvisos ? Avisos::diasParaCumple($detalle['fecha_nacimiento'] ?? null) : null;
 $felicitado    = ($conAvisos && $diasCumple !== null) ? Avisos::felicitadoEsteAnio($pdo, (int)$detalle['id']) : null;
 $plantillas    = ($conAvisos && Rbac::puede('cupones.gestionar')) ? Avisos::plantillasCupon($pdo) : [];
+
+// Acciones sobre varios clientes y avisos masivos.
+$puedeMasivo   = Rbac::puede('clientes.editar');
+$conCampanas   = Campanas::disponible($pdo);
+$campanaActual = ($conCampanas && $puedeMasivo && ($cid = identificador('campana', $_GET)) > 0) ? Campanas::estado($pdo, $cid) : null;
+$activosFiltro = 0;
+if ($conCampanas && $puedeMasivo && !$detalle) {
+    [$wa, $pa] = filtro_clientes($q, $estado);
+    $st = $pdo->prepare("SELECT COUNT(*) FROM usuarios u JOIN roles r ON r.id = u.rol_id WHERE $wa AND u.activo = 1");
+    $st->execute($pa);
+    $activosFiltro = (int)$st->fetchColumn();
+}
 
 $tituloPanel    = 'Clientes';
 $subtituloPanel = $total . ' ' . ($total === 1 ? 'cuenta de cliente' : 'cuentas de cliente');
@@ -450,15 +557,66 @@ require __DIR__ . '/_cabecera.php';
   <?php endif; ?>
 
 <?php else: ?>
-  <section class="panel">
+  <?php if ($campanaActual): ?>
+    <?php // El envío que se acaba de crear: los correos salen en tandas mientras la página está abierta. ?>
+    <section class="panel panel-envio" data-campana-progreso data-campana="<?= (int)$campanaActual['id'] ?>"
+             data-url="<?= e(url('admin/avisos-envio.php')) ?>"
+             data-con-correo="<?= (int)$campanaActual['con_correo'] ?>"
+             data-enviados="<?= (int)$campanaActual['enviados'] ?>"
+             data-pendientes="<?= (int)$campanaActual['pendientes'] ?>">
+      <div class="envio-cabecera">
+        <span class="envio-icono" aria-hidden="true"><i class="fa-solid <?= e((Avisos::TIPOS[$campanaActual['tipo']] ?? Avisos::TIPOS['aviso'])[1]) ?>"></i></span>
+        <div>
+          <h2><?= e((string)$campanaActual['titulo']) ?></h2>
+          <p class="celda-sub"><?= e((Avisos::TIPOS[$campanaActual['tipo']] ?? Avisos::TIPOS['aviso'])[0]) ?>
+            para <?= (int)$campanaActual['destinatarios'] ?> <?= unidad_plural((int)$campanaActual['destinatarios'], 'clientes') ?> · ya lo ven en su cuenta</p>
+        </div>
+      </div>
+      <?php if ((int)$campanaActual['con_correo'] > 0): ?>
+        <div class="envio-barra" role="progressbar" aria-label="Correos enviados" aria-valuemin="0"
+             aria-valuemax="<?= (int)$campanaActual['con_correo'] ?>" aria-valuenow="<?= (int)$campanaActual['enviados'] ?>">
+          <span data-envio-relleno style="width:<?= (int)round(100 * $campanaActual['enviados'] / max(1, $campanaActual['con_correo'])) ?>%"></span>
+        </div>
+        <p class="envio-texto" data-envio-texto role="status" aria-live="polite">
+          <?= (int)$campanaActual['enviados'] ?> de <?= (int)$campanaActual['con_correo'] ?> correos enviados.
+          <?= (int)$campanaActual['pendientes'] > 0 ? 'Enviando… deja esta página abierta.' : 'Envío terminado.' ?></p>
+        <button type="button" class="boton boton-claro boton-mini" data-envio-reintentar hidden>
+          <i class="fa-solid fa-rotate-right" aria-hidden="true"></i> Continuar el envío</button>
+      <?php else: ?>
+        <p class="envio-texto">Sin correo en este envío: solo el aviso en la cuenta de cada cliente.</p>
+      <?php endif; ?>
+    </section>
+  <?php endif; ?>
+
+  <section class="panel" data-seleccion="clientes" data-total="<?= (int)$total ?>"
+           data-singular="cliente" data-plural="clientes">
     <form class="barra-herramientas" method="get" action="<?= e(url('admin/clientes.php')) ?>">
       <div class="campo">
         <label for="q">Buscar</label>
         <input type="search" id="q" name="q" value="<?= e($q) ?>" placeholder="Nombre, correo o teléfono">
       </div>
+      <div class="campo estrecho">
+        <label for="estado">Cuentas</label>
+        <select id="estado" name="estado">
+          <option value="todos"<?= $estado === 'todos' ? ' selected' : '' ?>>Todas</option>
+          <option value="activos"<?= $estado === 'activos' ? ' selected' : '' ?>>Activas</option>
+          <option value="inactivos"<?= $estado === 'inactivos' ? ' selected' : '' ?>>Inactivas</option>
+        </select>
+      </div>
       <button type="submit" class="boton boton-principal"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i> Buscar</button>
-      <?php if ($q !== ''): ?>
+      <?php if ($q !== '' || $estado !== 'todos'): ?>
         <a class="boton boton-claro" href="<?= e(url('admin/clientes.php')) ?>">Limpiar</a>
+      <?php endif; ?>
+      <?php if ($puedeMasivo && $clientes): ?>
+        <span class="barra-herramientas-separador" aria-hidden="true"></span>
+        <button type="button" class="boton boton-claro boton-seleccionar" data-seleccion-alternar aria-pressed="false"
+                data-texto-activo="Terminar selección">
+          <i class="fa-solid fa-list-check" aria-hidden="true"></i> <span>Seleccionar</span></button>
+        <?php if ($conCampanas && $activosFiltro > 0): ?>
+          <button type="button" class="boton boton-claro" data-abrir-modal="modalAvisoTodos">
+            <i class="fa-solid fa-bullhorn" aria-hidden="true"></i>
+            Aviso a <?= ($q !== '' || $estado !== 'todos') ? 'los del filtro' : 'todos' ?></button>
+        <?php endif; ?>
       <?php endif; ?>
     </form>
 
@@ -470,12 +628,20 @@ require __DIR__ . '/_cabecera.php';
       </div>
     <?php else: ?>
       <div class="tabla-envoltura">
-        <table class="tabla">
-          <thead><tr><th>Cliente</th><th>Contacto</th><th class="num">Pedidos</th>
-                     <th class="num">Comprado</th><th>Estado</th><th></th></tr></thead>
+        <table class="tabla tabla-seleccionable">
+          <thead><tr>
+            <?php if ($puedeMasivo): ?>
+              <th class="col-sel"><input type="checkbox" data-sel-todos aria-label="Seleccionar todos los de esta página"></th>
+            <?php endif; ?>
+            <th>Cliente</th><th>Contacto</th><th class="num">Pedidos</th>
+            <th class="num">Comprado</th><th>Estado</th><th></th></tr></thead>
           <tbody>
             <?php foreach ($clientes as $c): ?>
               <tr>
+                <?php if ($puedeMasivo): ?>
+                  <td class="col-sel"><input type="checkbox" value="<?= (int)$c['id'] ?>" data-sel-item
+                        aria-label="Seleccionar a <?= e(trim((string)$c['nombre'] . ' ' . (string)$c['apellido'])) ?>"></td>
+                <?php endif; ?>
                 <td>
                   <span class="celda-principal"><?= e(trim((string)$c['nombre'] . ' ' . (string)$c['apellido'])) ?></span><br>
                   <span class="celda-sub">Desde <?= e(fecha_corta((string)$c['created_at'])) ?>
@@ -483,7 +649,10 @@ require __DIR__ . '/_cabecera.php';
                 </td>
                 <td>
                   <?= e((string)$c['email']) ?><br>
-                  <span class="celda-sub"><?= e((string)$c['telefono']) ?></span>
+                  <span class="celda-sub"><?= e((string)$c['telefono']) ?>
+                    <?php if (isset($c['acepta_promociones']) && (int)$c['acepta_promociones'] === 0): ?>
+                      <span class="estado-suave no" title="Se dio de baja de las promociones por correo">Sin promociones</span>
+                    <?php endif; ?></span>
                 </td>
                 <td class="num"><?= (int)$c['pedidos'] ?></td>
                 <td class="num"><?= e(dinero($c['gastado'])) ?></td>
@@ -498,12 +667,118 @@ require __DIR__ . '/_cabecera.php';
         </table>
       </div>
 
+      <?php if ($puedeMasivo):
+          $camposFiltro = campoToken()
+              . '<input type="hidden" name="f_q" value="' . e($q) . '">'
+              . '<input type="hidden" name="f_estado" value="' . e($estado) . '">'
+              . '<input type="hidden" name="volver_qs" value="' . e(http_build_query(array_filter(
+                  ['q' => $q, 'estado' => $estado !== 'todos' ? $estado : '', 'pagina' => $pagina > 1 ? $pagina : '']))) . '">';
+          // Los campos del aviso, iguales en «a los seleccionados» y «a todos».
+          $camposAviso = static function (string $p) use ($conCampanas): string {
+              ob_start(); ?>
+              <div class="campo">
+                <label for="<?= $p ?>Tipo">Tipo</label>
+                <select id="<?= $p ?>Tipo" name="tipo" data-aviso-tipo>
+                  <?php foreach (Campanas::TIPOS as $t): ?>
+                    <option value="<?= e($t) ?>"><?= e(Avisos::TIPOS[$t][0]) ?></option>
+                  <?php endforeach; ?>
+                </select>
+              </div>
+              <div class="campo">
+                <label for="<?= $p ?>Titulo">Título</label>
+                <input type="text" id="<?= $p ?>Titulo" name="titulo" required minlength="3" maxlength="120"
+                       placeholder="Esta semana: 15% en rosas">
+              </div>
+              <div class="campo">
+                <label for="<?= $p ?>Mensaje">Mensaje</label>
+                <textarea id="<?= $p ?>Mensaje" name="mensaje" required minlength="3" maxlength="2000" rows="5"
+                          placeholder="Escribe lo que quieras contarles…"></textarea>
+              </div>
+              <div class="interruptor">
+                <input type="checkbox" id="<?= $p ?>Correo" name="por_correo" value="1" checked>
+                <label for="<?= $p ?>Correo">Enviarlo también por correo
+                  <small data-aviso-nota-promo hidden>Las promociones solo llegan por correo a quien no se ha dado
+                    de baja; cada una lleva el enlace para hacerlo. El aviso en la cuenta les llega a todos.</small></label>
+              </div>
+              <?php return (string)ob_get_clean();
+          }; ?>
+        <form method="post" action="<?= e(url('admin/clientes.php')) ?>" id="formSeleccion" data-seleccion-form data-una-vez>
+          <?= $camposFiltro ?>
+        </form>
+
+        <div class="barra-seleccion" data-seleccion-barra role="region" aria-label="Acciones con los clientes seleccionados" hidden>
+          <div class="seleccion-info">
+            <p><strong data-sel-n>0</strong> <span data-sel-palabra>clientes</span></p>
+            <button type="button" class="seleccion-filtro" data-sel-filtro hidden></button>
+          </div>
+          <div class="seleccion-acciones">
+            <?php if ($conCampanas): ?>
+              <div class="seleccion-grupo" role="group" aria-label="Comunicar">
+                <button type="button" data-abrir-modal="modalSelAviso" data-sel-accion>
+                  <i class="fa-solid fa-paper-plane" aria-hidden="true"></i> Enviar aviso…</button>
+              </div>
+            <?php endif; ?>
+            <div class="seleccion-grupo" role="group" aria-label="Cuenta">
+              <button type="submit" form="formSeleccion" name="accion_masiva" value="activar" data-sel-accion>
+                <i class="fa-solid fa-user-check" aria-hidden="true"></i> Activar</button>
+              <button type="submit" form="formSeleccion" name="accion_masiva" value="desactivar" class="peligro" data-sel-accion
+                      data-sel-confirmar="¿Desactivar {n} {palabra}? No podrán iniciar sesión hasta que reactives su cuenta.">
+                <i class="fa-solid fa-user-slash" aria-hidden="true"></i> Desactivar</button>
+            </div>
+          </div>
+          <button type="button" class="seleccion-cerrar" data-seleccion-alternar aria-label="Terminar la selección">
+            <i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
+        </div>
+
+        <?php if ($conCampanas): ?>
+          <dialog class="modal" id="modalSelAviso" aria-labelledby="tituloSelAviso">
+            <form method="post" action="<?= e(url('admin/clientes.php')) ?>" data-seleccion-form data-una-vez>
+              <?= $camposFiltro ?>
+              <input type="hidden" name="accion_masiva" value="aviso">
+              <div class="modal-cabecera"><h2 id="tituloSelAviso"><i class="fa-solid fa-paper-plane" aria-hidden="true"></i> Aviso a los seleccionados</h2></div>
+              <div class="modal-cuerpo">
+                <p class="modal-ayuda">Lo reciben <strong data-sel-n>0</strong> <span data-sel-palabra>clientes</span>
+                  (solo las cuentas activas) en «Mis avisos».</p>
+                <?= $camposAviso('selAviso') ?>
+              </div>
+              <div class="modal-pie">
+                <button type="button" class="boton boton-claro" data-cerrar-modal>Cancelar</button>
+                <button type="submit" class="boton boton-principal" data-sel-accion>
+                  <i class="fa-solid fa-paper-plane" aria-hidden="true"></i> Enviar</button>
+              </div>
+            </form>
+          </dialog>
+
+          <dialog class="modal" id="modalAvisoTodos" aria-labelledby="tituloAvisoTodos">
+            <form method="post" action="<?= e(url('admin/clientes.php')) ?>" data-una-vez
+                  data-confirmar="¿Enviar este aviso a <?= (int)$activosFiltro ?> <?= unidad_plural($activosFiltro, 'clientes') ?>?">
+              <?= $camposFiltro ?>
+              <input type="hidden" name="accion_masiva" value="aviso">
+              <input type="hidden" name="todo_filtro" value="1">
+              <div class="modal-cabecera"><h2 id="tituloAvisoTodos"><i class="fa-solid fa-bullhorn" aria-hidden="true"></i>
+                Aviso a <?= ($q !== '' || $estado !== 'todos') ? 'los clientes del filtro' : 'todos los clientes' ?></h2></div>
+              <div class="modal-cuerpo">
+                <p class="modal-ayuda">Lo reciben <strong><?= (int)$activosFiltro ?></strong>
+                  <?= unidad_plural($activosFiltro, 'clientes') ?> con la cuenta activa<?= ($q !== '' || $estado !== 'todos') ? ' que coinciden con la búsqueda' : '' ?>,
+                  en «Mis avisos» y, si lo marcas, por correo.</p>
+                <?= $camposAviso('todos') ?>
+              </div>
+              <div class="modal-pie">
+                <button type="button" class="boton boton-claro" data-cerrar-modal>Cancelar</button>
+                <button type="submit" class="boton boton-principal">
+                  <i class="fa-solid fa-bullhorn" aria-hidden="true"></i> Enviar a <?= (int)$activosFiltro ?></button>
+              </div>
+            </form>
+          </dialog>
+        <?php endif; ?>
+      <?php endif; ?>
+
       <?php if ($paginas > 1): ?>
         <nav class="paginacion">
           <?php for ($i = 1; $i <= $paginas; $i++): ?>
             <?php if ($i === $pagina): ?><span class="actual"><?= $i ?></span>
             <?php else: ?>
-              <a href="<?= e(url('admin/clientes.php?' . http_build_query(array_filter(['q' => $q, 'pagina' => $i])))) ?>"><?= $i ?></a>
+              <a href="<?= e(url('admin/clientes.php?' . http_build_query(array_filter(['q' => $q, 'estado' => $estado !== 'todos' ? $estado : '', 'pagina' => $i])))) ?>"><?= $i ?></a>
             <?php endif; ?>
           <?php endfor; ?>
         </nav>

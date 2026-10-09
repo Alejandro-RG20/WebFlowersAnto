@@ -901,3 +901,60 @@ anteriores) y `factura_items.codigo`. Sin ella todo funciona como antes.
 2. Subir los archivos.
 3. Panel → Base de datos → aplicar las migraciones pendientes (026 y 027).
 4. Vaciar la caché del CDN.
+
+---
+
+## 20. Selección de varios: productos y clientes, y avisos masivos
+
+### Productos
+- Botón **Seleccionar** arriba de la lista: aparecen las casillas y una barra
+  flotante abajo con lo que se puede hacer con lo marcado: **destacar / quitar
+  destacado, publicar / ocultar, disponible / sobre pedido, poner o quitar
+  descuento, cambiar el precio, mover de categoría y eliminar**.
+- **Cambiar el precio**: subir o bajar, en cantidad fija o en porcentaje, con
+  redondeo opcional (al córdoba, a 5, 10 o 50) y vista previa de cómo quedan
+  antes de confirmar. Cambia el precio de siempre (los que están en oferta
+  mantienen su %) y el precio en dólares en la misma proporción. Ninguno
+  puede quedar por debajo de C$1.
+- **Eliminar** archiva (oculta) los que ya están en pedidos en lugar de
+  borrarlos, como el botón de cada fila.
+- Con toda la página marcada se ofrece **«Seleccionar los N del filtro»**:
+  la acción se aplica a todos los que coinciden con la búsqueda, aunque estén
+  en otras páginas (hasta 2000).
+- **Arreglado**: los botones de cada fila (destacar, ocultar, eliminar)
+  estaban dentro del formulario de acciones masivas. En HTML no puede haber
+  formularios anidados, así que en la **primera fila** el navegador los unía
+  a ese formulario, y pulsar «Destacar» u «Ocultar» en el primer producto
+  enviaba también el «eliminar» de esa fila: el primer producto se
+  eliminaba (o archivaba) sin preguntar. Cada acción es ahora su propio
+  formulario.
+
+### Clientes
+- El mismo **Seleccionar** con barra: **enviar aviso, activar y desactivar**
+  cuentas. Nuevo filtro por cuentas activas o inactivas.
+- **Aviso a todos** (o «a los del filtro» si hay una búsqueda): manda un
+  aviso, sugerencia, advertencia o **promoción** a todos los clientes con la
+  cuenta activa. Lo ven en «Mis avisos» al momento y, si se marca, también
+  por correo.
+- **Los correos salen en tandas** de 8 mientras la página está abierta, con
+  barra de progreso. Así cientos de correos no cortan la página ni chocan con
+  el límite del hosting; si se cierra, se puede continuar donde quedó sin
+  repetir ninguno.
+- **Promociones con baja**: cada correo de promoción lleva el enlace «No
+  quiero recibir más promociones» (pide confirmar con un botón, porque
+  algunos correos abren los enlaces solos). En **Mi cuenta → Mis datos** hay
+  una casilla para lo mismo. A quien se dio de baja no le llega el correo de
+  promociones, pero sí el aviso en su cuenta y los correos de sus pedidos.
+  En la lista de clientes se marca «Sin promociones».
+
+### Base de datos
+Migración `028_avisos_masivos`: tabla `campanas_avisos`, en `notificaciones`
+el tipo «promoción», `campana_id` y `correo_intentos`, y en `usuarios`
+`acepta_promociones` y `token_baja`. Sin ella todo funciona como antes, sin
+avisos masivos.
+
+### Al subirlo a Hostinger
+1. No borrar `storage/` ni el `.env` (ver la sección 19).
+2. Subir los archivos.
+3. Panel → Base de datos → aplicar las migraciones pendientes (026, 027 y 028).
+4. Vaciar la caché del CDN.

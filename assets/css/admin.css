@@ -242,19 +242,16 @@ table.tabla .acciones { text-align: right; white-space: nowrap; }
 }
 .campo input[type="text"], .campo input[type="email"], .campo input[type="tel"],
 .campo input[type="password"], .campo input[type="number"], .campo input[type="date"],
-.campo input[type="search"], .campo input[type="url"], .campo select, .campo textarea,
-.masiva-campo select, .masiva-campo input {
+.campo input[type="search"], .campo input[type="url"], .campo select, .campo textarea {
   width: 100%; padding: 10px 13px; border: 1.5px solid var(--p-linea);
   border-radius: 9px; font: inherit; font-size: 16px; background: var(--p-papel); color: var(--p-tinta);
   transition: border-color var(--p-trans), box-shadow var(--p-trans);
 }
 @media (min-width: 700px) {
-  .campo input, .campo select, .campo textarea,
-  .masiva-campo select, .masiva-campo input { font-size: .92rem; }
+  .campo input, .campo select, .campo textarea { font-size: .92rem; }
 }
 .campo textarea { min-height: 92px; resize: vertical; }
-.campo input:focus, .campo select:focus, .campo textarea:focus,
-.masiva-campo select:focus, .masiva-campo input:focus {
+.campo input:focus, .campo select:focus, .campo textarea:focus {
   outline: none; border-color: var(--p-rosa); box-shadow: 0 0 0 3px rgba(196,120,143,.14);
 }
 .campo input[type="color"] { width: 54px; height: 38px; padding: 3px; border: 1.5px solid var(--p-linea); border-radius: 8px; }
@@ -569,46 +566,6 @@ dialog.modal .modal-pie {
 .salud-fila .salud-arreglo { margin-top: 5px; color: var(--p-texto, #4A3B3D); }
 .salud-fila .salud-arreglo::before { content: "→ "; opacity: .55; }
 
-/* ----------------------------------------------------------------------
-   Acciones sobre varios productos
-
-   La barra solo se pinta cuando hay algo marcado —lo decide admin.js— y se
-   queda pegada arriba al desplazar, porque la lista es larga y si no habría
-   que volver al principio para aplicar la acción.
-   ---------------------------------------------------------------------- */
-.barra-masiva {
-  position: sticky; top: 0; z-index: 5;
-  display: flex; flex-wrap: wrap; align-items: end; gap: 14px;
-  padding: 14px 16px; margin-bottom: 14px;
-  background: var(--panel-suave, #FDF3F5);
-  border: 1px solid var(--panel-borde, #F0E0E4);
-  border-radius: 12px;
-}
-/* `display: flex` de la regla de arriba le gana al `display: none` que el
-   navegador aplica por el atributo `hidden`, así que la barra se veía aunque
-   no hubiera nada marcado. Se le devuelve la última palabra al atributo. */
-.barra-masiva[hidden] { display: none; }
-
-.masiva-cuenta { font-size: .9rem; align-self: center; font-weight: 500; }
-.masiva-campo { display: flex; flex-direction: column; gap: 4px; font-size: .8rem; }
-.masiva-campo > span {
-  font-size: .77rem; font-weight: 600; letter-spacing: .04em;
-  text-transform: uppercase; color: var(--p-suave);
-}
-.masiva-campo select, .masiva-campo input { min-width: 110px; }
-
-/* Cada acción con su campo al lado: así se ve qué número alimenta a qué
-   botón, en vez de una fila de controles sueltos donde el descuento parecía
-   valer también para el aumento. */
-.masiva-grupo { display: flex; align-items: end; gap: 9px; flex-wrap: wrap; }
-
-/* El renglón de «en qué queda esto». Ocupa la fila entera para que no empuje
-   a los botones y se lea de corrido. */
-.masiva-vista {
-  flex: 1 0 100%; margin: 0; font-size: .84rem; line-height: 1.5;
-  color: var(--p-suave); font-variant-numeric: tabular-nums;
-}
-.masiva-vista:empty { display: none; }
 
 /* Precio en la tabla: el de siempre arriba y pequeño, el que se cobra abajo
    con el peso. Apilados no compiten por la misma línea y la columna sigue
@@ -641,12 +598,7 @@ dialog.modal .modal-pie {
 .resumen-total strong { font-size: 1.05rem; }
 .resumen-nota { margin-top: 6px; font-size: .8rem; color: var(--p-suave); }
 
-@media (max-width: 640px) {
-  .barra-masiva { position: static; gap: 16px; }
-  .masiva-grupo { flex: 1 1 100%; }
-  .masiva-campo { flex: 1 1 100%; }
-  .barra-masiva .boton { flex: 1 1 130px; }
-}
+
 
 /* =======================================================================
    Asistente IA del panel (AI Manager)
@@ -928,3 +880,131 @@ dialog.modal .modal-pie {
 }
 .boton-enlace:hover { text-decoration-thickness: 2px; }
 .boton-enlace:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; border-radius: 2px; }
+
+/* ----------------------------------------------------------------------
+   Selección de varias filas (productos, clientes)
+
+   «Seleccionar» enseña la columna de casillas y una barra flotante abajo,
+   centrada, con las acciones. La barra es oscura para que se distinga de
+   la página y no tape la tabla: la lista lleva un margen inferior mientras
+   se selecciona, así la última fila nunca queda debajo.
+   ---------------------------------------------------------------------- */
+.tabla-seleccionable .col-sel { display: none; width: 44px; }
+.seleccionando .tabla-seleccionable .col-sel { display: table-cell; }
+.col-sel input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--p-tinta); cursor: pointer; vertical-align: middle; }
+.seleccionando .tabla-seleccionable tbody tr:has(.col-sel input:checked) { background: var(--panel-suave, #FDF3F5); }
+.seleccionando { padding-bottom: 96px; }
+.boton-seleccionar[aria-pressed="true"] { background: var(--p-tinta); color: #fff; border-color: var(--p-tinta); }
+
+@keyframes seleccion-entrar {
+  from { transform: translate(-50%, 24px); opacity: 0; }
+  to   { transform: translate(-50%, 0); opacity: 1; }
+}
+/* Centrada en el área de contenido, a la derecha del menú lateral: centrada
+   en la ventana, su borde izquierdo quedaba debajo del menú (que va por
+   encima) y esos botones no se podían pulsar. */
+.barra-seleccion {
+  position: fixed; left: calc(var(--p-lateral) + (100vw - var(--p-lateral)) / 2);
+  bottom: calc(18px + env(safe-area-inset-bottom)); z-index: 60;
+  transform: translateX(-50%);
+  display: flex; align-items: center; gap: 14px;
+  width: max-content; max-width: min(1040px, calc(100vw - var(--p-lateral) - 32px));
+  padding: 10px 10px 10px 18px; border-radius: 18px;
+  background: #2C2124; color: #fff;
+  box-shadow: 0 18px 44px -12px rgba(30, 18, 22, .55), 0 2px 8px rgba(30, 18, 22, .25);
+  animation: seleccion-entrar .28s cubic-bezier(.22, 1, .36, 1);
+}
+.barra-seleccion[hidden] { display: none; }
+.seleccion-info { display: flex; flex-direction: column; gap: 2px; flex-shrink: 0; min-width: 96px; }
+.seleccion-info p { margin: 0; font-size: .86rem; white-space: nowrap; }
+.seleccion-info strong { font-size: 1.05rem; font-variant-numeric: tabular-nums; }
+.seleccion-filtro {
+  padding: 0; border: 0; background: none; color: #F8B0C2; font: inherit; font-size: .76rem;
+  text-align: left; text-decoration: underline; text-underline-offset: 2px; cursor: pointer;
+}
+.seleccion-filtro.activo { color: #fff; }
+.seleccion-filtro[hidden] { display: none; }
+/* En escritorio las acciones bajan a otra línea si no caben: todas a la
+   vista, sin desplazamientos escondidos dentro de la barra. */
+.seleccion-acciones { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.seleccion-grupo {
+  display: flex; gap: 2px; padding: 3px; border-radius: 12px; background: rgba(255, 255, 255, .08); flex-shrink: 0;
+}
+.seleccion-grupo button {
+  display: inline-flex; align-items: center; gap: 6px; padding: 8px 11px; border: 0; border-radius: 9px;
+  background: none; color: #fff; font: inherit; font-size: .8rem; font-weight: 500; white-space: nowrap; cursor: pointer;
+  transition: background-color .15s ease;
+}
+.seleccion-grupo button:hover:not(:disabled) { background: rgba(255, 255, 255, .14); }
+.seleccion-grupo button:focus-visible { outline: 2px solid #F8B0C2; outline-offset: 1px; }
+.seleccion-grupo button:disabled { opacity: .38; cursor: not-allowed; }
+.seleccion-grupo button i { font-size: .82rem; opacity: .85; }
+.seleccion-grupo button.peligro { color: #FFB4B4; }
+.seleccion-grupo button.peligro:hover:not(:disabled) { background: rgba(255, 120, 120, .18); }
+.seleccion-cerrar {
+  width: 36px; height: 36px; flex-shrink: 0; border: 0; border-radius: 50%;
+  display: grid; place-items: center; background: rgba(255, 255, 255, .1); color: #fff; cursor: pointer;
+}
+.seleccion-cerrar:hover { background: rgba(255, 255, 255, .2); }
+.seleccion-cerrar:focus-visible { outline: 2px solid #F8B0C2; outline-offset: 2px; }
+/* Sin menú lateral fijo (tableta y móvil) se centra en la ventana. */
+@media (max-width: 1000px) {
+  .barra-seleccion { left: 50%; max-width: calc(100vw - 32px); }
+}
+@media (max-width: 760px) {
+  .barra-seleccion {
+    left: 12px; right: 12px; width: auto; max-width: none; transform: none;
+    flex-wrap: wrap; gap: 8px 10px; padding: 10px 10px 10px 14px; animation: none;
+  }
+  .seleccion-info { flex: 1; flex-direction: row; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+  /* En el móvil, una sola línea que se desliza con el dedo; el borde
+     difuminado avisa de que hay más acciones a la derecha. */
+  .seleccion-acciones {
+    order: 3; flex: 1 0 100%; flex-wrap: nowrap; overflow-x: auto; padding-bottom: 2px;
+    scrollbar-width: none; -webkit-mask-image: linear-gradient(to right, #000 82%, transparent);
+    mask-image: linear-gradient(to right, #000 82%, transparent);
+  }
+  .seleccion-acciones::-webkit-scrollbar { display: none; }
+}
+@media (prefers-reduced-motion: reduce) { .barra-seleccion { animation: none; } }
+
+/* Ventanas de las acciones: el texto de a cuántos afecta y la vista previa. */
+.modal-ayuda { margin: 0 0 14px; font-size: .86rem; color: var(--p-suave); line-height: 1.55; }
+.modal-vista {
+  margin: 4px 0 0; padding: 10px 12px; border-radius: 9px; font-size: .82rem; line-height: 1.5;
+  background: var(--panel-suave, #FDF3F5); color: var(--p-tinta); font-variant-numeric: tabular-nums;
+}
+.modal-vista:empty { display: none; }
+/* Dos opciones excluyentes como un interruptor de dos posiciones. */
+.selector-segmentado {
+  display: inline-flex; padding: 3px; margin: 0 8px 14px 0; border-radius: 11px;
+  background: var(--panel-suave, #FDF3F5); border: 1px solid var(--p-linea);
+}
+.selector-segmentado label { position: relative; cursor: pointer; }
+.selector-segmentado input { position: absolute; opacity: 0; inset: 0; cursor: pointer; }
+.selector-segmentado span {
+  display: block; padding: 7px 14px; border-radius: 8px; font-size: .84rem; font-weight: 500; color: var(--p-suave);
+  transition: background-color .15s ease, color .15s ease;
+}
+.selector-segmentado input:checked + span { background: var(--p-papel, #fff); color: var(--p-tinta); box-shadow: 0 1px 4px rgba(44, 33, 36, .14); }
+.selector-segmentado input:focus-visible + span { outline: 2px solid var(--p-rosa); outline-offset: 1px; }
+
+/* Separador entre los filtros y las acciones de la barra de herramientas. */
+.barra-herramientas-separador { flex: 1 1 auto; }
+
+/* Avance de un aviso masivo. */
+.panel-envio { padding: 18px 20px; }
+.envio-cabecera { display: flex; align-items: center; gap: 14px; margin-bottom: 14px; }
+.envio-cabecera h2 { margin: 0; font-size: 1.05rem; }
+.envio-icono {
+  width: 42px; height: 42px; border-radius: 12px; flex-shrink: 0; display: grid; place-items: center;
+  background: var(--p-rosa-sw); color: var(--p-rosa); font-size: 1.05rem;
+}
+.envio-barra { height: 8px; border-radius: 99px; background: var(--p-linea); overflow: hidden; }
+.envio-barra span {
+  display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #C4788F, #E07A98);
+  transition: width .5s cubic-bezier(.22, 1, .36, 1);
+}
+.panel-envio.terminado .envio-barra span { background: #3E8E5E; }
+.envio-texto { margin: 8px 0 0; font-size: .86rem; color: var(--p-suave); }
+.panel-envio [data-envio-reintentar] { margin-top: 10px; }

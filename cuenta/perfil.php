@@ -174,6 +174,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $pdo->prepare("UPDATE usuarios SET fecha_nacimiento = ? WHERE id = ?")
                     ->execute([$nacio, $usuario['id']]);
             }
+            if (Campanas::disponible($pdo)) {
+                Campanas::cambiarPromociones($pdo, (int)$usuario['id'], casilla('acepta_promociones') === 1);
+            }
 
             $codigoEnviado = $correoConCodigo && CambioCorreo::iniciar($pdo, $usuario, $correo);
 
@@ -386,6 +389,15 @@ require __DIR__ . '/../includes/vistas/cabecera.php';
                      autocomplete="bday" value="<?= e(fechaOpcional('fecha_nacimiento') ?? (string)($usuario['fecha_nacimiento'] ?? '')) ?>">
               <p class="ayuda">Solo la usamos para felicitarte. No se muestra a nadie.</p>
               <?php if (isset($errores['fecha_nacimiento'])): ?><p class="error-campo"><?= e($errores['fecha_nacimiento']) ?></p><?php endif; ?>
+            </div>
+          <?php endif; ?>
+
+          <?php if (Campanas::disponible($pdo)): ?>
+            <div class="campo-casilla">
+              <input type="checkbox" id="acepta_promociones" name="acepta_promociones" value="1"
+                     <?= (int)($usuario['acepta_promociones'] ?? 1) === 1 ? 'checked' : '' ?>>
+              <label for="acepta_promociones">Quiero recibir promociones y novedades por correo
+                <small class="texto-opcional">Los avisos sobre tus pedidos te llegan igual.</small></label>
             </div>
           <?php endif; ?>
 

@@ -32,6 +32,7 @@ final class Avisos
         'sugerencia'  => ['Sugerencia',       'fa-lightbulb'],
         'advertencia' => ['Advertencia',      'fa-triangle-exclamation'],
         'cumpleanos'  => ['Feliz cumpleaños', 'fa-cake-candles'],
+        'promocion'   => ['Promoción',        'fa-tags'],
     ];
 
     public const VIGENCIAS = [7, 15, 30];
@@ -327,7 +328,13 @@ final class Avisos
         throw new RuntimeException('No se pudo generar un código de cupón único.');
     }
 
-    private static function correoHtml(array $cliente, string $tipo, string $titulo, string $mensaje, ?array $cupon): string
+    /**
+     * El correo de un aviso. Con `$enlaceBaja` (las promociones) lleva al pie
+     * el enlace para dejar de recibirlas: es obligatorio en un correo
+     * comercial y lo que evita que el cliente lo marque como spam.
+     */
+    public static function correoHtml(array $cliente, string $tipo, string $titulo, string $mensaje,
+                                      ?array $cupon, string $enlaceBaja = ''): string
     {
         $cuerpo = '<p>Hola ' . e((string)$cliente['nombre']) . ',</p>'
                 . '<p>' . nl2br(e($mensaje)) . '</p>';
@@ -348,9 +355,15 @@ final class Avisos
                 . '<p style="margin:0 0 18px;font-size:13px;color:#8A7A7D;">Inicia sesión, elige tu arreglo y escribe el '
                 . 'código al completar el pedido.</p>';
         }
+        if ($enlaceBaja !== '') {
+            $cuerpo .= '<p style="margin:26px 0 0;font-size:12px;color:#8A7A7D;">Recibes este correo porque tienes una '
+                . 'cuenta en ' . e(Ajustes::texto('nombre_tienda', 'Flowers Anto')) . '. '
+                . '<a href="' . e($enlaceBaja) . '" style="color:#8A7A7D;">No quiero recibir más promociones</a>.</p>';
+        }
+        $tienda = $cupon !== null || $tipo === 'promocion';
         return Correo::plantilla($titulo, $cuerpo, [
-            'url'   => url_absoluta($cupon ? 'productos.php' : 'cuenta/avisos.php'),
-            'texto' => $cupon ? 'Elegir mi arreglo' : 'Ver en mi cuenta',
+            'url'   => url_absoluta($tienda ? 'productos.php' : 'cuenta/avisos.php'),
+            'texto' => $cupon ? 'Elegir mi arreglo' : ($tipo === 'promocion' ? 'Ver los arreglos' : 'Ver en mi cuenta'),
         ]);
     }
 }
