@@ -72,6 +72,11 @@ foreach ($productos as $i => [$nombre, $desc, $precio, $usd, $imagen, $categoria
     $insertarImagen->execute([(int)$pdo->lastInsertId(), $imagen, $nombre, 0]);
     $creados++;
 }
+// Los de demostración también llevan su código (FA- y el número), igual que
+// los que existían cuando se añadió la columna.
+if (CodigosProducto::disponible($pdo)) {
+    $pdo->exec("UPDATE productos SET codigo = CONCAT('FA-', LPAD(id, 4, '0')) WHERE codigo IS NULL OR codigo = ''");
+}
 echo "Productos creados: $creados\n";
 
 // ---------------------------------------------------------------------

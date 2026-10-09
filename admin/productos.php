@@ -208,10 +208,17 @@ $porPagina  = 20;
 
 $where = ['1 = 1'];
 $params = [];
+$conCodigo = CodigosProducto::disponible($pdo);
 if ($q !== '') {
     $t = '%' . str_replace(['%', '_'], ['\%', '\_'], $q) . '%';
-    $where[] = '(p.nombre LIKE ? OR p.descripcion LIKE ? OR p.flores LIKE ?)';
+    $donde = 'p.nombre LIKE ? OR p.descripcion LIKE ? OR p.flores LIKE ?';
     array_push($params, $t, $t, $t);
+    // También por código, escrito como sea: «fa 12» encuentra FA-0012.
+    if ($porCodigo = CodigosProducto::filtro($pdo, $q)) {
+        $donde .= ' OR ' . $porCodigo[0];
+        array_push($params, ...$porCodigo[1]);
+    }
+    $where[] = '(' . $donde . ')';
 }
 if ($categoria > 0) {
     $where[]  = 'p.categoria_id = ?';
@@ -257,7 +264,7 @@ require __DIR__ . '/_cabecera.php';
   <form class="barra-herramientas" method="get" action="<?= e(url('admin/productos.php')) ?>" data-autofiltro>
     <div class="campo">
       <label for="q">Buscar</label>
-      <input type="search" id="q" name="q" value="<?= e($q) ?>" placeholder="Nombre, descripción o tipo de flor">
+      <input type="search" id="q" name="q" value="<?= e($q) ?>" placeholder="<?= $conCodigo ? 'Código, nombre, descripción o flor' : 'Nombre, descripción o tipo de flor' ?>">
     </div>
     <div class="campo estrecho">
       <label for="categoria">Categoría</label>
@@ -362,7 +369,7 @@ require __DIR__ . '/_cabecera.php';
                 <?php if ((int)$p['destacado'] === 1): ?>
                   <i class="fa-solid fa-star" style="color:#C9A96E; font-size:.75rem;" title="Destacado" aria-label="Destacado"></i>
                 <?php endif; ?>
-                <br><span class="celda-sub"><?= e((string)$p['slug']) ?></span>
+                <br><span class="celda-sub"><?php if ((string)($p['codigo'] ?? '') !== ''): ?><span class="codigo-producto"><?= e((string)$p['codigo']) ?></span> · <?php endif; ?><?= e((string)$p['slug']) ?></span>
               </td>
               <td><?= e((string)$p['categoria_nombre']) ?></td>
               <td class="num">

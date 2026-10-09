@@ -77,6 +77,10 @@
 }
 .factura-tabla td { padding: 11px 0; border-bottom: 1px solid var(--linea, #EFE6E8); }
 .factura-tabla .num { text-align: right; white-space: nowrap; padding-left: 14px; }
+.factura-tabla .col-codigo {
+  white-space: nowrap; padding-right: 14px; font-size: .82rem; letter-spacing: .03em;
+  font-family: ui-monospace, 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
+}
 
 .factura-totales { display: flex; justify-content: flex-end; margin-top: 18px; }
 .factura-totales dl {

@@ -63,7 +63,7 @@ $datosEstructurados = [
     'name'        => $producto['nombre'],
     'description' => $descripcionPagina,
     'image'       => array_map(fn($i) => url_absoluta((string)$i['ruta']), $imagenes),
-    'sku'         => 'FA-' . $producto['id'],
+    'sku'         => (string)($producto['codigo'] ?? '') !== '' ? $producto['codigo'] : 'FA-' . $producto['id'],
     'category'    => $producto['categoria_nombre'],
     'brand'       => ['@type' => 'Brand', 'name' => Ajustes::texto('nombre_tienda', 'Flowers Anto')],
     'offers'      => [
@@ -136,6 +136,9 @@ require __DIR__ . '/includes/vistas/cabecera.php';
     <div class="ficha-info">
       <span class="tarjeta-categoria"><?= e((string)$producto['categoria_nombre']) ?></span>
       <h1><?= e((string)$producto['nombre']) ?></h1>
+      <?php if ((string)($producto['codigo'] ?? '') !== ''): ?>
+        <p class="ficha-codigo">Código <span translate="no"><?= e((string)$producto['codigo']) ?></span></p>
+      <?php endif; ?>
 
       <?php if ($disponible): ?>
         <span class="insignia insignia-disponible">
@@ -192,7 +195,9 @@ require __DIR__ . '/includes/vistas/cabecera.php';
           <div class="fila-comprar">
             <a class="btn btn-whatsapp"
                href="<?= e(enlace_whatsapp(
-                    'Hola, me interesa el arreglo «' . $producto['nombre'] . '» (' . dinero($producto['precio']) . ").\n"
+                    'Hola, me interesa el arreglo «' . $producto['nombre'] . '»'
+                    . ((string)($producto['codigo'] ?? '') !== '' ? ', código ' . $producto['codigo'] : '')
+                    . ' (' . dinero($producto['precio']) . ").\n"
                     . url_absoluta('producto.php?p=' . rawurlencode((string)$producto['slug']))
                )) ?>"
                target="_blank" rel="noopener">
@@ -213,7 +218,9 @@ require __DIR__ . '/includes/vistas/cabecera.php';
           </div>
           <div class="fila-comprar">
             <a class="btn btn-whatsapp"
-               href="<?= e(enlace_whatsapp('Hola, quiero encargar el arreglo «' . $producto['nombre'] . '». ¿Para cuándo lo pueden tener?')) ?>"
+               href="<?= e(enlace_whatsapp('Hola, quiero encargar el arreglo «' . $producto['nombre'] . '»'
+                    . ((string)($producto['codigo'] ?? '') !== '' ? ' (código ' . $producto['codigo'] . ')' : '')
+                    . '. ¿Para cuándo lo pueden tener?')) ?>"
                target="_blank" rel="noopener">
               <i class="fa-brands fa-whatsapp" aria-hidden="true"></i> Consultar disponibilidad
             </a>

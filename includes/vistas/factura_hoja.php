@@ -68,9 +68,13 @@ $emisor = array_values(array_filter([
     <?php endif; endforeach; ?>
   </section>
 
+  <?php // La columna del código solo aparece si alguna línea lo tiene: las
+        // facturas emitidas antes de existir los códigos se ven como siempre.
+        $conCodigos = (bool)array_filter(array_map(fn($it) => (string)($it['codigo'] ?? ''), (array)$factura['items'])); ?>
   <table class="factura-tabla">
     <thead>
       <tr>
+        <?php if ($conCodigos): ?><th scope="col" class="col-codigo">Código</th><?php endif; ?>
         <th scope="col">Descripción</th>
         <th scope="col" class="num">Cant.</th>
         <th scope="col" class="num">Precio</th>
@@ -80,6 +84,7 @@ $emisor = array_values(array_filter([
     <tbody>
       <?php foreach ((array)$factura['items'] as $it): ?>
         <tr>
+          <?php if ($conCodigos): ?><td class="col-codigo"><?= e((string)($it['codigo'] ?? '') ?: '—') ?></td><?php endif; ?>
           <td><?= e((string)$it['descripcion']) ?></td>
           <td class="num"><?= (int)$it['cantidad'] ?></td>
           <td class="num"><?= e(dinero($it['precio_unitario'])) ?></td>

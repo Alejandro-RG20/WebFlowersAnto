@@ -852,3 +852,52 @@ la tienda funciona como antes y el apartado de avisos no se muestra.
 1. Subir los archivos (incluido el nuevo `includes/conexion.php`).
 2. Panel → Base de datos → aplicar la migración 026.
 3. Vaciar la caché del CDN.
+
+---
+
+## 19. Código de producto y precio en dólares automático
+
+### Código único por producto
+- Cada arreglo tiene un **código** (p. ej. `FA-0012`), único en toda la
+  tienda. Se edita en **Productos → editar → Código**. Se escribe como se
+  quiera y se guarda en forma canónica: «encanto rosado 01» queda
+  `ENCANTO-ROSADO-01` (letras, números y guiones, de 3 a 30).
+- **Nunca se repite**: el formulario avisa mientras se escribe si otro arreglo
+  ya lo tiene («Ese código ya lo tiene "Ramo Gerbera"»), se vuelve a
+  comprobar al guardar y un índice único en la base lo garantiza aunque dos
+  personas guarden a la vez. No distingue mayúsculas.
+- **Automático** si se deja vacío: `FA-` y el número del producto con cuatro
+  cifras. Los productos existentes reciben así el suyo al aplicar la
+  migración.
+- **Se busca** en el listado del panel, en el catálogo de la web, con Massiel
+  y con el asistente del panel, escrito como sea: «fa 12», «FA12» y
+  «FA-0012» encuentran FA-0012.
+- **Se ve** en: la ficha del producto (y su referencia para Google), el
+  carrito, el resumen del pago, el pedido del cliente, el pedido en el panel,
+  el listado de productos, los correos del pedido y de la factura, la
+  factura (columna «Código») y los mensajes de WhatsApp (pedido, carrito,
+  ficha y «sobre pedido»).
+- Los pedidos y las facturas **guardan el código del momento de la compra**,
+  como ya guardaban el nombre: si se cambia después, lo vendido no cambia.
+  Las facturas ya emitidas no se modifican.
+
+### Precio en dólares automático
+- Al escribir el precio en córdobas, la casilla de dólares se rellena sola
+  con la tasa de **Configuración → Transferencias** (la misma de PayPal).
+- Se puede **cambiar a mano** (por ejemplo, redondear 43.84 a 44): se
+  respeta y solo se recalcula si vuelve a cambiar el precio en córdobas.
+  Debajo queda la conversión exacta con un botón para volver a ella.
+- Si se guarda sin precio en dólares, el servidor lo calcula con la tasa.
+
+### Base de datos
+Migración `027_codigo_producto`: `productos.codigo` (índice único, se
+rellena en los existentes), `pedido_items.codigo` (se rellena en los pedidos
+anteriores) y `factura_items.codigo`. Sin ella todo funciona como antes.
+
+### Al subirlo a Hostinger
+1. **No borrar `storage/`** (comprobantes de pago y respaldos solo existen
+   ahí) ni el `.env`. Si se borra todo, descargar antes `storage/`. Las fotos
+   de productos están en la base de datos y no se pierden.
+2. Subir los archivos.
+3. Panel → Base de datos → aplicar las migraciones pendientes (026 y 027).
+4. Vaciar la caché del CDN.

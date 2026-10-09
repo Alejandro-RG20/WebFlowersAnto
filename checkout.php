@@ -554,6 +554,7 @@ require __DIR__ . '/includes/vistas/cabecera.php';
               <img src="<?= e(url_imagen((string)$i['imagen'])) ?>" alt="" loading="lazy">
               <div class="mini-linea-datos">
                 <strong><?= e((string)$i['nombre']) ?></strong>
+                <?php if ((string)($i['codigo'] ?? '') !== ''): ?><span class="codigo-producto"><?= e((string)$i['codigo']) ?></span><?php endif; ?>
                 <small><?= (int)$i['cantidad'] ?> × <?= e(dinero($i['precio'])) ?></small>
               </div>
               <span class="mini-linea-precio"><?= e(dinero($i['subtotal'])) ?></span>

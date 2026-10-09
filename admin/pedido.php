@@ -313,6 +313,7 @@ require __DIR__ . '/_cabecera.php';
                  alt="" width="46" height="56" loading="lazy" decoding="async">
             <div class="linea-articulo-datos">
               <strong><?= e((string)$i['nombre']) ?></strong>
+              <?php if ((string)($i['codigo'] ?? '') !== ''): ?><span class="codigo-producto"><?= e((string)$i['codigo']) ?></span><?php endif; ?>
               <small><?= (int)$i['cantidad'] ?> × <?= e((string)$pedido['moneda'] . number_format((float)$i['precio_unitario'], 2)) ?></small>
             </div>
             <strong><?= e((string)$pedido['moneda'] . number_format((float)$i['subtotal'], 2)) ?></strong>

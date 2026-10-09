@@ -61,11 +61,11 @@ TXT;
         return [
             [
                 'name' => 'buscar_productos',
-                'description' => 'Busca arreglos del catálogo publicado. Devuelve nombre, categoría, flores, precio final (ya con oferta), precio anterior si está rebajado y disponibilidad. Úsala para recomendar y para identificar un producto que el cliente nombra.',
+                'description' => 'Busca arreglos del catálogo publicado. Devuelve nombre, código, categoría, flores, precio final (ya con oferta), precio anterior si está rebajado y disponibilidad. Úsala para recomendar y para identificar un producto que el cliente nombra o cuyo código da (p. ej. FA-0012).',
                 'input_schema' => [
                     'type' => 'object',
                     'properties' => [
-                        'consulta' => ['type' => 'string', 'description' => 'Palabras clave cortas: flor, color, ocasión o nombre del arreglo. Vacía para ver todo.'],
+                        'consulta' => ['type' => 'string', 'description' => 'Palabras clave cortas: flor, color, ocasión, nombre o código del arreglo. Vacía para ver todo.'],
                         'categoria' => ['type' => 'string', 'description' => 'Slug de categoría (de listar_categorias).'],
                         'presupuesto_max' => ['type' => 'number', 'description' => 'Precio final máximo en córdobas.'],
                         'presupuesto_min' => ['type' => 'number', 'description' => 'Precio final mínimo en córdobas.'],
@@ -248,8 +248,8 @@ TXT;
             preg_split('/\s+/u', mb_strtolower($consulta)) ?: [],
             fn($w) => mb_strlen($w) >= 3
         )), 0, 5);
+        $partes = [];
         if ($palabras) {
-            $partes = [];
             foreach ($palabras as $w) {
                 // «rosas» debe encontrar «rosa»: se prueba también sin la s final.
                 $raiz = mb_strlen($w) > 4 && str_ends_with($w, 's') ? mb_substr($w, 0, -1) : $w;
@@ -260,6 +260,14 @@ TXT;
                             + CASE WHEN LOWER(CONCAT(IFNULL(p.resumen,''),' ',IFNULL(p.descripcion,''))) LIKE ? THEN 1 ELSE 0 END)";
                 array_push($paramsRel, $like, $like, $like, $like);
             }
+        }
+        // Un código (FA-0012, «fa 12») pesa más que cualquier palabra: quien lo
+        // da ya sabe qué arreglo quiere.
+        if (mb_strlen(trim($consulta)) >= 2 && ($porCodigo = CodigosProducto::filtro($this->pdo, $consulta))) {
+            $partes[] = '(CASE WHEN ' . $porCodigo[0] . ' THEN 10 ELSE 0 END)';
+            array_push($paramsRel, ...$porCodigo[1]);
+        }
+        if ($partes) {
             $relevancia = implode(' + ', $partes);
         }
         if ($categoria !== '') {
@@ -292,12 +300,13 @@ TXT;
             default        => 'p.destacado DESC, p.vendidos DESC, p.orden ASC',
         };
 
-        $sql = "SELECT p.id, p.nombre, p.slug, p.resumen, p.flores, p.precio, p.precio_usd, p.descuento_pct,
+        $sql = "SELECT p.id" . (CodigosProducto::disponible($this->pdo) ? ', p.codigo' : '') . ",
+                       p.nombre, p.slug, p.resumen, p.flores, p.precio, p.precio_usd, p.descuento_pct,
                        p.imagen, p.disponible, p.controla_stock, p.stock, c.nombre AS categoria,
                        ($relevancia) AS relevancia
                   FROM productos p JOIN categorias c ON c.id = p.categoria_id
                  WHERE " . implode(' AND ', $where)
-             . ($palabras ? " HAVING relevancia > 0 ORDER BY relevancia DESC, $ordenSql" : " ORDER BY $ordenSql")
+             . ($partes ? " HAVING relevancia > 0 ORDER BY relevancia DESC, $ordenSql" : " ORDER BY $ordenSql")
              . " LIMIT " . (int)$limite;
         $st = $this->pdo->prepare($sql);
         $st->execute(array_merge($paramsRel, $params));
@@ -463,6 +472,7 @@ TXT;
             'nota'     => 'El envío se calcula en el checkout según la zona.',
             'items'    => array_map(fn($i) => [
                 'producto_id' => (int)$i['producto_id'],
+                'codigo'      => (string)($i['codigo'] ?? ''),
                 'nombre'      => (string)$i['nombre'],
                 'cantidad'    => (int)$i['cantidad'],
                 'precio'      => dinero($i['precio']),
@@ -627,6 +637,7 @@ TXT;
         $datos = [
             'id'         => $id,
             'nombre'     => (string)$p['nombre'],
+            'codigo'     => (string)($p['codigo'] ?? ''),
             'categoria'  => (string)($p['categoria'] ?? $p['categoria_nombre'] ?? ''),
             'flores'     => (string)($p['flores'] ?? ''),
             'resumen'    => mb_substr(trim(strip_tags((string)($p['resumen'] ?? ''))), 0, 160),

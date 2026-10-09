@@ -371,6 +371,12 @@ table.tabla .acciones { text-align: right; white-space: nowrap; }
 }
 .linea-articulo-datos strong { font-size: .9rem; font-weight: 600; }
 .linea-articulo-datos small { color: var(--p-tenue); font-size: .8rem; }
+/* Código de producto: monoespaciada y discreta, junto al nombre. */
+.codigo-producto {
+  font-family: ui-monospace, 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
+  font-size: .74rem; letter-spacing: .04em; color: var(--p-tenue);
+}
+.linea-articulo-datos .codigo-producto { display: block; }
 
 .historial { position: relative; padding-left: 24px; }
 .historial::before { content: ''; position: absolute; left: 6px; top: 6px; bottom: 6px; width: 2px; background: var(--p-linea); }
@@ -907,3 +913,18 @@ dialog.modal .modal-pie {
 .aviso-cupon code { font-weight: 700; letter-spacing: .04em; background: var(--p-fondo); padding: 2px 7px; border-radius: 6px; }
 .linea-articulo .avatar-cliente { width: 40px; height: 40px; font-size: .82rem; }
 .linea-articulo .avatar-cliente img { width: 100%; height: 100%; border-radius: 0; }
+
+/* --- Ficha de producto: código y conversión a dólares -------------------- */
+.campo-codigo {
+  font-family: ui-monospace, 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
+  letter-spacing: .05em; text-transform: uppercase;
+}
+.campo-codigo::placeholder { text-transform: none; letter-spacing: .03em; }
+.ayuda.ayuda-ok { color: #2F7A4D; }
+/* Botón con aspecto de enlace, dentro de un texto de ayuda. */
+.boton-enlace {
+  padding: 0; border: 0; background: none; font: inherit; color: var(--p-tinta, inherit);
+  text-decoration: underline; text-underline-offset: 2px; cursor: pointer;
+}
+.boton-enlace:hover { text-decoration-thickness: 2px; }
+.boton-enlace:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; border-radius: 2px; }

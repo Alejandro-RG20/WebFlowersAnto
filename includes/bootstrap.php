@@ -410,6 +410,7 @@ require_once __DIR__ . '/lib/auth.php';
 require_once __DIR__ . '/lib/rbac.php';
 require_once __DIR__ . '/lib/correo.php';
 require_once __DIR__ . '/lib/precios.php';
+require_once __DIR__ . '/lib/codigos_producto.php';
 require_once __DIR__ . '/lib/catalogo.php';
 require_once __DIR__ . '/lib/multimedia.php';
 require_once __DIR__ . '/lib/temporadas.php';

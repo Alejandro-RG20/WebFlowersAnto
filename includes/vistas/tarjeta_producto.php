@@ -74,7 +74,9 @@ $portada    = $p['portada'] ?? $p['imagen'];
         </form>
       <?php else: ?>
         <a class="btn-cart-quick btn-cart-quick--wa"
-           href="<?= e(enlace_whatsapp('Hola, me interesa el arreglo «' . $p['nombre'] . '». ¿Lo pueden preparar sobre pedido?')) ?>"
+           href="<?= e(enlace_whatsapp('Hola, me interesa el arreglo «' . $p['nombre'] . '»'
+                . ((string)($p['codigo'] ?? '') !== '' ? ' (código ' . $p['codigo'] . ')' : '')
+                . '. ¿Lo pueden preparar sobre pedido?')) ?>"
            target="_blank" rel="noopener" aria-label="Consultar por WhatsApp">
           <i class="fa-brands fa-whatsapp" aria-hidden="true"></i>
         </a>

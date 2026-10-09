@@ -18,6 +18,21 @@ $esNuevo = $id === 0;
 
 Rbac::exigir($esNuevo ? 'productos.crear' : 'productos.editar');
 
+$conCodigo = CodigosProducto::disponible($pdo);
+// Tasa de cambio de la tienda (C$ por dólar), la misma de los cobros con
+// PayPal. Con ella se propone el precio en dólares; 0 = sin tasa configurada.
+$tasaUsd = max(0.0, (float)Ajustes::texto('tasa_usd', '0'));
+
+// Comprobación en vivo del código mientras se escribe (solo lectura): el
+// formulario avisa antes de guardar si ya lo tiene otro arreglo. Al guardar
+// se vuelve a comprobar en el servidor, y el índice único de la base es la
+// última garantía.
+if ($conCodigo && isset($_GET['comprobar_codigo'])) {
+    $codigo = CodigosProducto::normalizar((string)$_GET['comprobar_codigo']);
+    $error  = $codigo === '' ? null : CodigosProducto::error($pdo, $codigo, $id);
+    responderJson(['codigo' => $codigo, 'libre' => $error === null, 'mensaje' => $error ?? '']);
+}
+
 $categorias = $pdo->query("SELECT id, nombre FROM categorias ORDER BY orden, nombre")->fetchAll();
 if (!$categorias) {
     flash('alerta', 'Crea al menos una categoría antes de añadir productos.');
@@ -26,7 +41,7 @@ if (!$categorias) {
 
 // --- Datos actuales ----------------------------------------------------
 $producto = [
-    'nombre' => '', 'slug' => '', 'descripcion' => '', 'resumen' => '',
+    'codigo' => '', 'nombre' => '', 'slug' => '', 'descripcion' => '', 'resumen' => '',
     'precio' => 0, 'precio_usd' => 0, 'descuento_pct' => 0,
     'categoria_id' => (int)$categorias[0]['id'],
     'flores' => '', 'color_acento' => '#EFD9DE', 'destacado' => 0, 'orden_hero' => 0,
@@ -61,6 +76,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $producto['resumen']      = texto('resumen', 200);
     $producto['precio']       = decimal('precio');
     $producto['precio_usd']   = decimal('precio_usd');
+    // Si el precio en dólares quedó vacío, se calcula con la tasa de la
+    // tienda (lo mismo que propone el formulario mientras se escribe).
+    if ($producto['precio_usd'] <= 0 && $producto['precio'] > 0 && $tasaUsd > 0) {
+        $producto['precio_usd'] = round($producto['precio'] / $tasaUsd, 2);
+    }
+    if ($conCodigo) {
+        // Vacío = se asigna uno automático al guardar (FA- y el número).
+        $producto['codigo'] = CodigosProducto::normalizar(texto('codigo', 60));
+        if ($producto['codigo'] !== '' && ($err = CodigosProducto::error($pdo, $producto['codigo'], $id))) {
+            $errores['codigo'] = $err;
+        }
+    }
     // El descuento se guarda aparte del precio: `precio` sigue siendo el de
     // siempre y nunca se pisa con el rebajado, así que quitar la oferta es
     // volver a poner cero y el precio original sigue ahí intacto.
@@ -167,6 +194,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 )->execute($campos);
             }
 
+            if ($conCodigo) {
+                // Sin código escrito, el que le toca por su número. Va dentro
+                // de la misma transacción: el producto nunca queda sin código.
+                if ($producto['codigo'] === '') {
+                    $producto['codigo'] = CodigosProducto::sugerido($pdo, $id);
+                }
+                $pdo->prepare("UPDATE productos SET codigo = ? WHERE id = ?")->execute([$producto['codigo'], $id]);
+            }
+
             // La galería se reescribe entera: es la forma más simple de
             // respetar el orden que dejó el usuario en pantalla.
             $pdo->prepare("DELETE FROM producto_imagenes WHERE producto_id = ?")->execute([$id]);
@@ -180,8 +216,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $pdo->commit();
         } catch (Throwable $ex) {
             $pdo->rollBack();
-            error_log('Flowers Anto — guardar producto: ' . $ex->getMessage());
-            $errores[] = 'No se pudo guardar el producto. Inténtalo otra vez.';
+            if ($esNuevo) {
+                $id = 0;
+            }
+            // Otro arreglo se quedó con el mismo código entre la comprobación
+            // y el guardado (dos personas a la vez): lo dice el índice único.
+            if ($ex instanceof PDOException && ($ex->errorInfo[1] ?? 0) === 1062
+                && str_contains($ex->getMessage(), 'uq_productos_codigo')) {
+                $errores['codigo'] = 'Ese código lo acaba de tomar otro arreglo. Elige otro.';
+            } else {
+                error_log('Flowers Anto — guardar producto: ' . $ex->getMessage());
+                $errores[] = 'No se pudo guardar el producto. Inténtalo otra vez.';
+            }
         }
 
         if (!$errores) {
@@ -190,13 +236,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'descripcion'  => ($esNuevo ? 'Producto creado: ' : 'Producto editado: ') . $producto['nombre'],
                 'detalles'     => $esNuevo ? ['precio' => $producto['precio']] : Auditoria::diferencias(
                     $antes, $producto,
-                    ['nombre', 'precio', 'precio_usd', 'categoria_id', 'stock', 'disponible', 'activo', 'destacado']
+                    ['codigo', 'nombre', 'precio', 'precio_usd', 'categoria_id', 'stock', 'disponible', 'activo', 'destacado']
                 ),
             ]);
             flash('exito', $esNuevo ? 'Producto creado y publicado.' : 'Cambios guardados.');
             redirigir('admin/productos.php');
         }
     }
+}
+
+// Código que recibiría un producto nuevo si se deja el campo vacío. Es una
+// estimación para la ayuda del formulario: el definitivo se asigna al guardar.
+$codigoPrevisto = '';
+if ($conCodigo && ($esNuevo || (string)$producto['codigo'] === '')) {
+    $siguiente = $esNuevo ? (int)$pdo->query("SELECT COALESCE(MAX(id), 0) + 1 FROM productos")->fetchColumn() : $id;
+    $codigoPrevisto = CodigosProducto::sugerido($pdo, $siguiente);
 }
 
 $tituloPanel    = $esNuevo ? 'Nuevo producto' : 'Editar producto';
@@ -233,6 +287,22 @@ require __DIR__ . '/_cabecera.php';
                    value="<?= e((string)$producto['nombre']) ?>">
             <?php if (isset($errores['nombre'])): ?><p class="error-campo"><?= e($errores['nombre']) ?></p><?php endif; ?>
           </div>
+
+          <?php if ($conCodigo): ?>
+            <div class="campo<?= isset($errores['codigo']) ? ' con-error' : '' ?>" data-codigo-producto
+                 data-comprobar="<?= e(url('admin/producto.php?id=' . (int)$id . '&comprobar_codigo=')) ?>">
+              <label for="codigo">Código</label>
+              <input type="text" id="codigo" name="codigo" maxlength="<?= CodigosProducto::MAXIMO ?>"
+                     autocomplete="off" spellcheck="false" autocapitalize="characters" class="campo-codigo"
+                     value="<?= e((string)$producto['codigo']) ?>"
+                     placeholder="<?= e($codigoPrevisto !== '' ? $codigoPrevisto : 'FA-0001') ?>"
+                     aria-describedby="ayudaCodigo">
+              <?php if (isset($errores['codigo'])): ?><p class="error-campo"><?= e($errores['codigo']) ?></p><?php endif; ?>
+              <p class="ayuda" id="ayudaCodigo" data-codigo-estado>
+                Único para cada arreglo: sale en la ficha, en los pedidos y en las facturas, y sirve para buscarlo.
+                <?= $codigoPrevisto !== '' ? 'Si lo dejas vacío se asigna ' . e($codigoPrevisto) . '.' : '' ?></p>
+            </div>
+          <?php endif; ?>
 
           <div class="campo<?= isset($errores['descripcion']) ? ' con-error' : '' ?>">
             <label for="descripcion">Descripción *</label>
@@ -352,11 +422,23 @@ require __DIR__ . '/_cabecera.php';
                    value="<?= e(number_format((float)$producto['precio'], 2, '.', '')) ?>">
             <?php if (isset($errores['precio'])): ?><p class="error-campo"><?= e($errores['precio']) ?></p><?php endif; ?>
           </div>
-          <div class="campo">
+          <div class="campo" data-conversion-usd data-tasa="<?= e(number_format($tasaUsd, 4, '.', '')) ?>">
             <label for="precio_usd">Precio en dólares</label>
-            <input type="number" id="precio_usd" name="precio_usd" step="0.01" min="0"
+            <input type="number" id="precio_usd" name="precio_usd" step="0.01" min="0" inputmode="decimal"
+                   aria-describedby="ayudaUsd"
                    value="<?= e(number_format((float)$producto['precio_usd'], 2, '.', '')) ?>">
-            <p class="ayuda">Solo informativo. Se muestra si está activado en Configuración.</p>
+            <?php if ($tasaUsd > 0): ?>
+              <p class="ayuda" id="ayudaUsd">
+                Se calcula solo al escribir el precio en <?= e(Ajustes::texto('moneda_local', 'C$')) ?>,
+                con la tasa de <?= e(Ajustes::texto('moneda_local', 'C$') . number_format($tasaUsd, 4)) ?> por dólar.
+                Puedes cambiarlo a mano, por ejemplo para redondear. Se muestra en la web si está
+                activado en Configuración.
+                <span data-conversion-detalle></span>
+              </p>
+            <?php else: ?>
+              <p class="ayuda" id="ayudaUsd">Para calcularlo solo, pon la tasa de cambio en
+                <a href="<?= e(url('admin/configuracion.php?t=banco#tasa_usd')) ?>">Configuración → Transferencias</a>.</p>
+            <?php endif; ?>
           </div>
 
           <!--

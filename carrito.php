@@ -154,6 +154,7 @@ require __DIR__ . '/includes/vistas/cabecera.php';
             </a>
             <div class="linea-carrito-datos">
               <h3><a href="<?= e(url('producto.php?p=' . rawurlencode((string)$i['slug']))) ?>"><?= e((string)$i['nombre']) ?></a></h3>
+              <?php if ((string)($i['codigo'] ?? '') !== ''): ?><span class="codigo-producto"><?= e((string)$i['codigo']) ?></span><?php endif; ?>
               <span class="linea-carrito-precio">
                 <?php if (!empty($i['en_oferta'])): ?>
                   <s class="precio-antes"><?= e(dinero((float)$i['precio_base'])) ?></s>

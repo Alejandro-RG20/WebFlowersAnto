@@ -330,6 +330,12 @@ a { color: inherit; }
   font-family: 'Playfair Display', serif; font-size: clamp(1.6rem, 4.6vw, 2.35rem);
   line-height: 1.15; color: var(--tinta); margin: 6px 0 10px;
 }
+/* Código del arreglo: discreto, en monoespaciada, para citarlo por WhatsApp. */
+.ficha-codigo { margin: -4px 0 12px; font-size: .82rem; color: var(--tenue); letter-spacing: .02em; }
+.ficha-codigo span, .codigo-producto {
+  font-family: ui-monospace, 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
+  font-size: .78rem; letter-spacing: .04em; color: var(--suave);
+}
 .ficha-precio { display: flex; align-items: baseline; gap: 12px; margin: 16px 0 6px; flex-wrap: wrap; }
 .ficha-precio strong { font-size: 2rem; color: var(--tinta); font-family: 'Playfair Display', serif; }
 .ficha-precio span { color: var(--tenue); font-size: 1rem; }
@@ -449,6 +455,7 @@ a { color: inherit; }
 .mini-linea-datos { flex: 1; min-width: 0; }
 .mini-linea-datos strong { display: block; font-size: .9rem; color: var(--tinta); font-weight: 500; }
 .mini-linea-datos small { color: var(--tenue); font-size: .82rem; }
+.mini-linea-datos .codigo-producto { display: block; margin: 1px 0 2px; font-size: .72rem; color: var(--tenue); }
 .mini-linea-precio { font-size: .9rem; color: var(--tinta); white-space: nowrap; }
 
 /* --- Pasos del checkout ---------------------------------------------- */

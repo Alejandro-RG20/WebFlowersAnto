@@ -11,16 +11,22 @@ declare(strict_types=1);
 final class Catalogo
 {
     /** Columnas públicas. Se listan una a una para no exponer nada de más. */
-    private const COLS = 'p.id, p.nombre, p.slug, p.descripcion, p.resumen, p.precio, p.precio_usd,
+    private const COLS_BASE = 'p.id, p.nombre, p.slug, p.descripcion, p.resumen, p.precio, p.precio_usd,
                           p.imagen, p.imagen_hero, p.categoria_id, p.flores, p.color_acento, p.destacado,
                           p.orden_hero, p.orden, p.disponible, p.stock, p.controla_stock, p.created_at,
                           p.descuento_pct';
+
+    /** Columnas de los listados; el código, solo si la migración 027 está aplicada. */
+    private static function cols(PDO $pdo): string
+    {
+        return self::COLS_BASE . (CodigosProducto::disponible($pdo) ? ', p.codigo' : '');
+    }
 
     /** Un producto por su slug (o por id, para los enlaces antiguos). */
     public static function producto(PDO $pdo, string $slug): ?array
     {
         $st = $pdo->prepare(
-            "SELECT " . self::COLS . ", c.nombre AS categoria_nombre, c.slug AS categoria_slug
+            "SELECT " . self::cols($pdo) . ", c.nombre AS categoria_nombre, c.slug AS categoria_slug
                FROM productos p
                JOIN categorias c ON c.id = p.categoria_id
               WHERE p.activo = 1 AND (p.slug = ? OR p.id = ?)
@@ -95,8 +101,14 @@ final class Catalogo
         }
         if (!empty($f['q'])) {
             $termino  = '%' . str_replace(['%', '_'], ['\%', '\_'], (string)$f['q']) . '%';
-            $where[]  = '(p.nombre LIKE ? OR p.descripcion LIKE ? OR p.flores LIKE ? OR c.nombre LIKE ?)';
+            $donde    = 'p.nombre LIKE ? OR p.descripcion LIKE ? OR p.flores LIKE ? OR c.nombre LIKE ?';
             array_push($params, $termino, $termino, $termino, $termino);
+            // También por código, escrito como sea: «fa 12» encuentra FA-0012.
+            if ($porCodigo = CodigosProducto::filtro($pdo, (string)$f['q'])) {
+                $donde .= ' OR ' . $porCodigo[0];
+                array_push($params, ...$porCodigo[1]);
+            }
+            $where[] = '(' . $donde . ')';
         }
         if (!empty($f['temporada'])) {
             // `EXISTS` y no un JOIN: un JOIN con la tabla de enlace duplicaría
@@ -141,7 +153,7 @@ final class Catalogo
         $salto     = ($pagina - 1) * $porPagina;
 
         $st = $pdo->prepare(
-            "SELECT " . self::COLS . ", c.nombre AS categoria_nombre, c.slug AS categoria_slug
+            "SELECT " . self::cols($pdo) . ", c.nombre AS categoria_nombre, c.slug AS categoria_slug
                FROM productos p
                JOIN categorias c ON c.id = p.categoria_id
               WHERE $sqlWhere
@@ -162,7 +174,7 @@ final class Catalogo
     public static function destacados(PDO $pdo, int $limite = 8): array
     {
         $st = $pdo->prepare(
-            "SELECT " . self::COLS . ", c.nombre AS categoria_nombre, c.slug AS categoria_slug
+            "SELECT " . self::cols($pdo) . ", c.nombre AS categoria_nombre, c.slug AS categoria_slug
                FROM productos p JOIN categorias c ON c.id = p.categoria_id
               WHERE p.activo = 1 AND p.destacado = 1
               ORDER BY p.orden_hero, p.id DESC LIMIT $limite"
@@ -174,7 +186,7 @@ final class Catalogo
             // sin un solo arreglo se ve rota. En cuanto se marca el primero,
             // esto deja de actuar y manda lo que diga el panel.
             $filas = $pdo->query(
-                "SELECT " . self::COLS . ", c.nombre AS categoria_nombre, c.slug AS categoria_slug
+                "SELECT " . self::cols($pdo) . ", c.nombre AS categoria_nombre, c.slug AS categoria_slug
                    FROM productos p JOIN categorias c ON c.id = p.categoria_id
                   WHERE p.activo = 1 ORDER BY p.id DESC LIMIT $limite"
             )->fetchAll();
@@ -186,7 +198,7 @@ final class Catalogo
     public static function recientes(PDO $pdo, int $limite = 4): array
     {
         $filas = $pdo->query(
-            "SELECT " . self::COLS . ", c.nombre AS categoria_nombre, c.slug AS categoria_slug
+            "SELECT " . self::cols($pdo) . ", c.nombre AS categoria_nombre, c.slug AS categoria_slug
                FROM productos p JOIN categorias c ON c.id = p.categoria_id
               WHERE p.activo = 1 ORDER BY p.created_at DESC, p.id DESC LIMIT $limite"
         )->fetchAll();
@@ -197,7 +209,7 @@ final class Catalogo
     public static function relacionados(PDO $pdo, array $producto, int $limite = 4): array
     {
         $st = $pdo->prepare(
-            "SELECT " . self::COLS . ", c.nombre AS categoria_nombre, c.slug AS categoria_slug
+            "SELECT " . self::cols($pdo) . ", c.nombre AS categoria_nombre, c.slug AS categoria_slug
                FROM productos p JOIN categorias c ON c.id = p.categoria_id
               WHERE p.activo = 1 AND p.categoria_id = ? AND p.id <> ?
               ORDER BY p.destacado DESC, RAND() LIMIT $limite"
@@ -215,7 +227,7 @@ final class Catalogo
         }
         $huecos = implode(',', array_fill(0, count($ids), '?'));
         $st = $pdo->prepare(
-            "SELECT " . self::COLS . ", c.nombre AS categoria_nombre, c.slug AS categoria_slug
+            "SELECT " . self::cols($pdo) . ", c.nombre AS categoria_nombre, c.slug AS categoria_slug
                FROM productos p JOIN categorias c ON c.id = p.categoria_id
               WHERE p.activo = 1 AND p.id IN ($huecos)"
         );
@@ -308,7 +320,7 @@ final class Catalogo
             return null;
         }
         $st = $pdo->prepare(
-            "SELECT " . self::COLS . ", c.nombre AS categoria_nombre, c.slug AS categoria_slug
+            "SELECT " . self::cols($pdo) . ", c.nombre AS categoria_nombre, c.slug AS categoria_slug
                FROM temporada_productos tp
                JOIN productos  p ON p.id = tp.producto_id
                JOIN categorias c ON c.id = p.categoria_id

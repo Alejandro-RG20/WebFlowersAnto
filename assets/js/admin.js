@@ -315,6 +315,109 @@
   })();
 
   // -------------------------------------------------------------------
+  // Ficha de producto: precio en dólares calculado desde el de córdobas
+  //
+  // Al escribir el precio en córdobas se propone el de dólares con la tasa de
+  // la tienda. Si después se toca la casilla de dólares (para redondear 43.34
+  // a 44, por ejemplo), se respeta: solo vuelve a calcularse si cambia otra
+  // vez el precio en córdobas. Debajo queda la cuenta exacta y un botón para
+  // volver a ella.
+  // -------------------------------------------------------------------
+  (function () {
+    const caja   = $('[data-conversion-usd]');
+    const precio = $('#precio');
+    const usd    = $('#precio_usd');
+    if (!caja || !precio || !usd) { return; }
+    const tasa = parseFloat(caja.dataset.tasa) || 0;
+    if (tasa <= 0) { return; }
+    const detalle = $('[data-conversion-detalle]', caja);
+
+    const exacto = () => {
+      const c = parseFloat(precio.value);
+      return c > 0 ? Math.round((c / tasa) * 100) / 100 : 0;
+    };
+
+    function contar() {
+      if (!detalle) { return; }
+      const e = exacto();
+      detalle.textContent = '';
+      if (e <= 0) { return; }
+      const actual = parseFloat(usd.value) || 0;
+      if (Math.abs(actual - e) < 0.005) {
+        detalle.textContent = 'Conversión exacta: US$' + e.toFixed(2) + '.';
+        return;
+      }
+      detalle.append('La conversión exacta es US$' + e.toFixed(2) + '. ');
+      const volver = document.createElement('button');
+      volver.type = 'button';
+      volver.className = 'boton-enlace';
+      volver.textContent = 'Usar US$' + e.toFixed(2);
+      volver.addEventListener('click', () => { usd.value = e.toFixed(2); contar(); usd.focus(); });
+      detalle.append(volver);
+    }
+
+    precio.addEventListener('input', () => {
+      const e = exacto();
+      usd.value = e > 0 ? e.toFixed(2) : '';
+      contar();
+    });
+    usd.addEventListener('input', contar);
+    // Un producto nuevo, o uno guardado sin precio en dólares, lo recibe ya.
+    if (!(parseFloat(usd.value) > 0) && exacto() > 0) { usd.value = exacto().toFixed(2); }
+    contar();
+  })();
+
+  // -------------------------------------------------------------------
+  // Ficha de producto: el código se comprueba mientras se escribe
+  //
+  // Se escribe como se guardará (mayúsculas, guiones) y se pregunta al
+  // servidor si otro arreglo ya lo usa. Es solo un aviso adelantado: al
+  // guardar se vuelve a comprobar y la base tiene un índice único.
+  // -------------------------------------------------------------------
+  (function () {
+    const caja = $('[data-codigo-producto]');
+    const campo = caja && $('#codigo', caja);
+    const estado = caja && $('[data-codigo-estado]', caja);
+    if (!campo || !estado) { return; }
+    const ayudaInicial = estado.textContent.trim();
+    let temporizador = 0;
+    let pedido = null;
+
+    const normalizar = (v) => v.toUpperCase().replace(/[\s_\/.]+/g, '-').replace(/[^A-Z0-9-]/g, '')
+      .replace(/-{2,}/g, '-');
+
+    function mostrar(texto, tipo) {
+      estado.textContent = texto;
+      caja.classList.toggle('con-error', tipo === 'error');
+      estado.classList.toggle('ayuda-ok', tipo === 'ok');
+    }
+
+    campo.addEventListener('input', () => {
+      const limpio = normalizar(campo.value);
+      if (limpio !== campo.value) {
+        const pos = campo.selectionStart;
+        campo.value = limpio;
+        campo.setSelectionRange(pos, pos);
+      }
+      clearTimeout(temporizador);
+      if (pedido) { pedido.abort(); }
+      const codigo = limpio.replace(/^-+|-+$/g, '');
+      if (codigo === '') { mostrar(ayudaInicial, ''); return; }
+      temporizador = setTimeout(async () => {
+        pedido = new AbortController();
+        try {
+          const r = await fetch(caja.dataset.comprobar + encodeURIComponent(codigo),
+            { signal: pedido.signal, headers: { Accept: 'application/json' }, credentials: 'same-origin' });
+          const d = await r.json();
+          if (d.libre) { mostrar('«' + d.codigo + '» está libre.', 'ok'); } else { mostrar(d.mensaje, 'error'); }
+        } catch (e) {
+          if (e.name !== 'AbortError') { mostrar(ayudaInicial, ''); }
+        }
+      }, 350);
+    });
+  })();
+
+  // -------------------------------------------------------------------
   // Selector visual de productos: buscar, contar y respetar el tope
   // -------------------------------------------------------------------
   $$('[data-multi][data-tope]').forEach((selector) => {

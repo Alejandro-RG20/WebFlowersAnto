@@ -200,6 +200,7 @@ final class Carrito
 
             $items[] = [
                 'producto_id'   => (int)$id,
+                'codigo'        => (string)($p['codigo'] ?? ''),
                 'nombre'        => $p['nombre'],
                 'slug'          => $p['slug'],
                 'imagen'        => $p['portada'] ?? $p['imagen'],
@@ -324,9 +325,10 @@ final class Carrito
 
         foreach ($detalle['items'] as $i) {
             $lineas[] = sprintf(
-                '• %d × %s — %s%s',
+                '• %d × %s%s — %s%s',
                 $i['cantidad'],
                 $i['nombre'],
+                (string)($i['codigo'] ?? '') !== '' ? ' (' . $i['codigo'] . ')' : '',
                 $moneda,
                 number_format($i['subtotal'], 2)
             );

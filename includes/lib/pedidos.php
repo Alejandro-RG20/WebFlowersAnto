@@ -210,16 +210,19 @@ final class Pedidos
             ]);
             $pedidoId = (int)$pdo->lastInsertId();
 
+            $conCodigo = CodigosProducto::disponible($pdo);
             $insItem = $pdo->prepare(
                 // Se guardan los tres números, no solo el que se cobró: el
                 // precio de siempre, el descuento que había y lo que se pagó.
                 // Con eso la factura puede explicar la rebaja meses después,
                 // aunque el arreglo haya cambiado de precio o ya no esté en
                 // oferta. El pedido deja de depender del catálogo de hoy.
+                // El código del arreglo también se copia, como el nombre: si
+                // se cambia después, el pedido sigue diciendo lo que se vendió.
                 "INSERT INTO pedido_items
                     (pedido_id, producto_id, nombre, imagen, precio_unitario, cantidad, subtotal,
-                     precio_base, descuento_pct)
-                 VALUES (?,?,?,?,?,?,?,?,?)"
+                     precio_base, descuento_pct" . ($conCodigo ? ', codigo' : '') . ")
+                 VALUES (?,?,?,?,?,?,?,?,?" . ($conCodigo ? ',?' : '') . ")"
             );
             // La condición `stock >= ?` va dentro del propio UPDATE, no en una
             // consulta previa: así el motor decide, y dos compradores que
@@ -231,11 +234,15 @@ final class Pedidos
             );
 
             foreach ($detalle['items'] as $i) {
-                $insItem->execute([
+                $fila = [
                     $pedidoId, $i['producto_id'], $i['nombre'], $i['imagen'],
                     $i['precio'], $i['cantidad'], $i['subtotal'],
                     $i['precio_base'] ?? $i['precio'], (int)($i['descuento_pct'] ?? 0),
-                ]);
+                ];
+                if ($conCodigo) {
+                    $fila[] = (string)($i['codigo'] ?? '');
+                }
+                $insItem->execute($fila);
                 $bajarStock->execute([
                     $i['cantidad'], $i['cantidad'], $i['producto_id'], $i['cantidad'],
                 ]);
@@ -736,7 +743,8 @@ final class Pedidos
         $l      = ["Hola $tienda, este es mi pedido " . $pedido['codigo'] . ':', ''];
 
         foreach ($pedido['items'] as $i) {
-            $l[] = sprintf('• %d × %s — %s%s', $i['cantidad'], $i['nombre'], $m, number_format((float)$i['subtotal'], 2));
+            $ref = (string)($i['codigo'] ?? '') !== '' ? ' (' . $i['codigo'] . ')' : '';
+            $l[] = sprintf('• %d × %s%s — %s%s', $i['cantidad'], $i['nombre'], $ref, $m, number_format((float)$i['subtotal'], 2));
         }
         $l[] = '';
         $l[] = 'Total: ' . $m . number_format((float)$pedido['total'], 2);
@@ -779,7 +787,10 @@ final class Pedidos
         foreach ($pedido['items'] as $i) {
             $filas .= '<tr>
                 <td style="padding:7px 0;border-bottom:1px solid #F1E7E9;">' . e($i['nombre'])
-                . ' <span style="color:#8A7A7D;">× ' . (int)$i['cantidad'] . '</span></td>
+                . ' <span style="color:#8A7A7D;">× ' . (int)$i['cantidad'] . '</span>'
+                . ((string)($i['codigo'] ?? '') !== ''
+                    ? '<br><span style="color:#8A7A7D;font-size:12px;">Código ' . e((string)$i['codigo']) . '</span>' : '')
+                . '</td>
                 <td style="padding:7px 0;border-bottom:1px solid #F1E7E9;text-align:right;white-space:nowrap;">'
                 . $importe($i['subtotal']) . '</td></tr>';
         }

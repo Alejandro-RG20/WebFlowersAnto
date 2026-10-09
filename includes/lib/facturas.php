@@ -193,9 +193,12 @@ final class Facturas
             ]);
             $facturaId = (int)$pdo->lastInsertId();
 
-            $li = $pdo->prepare(
-                "INSERT INTO factura_items (factura_id, descripcion, cantidad, precio_unitario, subtotal)
-                 VALUES (?,?,?,?,?)"
+            $conCodigo = CodigosProducto::disponible($pdo);
+            $li = $pdo->prepare($conCodigo
+                ? "INSERT INTO factura_items (factura_id, descripcion, cantidad, precio_unitario, subtotal, codigo)
+                   VALUES (?,?,?,?,?,?)"
+                : "INSERT INTO factura_items (factura_id, descripcion, cantidad, precio_unitario, subtotal)
+                   VALUES (?,?,?,?,?)"
             );
             foreach ($items as $it) {
                 // Cuando la línea se compró rebajada, la factura lo dice: el
@@ -218,13 +221,19 @@ final class Facturas
                         0, 200
                     );
                 }
-                $li->execute([
+                $linea = [
                     $facturaId,
                     $desc,
                     (int)$it['cantidad'],
                     round((float)$it['precio_unitario'], 2),
                     round((float)$it['subtotal'], 2),
-                ]);
+                ];
+                if ($conCodigo) {
+                    // El código que tenía el arreglo al comprarse (copiado en
+                    // el pedido), no el de hoy.
+                    $linea[] = (string)($it['codigo'] ?? '');
+                }
+                $li->execute($linea);
             }
 
             $pdo->prepare("UPDATE configuracion SET factura_siguiente = ? WHERE id = 1")
@@ -346,7 +355,10 @@ final class Facturas
             $filas .= '<tr>'
                 . '<td style="padding:9px 0;border-bottom:1px solid #EFE6E8;">'
                 . e((string)$it['descripcion'])
-                . ' <span style="color:#8A7A7D;">× ' . (int)$it['cantidad'] . '</span></td>'
+                . ' <span style="color:#8A7A7D;">× ' . (int)$it['cantidad'] . '</span>'
+                . ((string)($it['codigo'] ?? '') !== ''
+                    ? '<br><span style="color:#8A7A7D;font-size:12px;">Código ' . e((string)$it['codigo']) . '</span>' : '')
+                . '</td>'
                 . '<td align="right" style="padding:9px 0;border-bottom:1px solid #EFE6E8;white-space:nowrap;">'
                 . $m($it['subtotal']) . '</td></tr>';
         }

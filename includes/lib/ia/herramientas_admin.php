@@ -76,7 +76,7 @@ TXT;
              ], 'additionalProperties' => false]],
             ['name' => 'inventario_bajo', 'description' => 'Productos publicados agotados, sobre pedido o con stock igual o menor al umbral.',
              'input_schema' => ['type' => 'object', 'properties' => ['umbral' => ['type' => 'integer', 'minimum' => 0, 'maximum' => 100]], 'additionalProperties' => false]],
-            ['name' => 'buscar_productos_admin', 'description' => 'Busca productos, publicados u ocultos: id, precio, oferta, stock, estado, categoría, flores y descripción.',
+            ['name' => 'buscar_productos_admin', 'description' => 'Busca productos, publicados u ocultos, por nombre, código (p. ej. FA-0012), flor o categoría: id, código, precio, oferta, stock, estado, categoría, flores y descripción.',
              'input_schema' => ['type' => 'object', 'properties' => ['consulta' => ['type' => 'string'], 'limite' => ['type' => 'integer', 'minimum' => 1, 'maximum' => 20]], 'additionalProperties' => false]],
             ['name' => 'proponer_cambio_precio', 'description' => 'Prepara el cambio del precio de siempre de un producto (en córdobas). Requiere confirmación.',
              'input_schema' => ['type' => 'object', 'properties' => ['producto_id' => ['type' => 'integer'], 'precio_nuevo' => ['type' => 'number']], 'required' => ['producto_id', 'precio_nuevo'], 'additionalProperties' => false]],
@@ -266,7 +266,7 @@ TXT;
             'metodo'   => (string)$p['metodo_pago'],
             'entrega'  => ['tipo' => (string)$p['entrega_tipo'], 'fecha' => (string)($p['entrega_fecha'] ?? ''),
                            'franja' => (string)($p['entrega_franja'] ?? ''), 'zona' => (string)($p['zona_envio_nombre'] ?? '')],
-            'articulos'=> array_map(fn($i) => ['nombre' => $i['nombre'], 'cantidad' => (int)$i['cantidad'],
+            'articulos'=> array_map(fn($i) => ['nombre' => $i['nombre'], 'codigo' => (string)($i['codigo'] ?? ''), 'cantidad' => (int)$i['cantidad'],
                                               'precio' => dinero($i['precio_unitario'])], $p['items'] ?? []),
             'subtotal' => dinero($p['subtotal']), 'envio' => dinero($p['envio']),
             'descuento'=> dinero($p['descuento'] ?? 0), 'total' => dinero($p['total']),
@@ -379,18 +379,23 @@ TXT;
         $donde = '1 = 1';
         if ($consulta !== '') {
             $like = '%' . str_replace(['%', '_'], ['\%', '\_'], $consulta) . '%';
-            $donde = '(p.nombre LIKE ? OR p.slug LIKE ? OR p.flores LIKE ? OR c.nombre LIKE ?)';
+            $donde = 'p.nombre LIKE ? OR p.slug LIKE ? OR p.flores LIKE ? OR c.nombre LIKE ?';
             $params = [$like, $like, $like, $like];
+            if ($porCodigo = CodigosProducto::filtro($this->pdo, $consulta)) {
+                $donde .= ' OR ' . $porCodigo[0];
+                array_push($params, ...$porCodigo[1]);
+            }
+            $donde = '(' . $donde . ')';
         }
         $st = $this->pdo->prepare(
-            "SELECT p.id, p.nombre, p.precio, p.descuento_pct, p.stock, p.controla_stock, p.disponible,
+            "SELECT p.id" . (CodigosProducto::disponible($this->pdo) ? ', p.codigo' : '') . ", p.nombre, p.precio, p.descuento_pct, p.stock, p.controla_stock, p.disponible,
                     p.activo, p.destacado, p.flores, p.descripcion, c.nombre AS categoria, " . self::PRECIO_FINAL . " AS final
                FROM productos p JOIN categorias c ON c.id = p.categoria_id
               WHERE $donde ORDER BY (p.nombre LIKE ?) DESC, p.activo DESC, p.nombre LIMIT $limite"
         );
         $st->execute(array_merge($params, [$consulta !== '' ? $consulta . '%' : '%']));
         return ['productos' => array_map(fn($p) => [
-            'id' => (int)$p['id'], 'nombre' => (string)$p['nombre'], 'categoria' => (string)$p['categoria'],
+            'id' => (int)$p['id'], 'codigo' => (string)($p['codigo'] ?? ''), 'nombre' => (string)$p['nombre'], 'categoria' => (string)$p['categoria'],
             'precio' => dinero($p['precio']), 'descuento' => (int)$p['descuento_pct'] . '%', 'precio_final' => dinero($p['final']),
             'stock' => (int)$p['controla_stock'] === 1 ? (int)$p['stock'] : 'no controla stock',
             'disponible' => (int)$p['disponible'] === 1, 'publicado' => (int)$p['activo'] === 1,
