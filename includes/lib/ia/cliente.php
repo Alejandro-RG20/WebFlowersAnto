@@ -600,6 +600,10 @@ final class ClaudeCliente
             self::anotar(sprintf(' (google): HTTP %d %s %s %s%s', $estado, $status, $motivo, $texto, match (true) {
                 $claveMala        => ' — AI_API_KEY no es válida',
                 $estado === 403   => ' — la clave no tiene permiso para la API de Gemini',
+                // Un modelo inexistente llega con su error de Google (NOT_FOUND
+                // y un mensaje); un 404 sin nada es una dirección equivocada.
+                $estado === 404 && $status === '' && $texto === ''
+                                  => ' — la dirección no existe: deja AI_BASE_URL vacía',
                 $estado === 404   => ' — revisa AI_MODEL: el modelo no existe o no admite generateContent',
                 $estado === 429   => ' — cuota o límite de Google alcanzado (depende del modelo y del proyecto)',
                 default           => '',

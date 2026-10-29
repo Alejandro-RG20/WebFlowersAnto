@@ -145,10 +145,15 @@ revisión 20260923) y contra la API real (respuesta a una clave no válida).
 
 - La clave viaja en la cabecera `x-goog-api-key`, **nunca en la URL**
   (`?key=` quedaría en registros de proxies).
-- La URL se arma con `AI_BASE_URL` (la raíz del servicio) y el modelo de la
-  petición: el del panel puede ser otro que el de la tienda. Si alguien pone
-  `/v1beta` o `/v1beta/models` en `AI_BASE_URL`, o `models/` delante del
-  modelo, no se duplica.
+- La URL se arma con el **dominio** de `AI_BASE_URL` (vacía: el de Google) y
+  el modelo de la petición: el del panel puede ser otro que el de la tienda.
+  La ruta de `AI_BASE_URL` se ignora, así que poner `/v1beta`, `/v1beta/models`
+  o la dirección del endpoint compatible con OpenAI (`/v1beta/openai`) no
+  rompe nada; tampoco `models/` delante del modelo. `AI_PROVEEDOR=gemini` se
+  acepta como `google`.
+- Un 404 **sin cuerpo** es una dirección equivocada; un modelo que no existe
+  llega con el error de Google (`NOT_FOUND` y un mensaje). El diagnóstico
+  distingue los dos casos.
 - Errores: una clave no válida Google la contesta con **400**
   `API_KEY_INVALID` (no 401) → se trata como configuración. 403 → sin
   permiso para la API. 404 → el modelo no existe o no admite

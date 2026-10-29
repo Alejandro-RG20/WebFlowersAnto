@@ -995,3 +995,36 @@ sueltas, por eso no le pasaba.
    puede borrar: se vuelve a crear sola.
 3. Vaciar la caché del CDN (hPanel → Rendimiento → CDN → Vaciar caché) y,
    si está activa, la caché de LiteSpeed.
+
+---
+
+## 22. Massiel con Google Gemini: error 404
+
+### Qué pasaba
+Con `AI_PROVEEDOR=google`, el diagnóstico de la IA daba «HTTP 404» sin más
+detalle y Massiel no respondía. La causa era `AI_BASE_URL` con la dirección
+del *endpoint compatible con OpenAI* de Google (`…/v1beta/openai`), que es la
+que suelen recomendar. La tienda le añadía su propia ruta y pedía
+`…/v1beta/openai/v1beta/models/…:generateContent`, una dirección que no
+existe. Google contesta a eso con un 404 vacío.
+
+### Qué se cambió
+- Con Google solo se usa el **dominio** de `AI_BASE_URL`: cualquier ruta que
+  se ponga ahí se ignora y la dirección queda siempre bien. Lo recomendado es
+  dejar `AI_BASE_URL` vacía.
+- `AI_PROVEEDOR=gemini` se acepta igual que `google`.
+- El diagnóstico distingue un 404 de dirección equivocada («deja
+  AI_BASE_URL vacía») de un modelo que no existe («revisa AI_MODEL»).
+
+### Configuración de Gemini en el `.env`
+```
+AI_PROVEEDOR=google
+AI_API_KEY=tu clave de Google AI Studio (empieza por AIza)
+AI_BASE_URL=
+AI_MODEL=gemini-2.5-flash-lite
+AI_MODEL_ADMIN=gemini-2.5-flash-lite
+```
+
+### Al subirlo a Hostinger
+Subir `includes/lib/ia/config.php` e `includes/lib/ia/cliente.php`. No hace
+falta migración ni vaciar la caché.

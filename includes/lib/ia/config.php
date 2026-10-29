@@ -80,6 +80,9 @@ final class IaConfig
     public static function proveedor(): string
     {
         $p = strtolower(trim(Entorno::texto('AI_PROVEEDOR', 'anthropic')));
+        // «gemini» es como mucha gente llama al servicio de Google; se acepta
+        // igual que «google» en vez de apagar el asistente por el nombre.
+        $p = $p === 'gemini' ? 'google' : $p;
         return isset(self::URLS[$p]) ? $p : '';
     }
 
@@ -166,13 +169,21 @@ final class IaConfig
     }
 
     /**
-     * {base}/v1beta/models/{modelo}:generateContent. La base es la raíz del
-     * servicio (https://generativelanguage.googleapis.com); si alguien pone
-     * la versión o la ruta de modelos en AI_BASE_URL, no se duplica.
+     * {raíz}/v1beta/models/{modelo}:generateContent.
+     *
+     * De AI_BASE_URL solo cuenta el dominio: la ruta de esta API es siempre la
+     * misma. Antes se conservaba la ruta y solo se quitaba `/v1beta` o
+     * `/v1beta/models` del final; con la dirección del «endpoint compatible
+     * con OpenAI» de Google (`…/v1beta/openai`), que es la que suelen sugerir,
+     * quedaba `…/v1beta/openai/v1beta/models/…`, una dirección que no existe:
+     * Google respondía 404 sin más detalle y Massiel no funcionaba.
      */
     private static function urlGoogle(string $base, string $modelo): string
     {
-        $base = preg_replace('#/(v1beta|v1)(/models)?$#', '', $base) ?? $base;
+        $partes = parse_url($base);
+        if (is_array($partes) && isset($partes['scheme'], $partes['host'])) {
+            $base = $partes['scheme'] . '://' . $partes['host'] . (isset($partes['port']) ? ':' . $partes['port'] : '');
+        }
         $modelo = preg_replace('#^models/#', '', $modelo) ?? '';
         if (!preg_match(self::PATRON_MODELO_GOOGLE, $modelo)) {
             $modelo = 'modelo-no-valido';
