@@ -174,7 +174,7 @@ revisión 20260923) y contra la API real (respuesta a una clave no válida).
   cifra: un 429 se muestra como «muchas consultas a la vez» y la tienda sigue
   funcionando. `AI_LIMITE_DIARIO` sigue siendo el tope **interno** de Flowers
   Anto.
-- El modelo inicial es `gemini-2.5-flash-lite`. Se cambia solo con
+- El modelo inicial es `gemini-3.5-flash-lite`. Se cambia solo con
   `AI_MODEL` / `AI_MODEL_ADMIN`; `probar-api-real.php` comprueba contra la
   API real que el modelo existe y admite `generateContent`.
 
@@ -407,7 +407,7 @@ Van en el `.env` del servidor (nunca en Git). Ver `.env.example`.
 | `AI_PROVEEDOR` | `anthropic` | `anthropic`, `openrouter`, `google` u `openai` (otra API compatible con OpenAI). Un valor desconocido apaga los asistentes |
 | `AI_API_KEY` | vacío | Clave del proveedor elegido. Vacía = asistentes apagados |
 | `AI_BASE_URL` | la del proveedor | Vacía: `https://api.anthropic.com`, `https://openrouter.ai/api/v1` o `https://generativelanguage.googleapis.com`. Solo `https` (salvo `http://127.0.0.1` en desarrollo, para el simulador) |
-| `AI_MODEL` | `claude-opus-5` con Anthropic; **obligatorio** con OpenRouter y Google | Modelo de la tienda (y del panel si no se define el siguiente). Con OpenRouter, su identificador: `autor/modelo:variante`; con Google, p. ej. `gemini-2.5-flash-lite` (minúsculas, números, punto y guion). Si falta o no es válido, los asistentes se apagan (no se usa `claude-opus-5` a escondidas) |
+| `AI_MODEL` | `claude-opus-5` con Anthropic; **obligatorio** con OpenRouter y Google | Modelo de la tienda (y del panel si no se define el siguiente). Con OpenRouter, su identificador: `autor/modelo:variante`; con Google, p. ej. `gemini-3.5-flash-lite` (minúsculas, números, punto y guion). Si falta o no es válido, los asistentes se apagan (no se usa `claude-opus-5` a escondidas) |
 | `AI_MODEL_ADMIN` | igual que `AI_MODEL` | Modelo del panel |
 | `AI_CLIENTE_ACTIVO` | `1` | `0` apaga solo la asesora de la tienda |
 | `AI_ADMIN_ACTIVO` | `1` | `0` apaga solo el AI Manager |
@@ -447,8 +447,8 @@ Google Gemini:
 AI_PROVEEDOR=google
 AI_API_KEY=<clave de Google AI Studio>
 AI_BASE_URL=https://generativelanguage.googleapis.com
-AI_MODEL=gemini-2.5-flash-lite
-AI_MODEL_ADMIN=gemini-2.5-flash-lite
+AI_MODEL=gemini-3.5-flash-lite
+AI_MODEL_ADMIN=gemini-3.5-flash-lite
 AI_CLIENTE_ACTIVO=1
 AI_ADMIN_ACTIVO=1
 AI_TIMEOUT=40

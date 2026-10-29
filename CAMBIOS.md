@@ -1021,9 +1021,13 @@ existe. Google contesta a eso con un 404 vacío.
 AI_PROVEEDOR=google
 AI_API_KEY=tu clave de Google AI Studio (empieza por AIza)
 AI_BASE_URL=
-AI_MODEL=gemini-2.5-flash-lite
-AI_MODEL_ADMIN=gemini-2.5-flash-lite
+AI_MODEL=gemini-3.5-flash-lite
+AI_MODEL_ADMIN=gemini-3.5-flash-lite
 ```
+
+Google ya no da `gemini-2.5-flash-lite` a las claves nuevas (responde 404
+«no longer available to new users»): con una clave nueva hay que usar
+`gemini-3.5-flash-lite`, el que recomienda Google en ese mismo error.
 
 ### Al subirlo a Hostinger
 Subir `includes/lib/ia/config.php` e `includes/lib/ia/cliente.php`. No hace

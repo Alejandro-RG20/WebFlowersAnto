@@ -38,7 +38,7 @@ final class IaConfig
     ];
 
     /**
-     * Identificador de modelo de Gemini: `gemini-2.5-flash-lite`,
+     * Identificador de modelo de Gemini: `gemini-3.5-flash-lite`,
      * `gemini-flash-latest`… (con o sin el prefijo `models/`). Va dentro de la
      * ruta de la URL, así que solo minúsculas, números, punto y guion.
      */
@@ -225,7 +225,7 @@ final class IaConfig
         } elseif (self::compatibleOpenAi() || self::proveedor() === 'google') {
             if (self::modelo('cliente') === '') {
                 $p[] = 'Con AI_PROVEEDOR=' . self::proveedor() . ' hay que indicar AI_MODEL ('
-                     . (self::proveedor() === 'google' ? 'p. ej. gemini-2.5-flash-lite' : 'p. ej. autor/modelo:variante') . ').';
+                     . (self::proveedor() === 'google' ? 'p. ej. gemini-3.5-flash-lite' : 'p. ej. autor/modelo:variante') . ').';
             }
             if (self::modelo('admin') === '' && self::modelo('cliente') !== '') {
                 $p[] = 'AI_MODEL_ADMIN no es un identificador de modelo válido.';
