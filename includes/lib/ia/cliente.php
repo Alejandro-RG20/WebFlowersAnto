@@ -590,6 +590,16 @@ final class ClaudeCliente
             // Google responde 400 (no 401) a una clave que no es válida.
             $claveMala = $motivo === 'API_KEY_INVALID' || ($estado === 400 && stripos($texto, 'API key') !== false);
 
+            // Un modelo que no admite el ajuste de razonamiento lo rechaza con
+            // un 400 que lo nombra: se repite al momento sin él, en vez de
+            // dejar a Massiel sin responder por un ajuste de velocidad.
+            if ($estado === 400 && isset($peticion['generationConfig']['thinkingConfig'])
+                && stripos($texto, 'thinking') !== false) {
+                unset($peticion['generationConfig']['thinkingConfig']);
+                $intentos--;
+                continue;
+            }
+
             $reintentable = in_array($estado, [429, 500, 502, 503], true);
             $espera = min(3.0, max(0.5, $reintentarEn));
             if ($reintentable && $intentos < 2 && ($limite - microtime(true)) > $espera + 5) {
@@ -628,8 +638,9 @@ final class ClaudeCliente
      *                       contenido de usuario, en el mismo orden.
      *   · herramientas    → tools[0].functionDeclarations, con el esquema
      *                       adaptado a lo que admite Gemini.
-     * Lo exclusivo de Anthropic (cache_control, output_config, fallbacks,
-     * razonamiento) no se envía.
+     * Lo exclusivo de Anthropic (cache_control, fallbacks, bloques de
+     * razonamiento) no se envía; el esfuerzo de `output_config` se traduce al
+     * ajuste de razonamiento de Gemini (ver razonamientoGemini).
      */
     private static function aGemini(array $cuerpo): array
     {
@@ -728,7 +739,43 @@ final class ClaudeCliente
         }
 
         $peticion['generationConfig'] = ['maxOutputTokens' => (int)($cuerpo['max_tokens'] ?? 1024)];
+        $razonamiento = self::razonamientoGemini(
+            (string)($cuerpo['model'] ?? ''),
+            (string)($cuerpo['output_config']['effort'] ?? 'low')
+        );
+        if ($razonamiento !== null) {
+            $peticion['generationConfig']['thinkingConfig'] = $razonamiento;
+        }
         return $peticion;
+    }
+
+    /**
+     * Cuánto «piensa» Gemini antes de responder, según el esfuerzo pedido.
+     *
+     * Sin indicarlo, los modelos 2.5 y 3.x razonan por su cuenta antes de cada
+     * respuesta. Massiel hace dos o tres llamadas por mensaje (buscar en el
+     * catálogo y contestar) y ese razonamiento las sumaba hasta pasar el corte
+     * del servidor (504) o el del navegador. El mismo esfuerzo «bajo» que ya
+     * se pide a Anthropic se traduce aquí:
+     *   · gemini-2.5-flash / flash-lite → thinkingBudget 0 (sin razonar).
+     *   · gemini-2.5-pro                → thinkingBudget 128 (su mínimo).
+     *   · gemini-3 en adelante          → thinkingLevel «low».
+     * Con esfuerzo «high» o con otros modelos no se toca nada. Si un modelo
+     * rechaza el ajuste, `google()` repite la petición sin él.
+     */
+    private static function razonamientoGemini(string $modelo, string $esfuerzo): ?array
+    {
+        if ($esfuerzo === 'high' || !preg_match('#^(?:models/)?gemini-(\d+)(?:\.(\d+))?-(.+)$#', $modelo, $m)) {
+            return null;
+        }
+        $mayor = (int)$m[1];
+        if ($mayor >= 3) {
+            return ['thinkingLevel' => 'low'];
+        }
+        if ($mayor === 2 && (int)($m[2] ?? 0) === 5) {
+            return ['thinkingBudget' => str_starts_with($m[3], 'pro') ? 128 : 0];
+        }
+        return null;
     }
 
     /**

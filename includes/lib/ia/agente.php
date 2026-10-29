@@ -192,6 +192,11 @@ final class IaAgente
     ): array {
         $inicio = microtime(true);
         $limite = $inicio + IaConfig::tiempoMaximo();
+        // Quien llama puede dar un límite más corto (el diagnóstico reparte su
+        // tiempo entre varias pruebas); nunca uno más largo.
+        if (isset($opciones['limite']) && is_float($opciones['limite'])) {
+            $limite = min($limite, $opciones['limite']);
+        }
         $modelo = IaConfig::modelo($agente);
 
         $mensajes   = $historial;

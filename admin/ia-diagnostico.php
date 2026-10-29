@@ -99,7 +99,11 @@ $config = [
 // ---------------------------------------------------------------------------
 // Prueba de conexión
 // ---------------------------------------------------------------------------
-$resultados = [];
+// Los resultados se guardan en la sesión y la página se recarga por GET: así
+// refrescar no repite la prueba (antes el navegador reenviaba el formulario y
+// volvía a lanzar las peticiones, encadenando esperas y errores 504).
+$resultados = $_SESSION['ia_diagnostico'] ?? [];
+unset($_SESSION['ia_diagnostico']);
 $errorPrueba = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     exigirToken(false, 'admin/ia-diagnostico.php');
@@ -109,6 +113,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } elseif ($clave === '' || $proveedor === '' || IaConfig::modelo('cliente') === '') {
         $errorPrueba = 'Primero corrige la configuración de arriba.';
     } else {
+        // Toda la prueba cabe en 45 s: el servidor web corta hacia los 60 y
+        // devolvía un 504. Antes cada paso podía esperar AI_TIMEOUT entero.
+        $tope = microtime(true) + 45.0;
+        $quedan = static fn(): float => $tope - microtime(true);
         IaSesion::soltar();
         $paso = function (string $nombre, callable $prueba) use (&$resultados): bool {
             $inicio = microtime(true);
@@ -133,7 +141,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $seguir = $paso('El modelo existe en Google', function () use ($clave): array {
                 $ch = curl_init(preg_replace('#:generateContent$#', '', IaConfig::urlPeticion()));
                 curl_setopt_array($ch, [
-                    CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 15, CURLOPT_CONNECTTIMEOUT => 6,
+                    CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 10, CURLOPT_CONNECTTIMEOUT => 6,
                     CURLOPT_FOLLOWLOCATION => false, CURLOPT_HTTPHEADER => ['x-goog-api-key: ' . $clave],
                 ]);
                 $cuerpo = curl_exec($ch);
@@ -155,12 +163,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         // 2. Un mensaje simple.
         if ($seguir) {
-            $seguir = $paso('Respuesta simple del modelo', function (): array {
+            $seguir = $paso('Respuesta simple del modelo', function () use ($quedan): array {
                 $r = ClaudeCliente::mensajes([
                     'model'      => IaConfig::modelo('cliente'),
                     'max_tokens' => 200,
                     'messages'   => [['role' => 'user', 'content' => 'Responde solo con la palabra: listo']],
-                ], microtime(true) + IaConfig::tiempoMaximo());
+                ], microtime(true) + min(20.0, $quedan()));
                 $texto = '';
                 foreach ($r['content'] as $b) {
                     $texto .= ($b['type'] ?? '') === 'text' ? $b['text'] : '';
@@ -170,10 +178,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             });
         }
         // 3. Una pregunta que obliga a usar las herramientas de la tienda.
-        if ($seguir) {
-            $paso('Massiel consulta el catálogo (herramientas)', function () use ($pdo): array {
+        if ($seguir && $quedan() < 10) {
+            $resultados[] = ['nombre' => 'Massiel consulta el catálogo (herramientas)', 'ok' => false, 'ms' => 0,
+                             'detalle' => 'No se probó: las pruebas anteriores tardaron demasiado. El modelo responde '
+                                        . 'muy lento para la tienda; vuelve a probar o elige un modelo más rápido.'];
+        } elseif ($seguir) {
+            $paso('Massiel consulta el catálogo (herramientas)', function () use ($pdo, $tope): array {
                 $r = IaAgente::responder('cliente', new IaHerramientasCliente($pdo), [],
-                    '¿Qué arreglos tienen disponibles? Menciona dos.');
+                    '¿Qué arreglos tienen disponibles? Menciona dos.', ['limite' => $tope]);
                 $usadas = array_values(array_unique($r['herramientas']));
                 $ok = (bool)array_intersect($usadas, ['buscar_productos', 'listar_categorias', 'consultar_promociones'])
                     && $r['estado'] !== 'error';
@@ -183,6 +195,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             });
         }
         IaSesion::retomar();
+        $_SESSION['ia_diagnostico'] = $resultados;
+        redirigir('admin/ia-diagnostico.php');
     }
 }
 

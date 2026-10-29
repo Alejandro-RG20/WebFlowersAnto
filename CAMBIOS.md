@@ -1032,3 +1032,35 @@ Google ya no da `gemini-2.5-flash-lite` a las claves nuevas (responde 404
 ### Al subirlo a Hostinger
 Subir `includes/lib/ia/config.php` e `includes/lib/ia/cliente.php`. No hace
 falta migración ni vaciar la caché.
+
+---
+
+## 23. Massiel lenta, diagnóstico con 504 y web que no cargaba tras la prueba
+
+### Qué pasaba
+- **Gemini 3.x «piensa» antes de responder** si no se le indica lo
+  contrario, y Massiel hace dos o tres llamadas por mensaje (buscar en el
+  catálogo y contestar). Las respuestas tardaban tanto que a veces el
+  navegador mostraba «Se cortó la conexión mientras Massiel respondía».
+- **El diagnóstico podía tardar hasta ~95 s**: tres pruebas seguidas y cada
+  una con `AI_TIMEOUT` entero. El servidor del hosting corta hacia los 60 s y
+  devolvía «504 Gateway Time-out».
+- **Al refrescar la página del error, el navegador reenviaba la prueba** y
+  volvía a lanzar las peticiones; por eso «lo mismo» y la conexión cerrada.
+
+### Qué se cambió
+- Con Gemini se pide el mismo esfuerzo bajo que ya se pedía a Anthropic:
+  Gemini 3 en adelante razona en nivel «low»; Gemini 2.5 Flash/Flash-Lite no
+  razona (2.5 Pro, su mínimo). Si un modelo no admite el ajuste, la petición
+  se repite al momento sin él.
+- El diagnóstico entero cabe en **45 s** (cada paso tiene su parte) y, si
+  el modelo es demasiado lento, lo dice en lugar de colgarse.
+- Los resultados del diagnóstico se muestran tras recargar la página por
+  GET: **refrescar ya no repite la prueba**.
+- `AI_TIMEOUT` tiene un tope de **50 s** (antes 90): por encima, el hosting
+  cortaba antes y solo se veía el 504.
+
+### Al subirlo a Hostinger
+Subir `includes/lib/ia/cliente.php`, `includes/lib/ia/agente.php`,
+`includes/lib/ia/config.php` y `admin/ia-diagnostico.php`. Recomendado en el
+`.env`: `AI_TIMEOUT=40` o menos.

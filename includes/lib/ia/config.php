@@ -234,10 +234,16 @@ final class IaConfig
         return $p;
     }
 
-    /** Segundos máximos que puede durar una respuesta completa del asistente. */
+    /**
+     * Segundos máximos que puede durar una respuesta completa del asistente.
+     *
+     * Tope de 50: el servidor web del hosting corta las peticiones hacia los
+     * 60 s con un 504, y por encima de eso la espera nunca llegaba a usarse;
+     * solo se veía el error en vez del aviso de Massiel.
+     */
     public static function tiempoMaximo(): int
     {
-        return max(10, min(90, Entorno::entero('AI_TIMEOUT', 40)));
+        return max(10, min(50, Entorno::entero('AI_TIMEOUT', 40)));
     }
 
     /** Mensajes al asistente de clientes por día en toda la tienda (0 = sin tope). */
