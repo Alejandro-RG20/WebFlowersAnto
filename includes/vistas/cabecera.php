@@ -145,7 +145,28 @@ $waGeneral = enlace_whatsapp(
   $paquete = Activos::css($hojasPropias);
 ?>
 <?php if ($paquete !== null): ?>
-<link rel="stylesheet" href="<?= e(url_recurso($paquete)) ?>">
+<?php // Red de seguridad: si el paquete no llega (onerror) o llega pero no se
+      // aplica —una caché o un CDN con una copia rota—, falta su marca final y
+      // se enlazan las hojas sueltas justo detrás, en el mismo orden y antes
+      // del <style> de los colores, para que la cascada sea la misma. ?>
+<script>
+  function faPaquete(l, cargo) {
+    if (l.dataset.revisado) { return; }
+    l.dataset.revisado = '1';
+    if (cargo && getComputedStyle(document.documentElement)
+        .getPropertyValue('<?= Activos::MARCA ?>').trim() === '1') { return; }
+    var antes = l;
+    JSON.parse(l.dataset.sueltas).forEach(function (h) {
+      var n = document.createElement('link');
+      n.rel = 'stylesheet'; n.href = h;
+      antes.parentNode.insertBefore(n, antes.nextSibling);
+      antes = n;
+    });
+  }
+</script>
+<link rel="stylesheet" href="<?= e(url_recurso($paquete)) ?>"
+      data-sueltas="<?= e(json_encode(array_map('url_recurso', $hojasPropias), JSON_UNESCAPED_SLASHES)) ?>"
+      onload="faPaquete(this, true)" onerror="faPaquete(this, false)">
 <?php else: ?>
 <?php // Sin permiso de escritura se enlazan sueltas: la página carga más
       // lenta, pero carga. ?>

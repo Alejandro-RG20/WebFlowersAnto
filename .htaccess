@@ -108,31 +108,18 @@ RedirectMatch 404 ^/(.*/)?\.git
 </IfModule>
 
 # --- Compresión --------------------------------------------------------
-# El paquete de CSS se genera ya comprimido junto al normal. Si el navegador
-# acepta gzip y la copia existe, se le manda esa. Hace falta mod_headers para
-# anunciar la codificación, así que la regla entera vive dentro de su IfModule:
-# sin él no se reescribe nada y se sirve la hoja normal, que siempre está.
-<IfModule mod_headers.c>
-  <IfModule mod_rewrite.c>
-    RewriteCond %{HTTP:Accept-Encoding} gzip
-    RewriteCond %{DOCUMENT_ROOT}%{REQUEST_URI}.gz -f
-    RewriteRule ^(assets/dist/.+\.css)$ $1.gz [QSA,L]
-  </IfModule>
-  <FilesMatch "\.css\.gz$">
-    Header set Content-Encoding gzip
-    Header append Vary Accept-Encoding
-    # Sin esto el navegador recibiría el paquete como application/gzip y no
-    # lo aplicaría como hoja de estilos.
-    ForceType text/css
-  </FilesMatch>
-</IfModule>
-
+# La comprime el servidor al enviarla. Antes el paquete de CSS se dejaba ya
+# comprimido (`.css.gz`) y una regla lo servía como text/css: esta misma
+# regla de DEFLATE —o el CDN— podía volver a comprimirlo, el navegador lo
+# descomprimía una sola vez y recibía bytes ilegibles en lugar de CSS. La
+# tienda se quedaba sin diseño (el panel no, porque enlaza sus hojas sueltas).
+# Una sola compresión, la del servidor, no puede fallar así.
 <IfModule mod_deflate.c>
   AddOutputFilterByType DEFLATE text/html text/css text/plain text/xml
   AddOutputFilterByType DEFLATE application/javascript application/json
-  # Los SVG son texto y se comprimen a menos de un tercio.
+  # Los SVG son texto y se comprimen a menos de un tercio. Las fuentes woff2
+  # ya vienen comprimidas: comprimirlas otra vez solo gasta tiempo.
   AddOutputFilterByType DEFLATE image/svg+xml application/xml
-  AddOutputFilterByType DEFLATE font/woff2 application/font-woff
 </IfModule>
 
 # --- Página de error 404 ------------------------------------------------

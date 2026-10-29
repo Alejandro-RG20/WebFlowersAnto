@@ -958,3 +958,40 @@ avisos masivos.
 2. Subir los archivos.
 3. Panel → Base de datos → aplicar las migraciones pendientes (026, 027 y 028).
 4. Vaciar la caché del CDN.
+
+---
+
+## 21. La tienda se veía sin diseño (estilos que no llegaban)
+
+### Qué pasaba
+La tienda pública se veía como texto plano: enlaces azules subrayados, el
+menú en lista y las fotos enormes. El panel, en cambio, se veía bien.
+
+La tienda carga todos sus estilos en **un solo archivo** (`assets/dist/app-….css`)
+para abrir más rápido. Ese archivo se dejaba además ya comprimido
+(`.css.gz`) y una regla del `.htaccess` lo servía en su lugar. Pero el mismo
+`.htaccess` tiene otra regla que comprime todo el CSS al enviarlo, y el CDN
+de Hostinger también comprime. Cuando el servidor o el CDN lo comprimían
+**otra vez**, el navegador lo descomprimía una sola vez y recibía bytes
+ilegibles en lugar de estilos. Como ese archivo se guarda en caché un año,
+la tienda se quedaba así. El panel no usa ese archivo: enlaza sus hojas
+sueltas, por eso no le pasaba.
+
+### Qué se cambió
+- **Una sola compresión**: ya no se genera la copia `.gz` ni existe la regla
+  que la servía. Comprime el servidor, como con todo lo demás. Las copias
+  `.gz` que queden de antes se borran solas.
+- **Nombre nuevo del archivo de estilos**: así ningún teléfono ni el CDN
+  sigue usando la copia rota que guardó.
+- **Red de seguridad**: el archivo de estilos termina con una marca. Si no
+  llega, o llega pero no se puede leer, la página lo detecta y carga las
+  hojas sueltas en el mismo orden (como el panel). La tienda ya no puede
+  quedarse sin diseño por este motivo.
+
+### Al subirlo a Hostinger
+1. No borrar `storage/` ni el `.env`.
+2. Subir los archivos (sobre todo `.htaccess`, `includes/lib/activos.php` e
+   `includes/vistas/cabecera.php`). Si existe la carpeta `assets/dist/`, se
+   puede borrar: se vuelve a crear sola.
+3. Vaciar la caché del CDN (hPanel → Rendimiento → CDN → Vaciar caché) y,
+   si está activa, la caché de LiteSpeed.

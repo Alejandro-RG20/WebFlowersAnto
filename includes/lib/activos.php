@@ -14,6 +14,11 @@
  * Si no se puede escribir —un hosting con la carpeta en solo lectura— la
  * función devuelve null y quien la llama vuelve a enlazar las hojas sueltas.
  * Preferimos una página más lenta a una página sin estilos.
+ *
+ * El paquete termina con una marca (`--fa-paquete`). La cabecera la comprueba
+ * en el navegador: si el paquete no llega o llega ilegible, enlaza las hojas
+ * sueltas. Así una caché o un CDN que guarde una copia rota no deja la tienda
+ * sin diseño.
  */
 
 declare(strict_types=1);
@@ -21,6 +26,16 @@ declare(strict_types=1);
 final class Activos
 {
     private const CARPETA = 'assets/dist';
+
+    /**
+     * Entra en la huella del nombre. Se sube cuando cambia cómo se arma o se
+     * sirve el paquete: así nadie —navegador ni CDN, que lo guardan un año—
+     * sigue usando una copia anterior con el mismo nombre.
+     */
+    private const VERSION = '3';
+
+    /** Marca final que la cabecera busca para saber que el paquete se aplicó. */
+    public const MARCA = '--fa-paquete';
 
     /**
      * Devuelve la ruta relativa del paquete, o null si no se pudo generar.
@@ -44,7 +59,7 @@ final class Activos
 
         // La huella incluye la fecha de cada archivo: al editar una hoja
         // cambia el nombre del paquete y nadie se queda con el anterior.
-        $firma = '';
+        $firma = 'v' . self::VERSION . "\n";
         foreach ($existentes as $abs) {
             $firma .= $abs . '|' . (string)@filemtime($abs) . '|' . (string)@filesize($abs) . "\n";
         }
@@ -72,6 +87,8 @@ final class Activos
             }
             $css .= self::comprimir($contenido) . "\n";
         }
+        // La marca va al final: si se aplica, se aplicó el paquete entero.
+        $css .= ':root{' . self::MARCA . ':1}' . "\n";
 
         // Nombre temporal y renombrado: dos visitas a la vez no pueden dejar
         // un archivo a medio escribir que luego se sirva roto.
@@ -81,23 +98,11 @@ final class Activos
             return null;
         }
 
-        // Copia comprimida junto al original. El hosting no está aplicando
-        // compresión —PageSpeed lo midió: la hoja viaja entera y tarda 2,5 s—
-        // así que se deja ya comprimida y el `.htaccess` la sirve a quien la
-        // acepte. Si esa regla no estuviera disponible se sirve la normal:
-        // por eso se escriben las dos.
-        if (function_exists('gzencode')) {
-            $gz = @gzencode($css, 9);
-            if ($gz !== false) {
-                $tempGz = $abs . '.gz.' . bin2hex(random_bytes(4));
-                if (@file_put_contents($tempGz, $gz) !== false) {
-                    if (!@rename($tempGz, $abs . '.gz')) {
-                        @unlink($tempGz);
-                    }
-                }
-            }
-        }
-
+        // Ya no se deja una copia `.gz` para servirla con una regla del
+        // `.htaccess`: dependía de que el servidor y el CDN respetaran a mano
+        // la codificación, y cuando no lo hacían el navegador recibía bytes
+        // comprimidos como si fueran CSS y la tienda se quedaba sin diseño.
+        // La compresión la hace el servidor (mod_deflate / LiteSpeed).
         self::limpiarViejos($carpeta, basename($abs));
         return $destino;
     }
@@ -137,13 +142,18 @@ final class Activos
         return preg_replace_callback('#\x01(\d+)\x02#', fn(array $m): string => $guardados[(int)$m[1]], $css) ?? $css;
     }
 
-    /** Deja solo el paquete en uso: los anteriores ya no los pide nadie. */
+    /**
+     * Deja solo el paquete en uso: los anteriores ya no los pide nadie. Las
+     * copias `.gz` de versiones anteriores se borran siempre, también la del
+     * paquete actual si quedara alguna.
+     */
     private static function limpiarViejos(string $carpeta, string $actual): void
     {
         foreach (@glob($carpeta . '/app-*.css*') ?: [] as $viejo) {
             $base = basename($viejo);
-            if ($base !== $actual && $base !== $actual . '.gz'
-                && @filemtime($viejo) < time() - 3600) {
+            if (str_ends_with($base, '.gz')) {
+                @unlink($viejo);
+            } elseif ($base !== $actual && @filemtime($viejo) < time() - 3600) {
                 @unlink($viejo);
             }
         }
