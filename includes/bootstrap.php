@@ -430,6 +430,7 @@ require_once __DIR__ . '/lib/avisos.php';
 require_once __DIR__ . '/lib/campanas.php';
 require_once __DIR__ . '/lib/checkout.php';
 require_once __DIR__ . '/lib/analitica.php';
+require_once __DIR__ . '/lib/meta_pixel.php';
 require_once __DIR__ . '/lib/facturas.php';
 // Solo la configuración: decide si se pinta el acceso al asistente. El resto
 // de la IA se carga únicamente en sus dos endpoints.

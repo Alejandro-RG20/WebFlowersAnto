@@ -36,7 +36,14 @@ $yaDecidio = in_array($decision, ['aceptado', 'rechazado'], true);
       <p id="cookiesTexto">
         Una cookie propia mantiene tu carrito y tu sesión: sin ella la tienda no funciona.
         Aparte, podemos guardar tus favoritos en este navegador para no perderlos.
-        <?php if (Analitica::configurado()): ?>
+        <?php if (Analitica::configurado() && MetaPixel::configurado()): ?>
+          Si aceptas, usamos también Google Analytics para saber qué se visita y el píxel de Meta
+          para medir nuestros anuncios en Facebook e Instagram; mientras no aceptes, no guardamos
+          ni enviamos nada tuyo para eso.
+        <?php elseif (MetaPixel::configurado()): ?>
+          Si aceptas, usamos también el píxel de Meta para medir nuestros anuncios en Facebook e
+          Instagram; mientras no aceptes, no le enviamos nada tuyo.
+        <?php elseif (Analitica::configurado()): ?>
           Si aceptas, usamos también Google Analytics para saber qué se visita y mejorar la
           tienda; mientras no aceptes, no guardamos nada tuyo para eso.
         <?php else: ?>

@@ -15,7 +15,7 @@ Rbac::exigirPanel();
 Rbac::exigir('configuracion.ver');
 
 $pestana = opcion('t', ['marca', 'portada', 'contacto', 'pedidos', 'envio', 'avisos', 'banco',
-                        'factura', 'analitica', 'desarrollador'], 'marca', $_GET);
+                        'factura', 'analitica', 'meta', 'desarrollador'], 'marca', $_GET);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     exigirToken(false, 'admin/configuracion.php');
@@ -23,7 +23,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     $accion = opcion('accion', ['guardar', 'cuenta_guardar', 'cuenta_eliminar',
                                 'zona_guardar', 'zona_eliminar', 'mensajes_guardar',
-                                'correo_prueba', 'paypal_probar'], 'guardar');
+                                'correo_prueba', 'paypal_probar', 'pixel_probar'], 'guardar');
 
     // --- Correo de prueba -----------------------------------------------
     if ($accion === 'correo_prueba') {
@@ -219,7 +219,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // de otra pestaña con el formulario vacío, borrándolos. Por eso el valor
     // por defecto es vacío y abajo se rechaza en vez de escribir nada.
     $grupo  = opcion('grupo', ['marca', 'portada', 'contacto', 'pedidos',
-                               'envio', 'avisos', 'banco', 'factura', 'analitica', 'desarrollador'], '');
+                               'envio', 'avisos', 'banco', 'factura', 'analitica', 'meta', 'desarrollador'], '');
     $antes  = Ajustes::todos();
 
     $campos = match ($grupo) {
@@ -330,6 +330,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // de quitarle el «google-site-verification=» si viene delante.
             'seo_google_verificacion' => texto('seo_google_verificacion', 120),
         ],
+        'meta' => [
+            'pixel_activo'         => casilla('pixel_activo'),
+            // Solo los dígitos: se copia del Administrador de eventos y es
+            // fácil arrastrar «ID: » o un espacio, y con eso no mide nada.
+            'pixel_id'             => preg_replace('/\D+/', '', texto('pixel_id', 40)) ?? '',
+            // Igual que el secreto de PayPal: el campo sale vacío y solo se
+            // reemplaza si se escribe uno nuevo. Para quitarlo está la casilla.
+            'pixel_token'          => casilla('pixel_token_quitar') ? ''
+                                      : (preg_replace('/\s+/', '', texto('pixel_token', 400)) ?: (string)($antes['pixel_token'] ?? '')),
+            'pixel_prueba'         => preg_replace('/[^A-Za-z0-9]/', '', texto('pixel_prueba', 40)) ?? '',
+            'pixel_excluir_equipo' => casilla('pixel_excluir_equipo'),
+        ],
         'desarrollador' => [
             'dev_activo'      => casilla('dev_activo'),
             'dev_nombre'      => texto('dev_nombre', 80),
@@ -367,6 +379,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
               ($prueba['ok'] ? 'Ajustes guardados. ' : 'Ajustes guardados, pero PayPal no respondió bien: ')
               . $prueba['mensaje']);
         redirigir('admin/configuracion.php?t=banco');
+    }
+    if ($accion === 'pixel_probar') {
+        $prueba = MetaPixel::probar();
+        flash($prueba['ok'] ? 'exito' : 'error',
+              ($prueba['ok'] ? 'Ajustes guardados. ' : 'Ajustes guardados, pero Meta no respondió bien: ')
+              . $prueba['mensaje']);
+        redirigir('admin/configuracion.php?t=meta');
     }
 
     flash('exito', 'Configuración guardada.');
@@ -449,6 +468,7 @@ function campoImagen(string $nombre, string $etiqueta, string $valor, string $ay
       'banco'         => 'Transferencias',
       'factura'       => 'Facturación',
       'analitica'     => 'Analytics',
+      'meta'          => 'Píxel de Meta',
       'desarrollador' => 'Créditos',
   ] as $clave => $nombre): ?>
     <a href="<?= e(url('admin/configuracion.php?t=' . $clave)) ?>"
@@ -1555,6 +1575,166 @@ function campoImagen(string $nombre, string $etiqueta, string $valor, string $ay
         <?php if ($editable): ?>
           <button type="submit" class="boton boton-principal" style="margin-top:18px;">
             <i class="fa-solid fa-floppy-disk" aria-hidden="true"></i> Guardar</button>
+        <?php endif; ?>
+      </div>
+    </section>
+  </form>
+
+<?php elseif ($pestana === 'meta'): ?>
+  <?php
+    $pxId     = preg_replace('/\D+/', '', (string)($c['pixel_id'] ?? '')) ?? '';
+    $pxBueno  = MetaPixel::idValido($pxId);
+    $pxActivo = !empty($c['pixel_activo']);
+    $pxToken  = trim((string)($c['pixel_token'] ?? '')) !== '';
+    $pxPrueba = trim((string)($c['pixel_prueba'] ?? '')) !== '';
+    $pxEstado = MetaPixel::estado();
+  ?>
+  <div class="caja-aviso info">
+    <i class="fa-brands fa-facebook-f" aria-hidden="true"></i>
+    <span>El píxel le dice a Meta qué anuncios de Facebook e Instagram terminan en pedido, para que
+      las campañas busquen compradores y no solo clics. Respeta el aviso de cookies: hasta que la
+      persona pulsa «Aceptar todo» no se carga nada de Meta ni se le envía nada.
+      Las visitas del equipo no se cuentan.</span>
+  </div>
+
+  <?php if ($pxActivo && !$pxBueno): ?>
+    <div class="caja-aviso error">
+      <i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i>
+      <span>El píxel está encendido pero el identificador
+        <?= $pxId === '' ? 'está vacío' : '«' . e($pxId) . '» no tiene el formato correcto' ?>.
+        Mientras no se arregle no se mide nada. Son solo números, normalmente 15 o 16.</span>
+    </div>
+  <?php elseif ($pxActivo && $pxToken && $pxEstado && !$pxEstado['ok']): ?>
+    <div class="caja-aviso error">
+      <i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i>
+      <span>El último envío desde el servidor falló (<?= e(date('d/m/Y H:i', $pxEstado['cuando'])) ?>):
+        <?= e($pxEstado['mensaje']) ?></span>
+    </div>
+  <?php endif; ?>
+  <?php if ($pxActivo && $pxPrueba): ?>
+    <div class="caja-aviso alerta">
+      <i class="fa-solid fa-circle-info" aria-hidden="true"></i>
+      <span>Hay un código de prueba puesto: lo que manda el servidor sale en «Probar eventos» y
+        <strong>no cuenta para las campañas</strong>. Bórralo en cuanto termines de comprobar.</span>
+    </div>
+  <?php endif; ?>
+
+  <form method="post" action="<?= e(url('admin/configuracion.php')) ?>" data-una-vez>
+    <?= campoToken() ?>
+    <input type="hidden" name="grupo" value="meta">
+
+    <section class="panel">
+      <div class="panel-cabecera"><div><h2>Píxel de Meta</h2>
+        <p>Facebook e Instagram: medición de ventas para las campañas</p></div></div>
+
+      <div class="panel-cuerpo">
+        <div class="interruptor">
+          <input type="checkbox" id="pixel_activo" name="pixel_activo" value="1"
+                 <?= $pxActivo ? 'checked' : '' ?>>
+          <label for="pixel_activo">Medir con el píxel de Meta
+            <small>Al apagarlo, el píxel deja de cargarse en el sitio de inmediato.</small></label>
+        </div>
+
+        <div class="campo">
+          <label for="pixel_id">Identificador del píxel (conjunto de datos)</label>
+          <input type="text" id="pixel_id" name="pixel_id" maxlength="40" autocomplete="off"
+                 inputmode="numeric" style="font-family:ui-monospace,monospace;"
+                 placeholder="123456789012345" value="<?= e($pxId) ?>">
+          <p class="ayuda">
+            Está en <strong>business.facebook.com → Administrador de eventos</strong>: elige el
+            conjunto de datos y copia el número que sale debajo de su nombre.
+            <?php if ($pxBueno): ?>
+              <span class="estado-suave si">Formato correcto</span>
+            <?php endif; ?>
+          </p>
+        </div>
+
+        <div class="campo">
+          <label for="pixel_token">Token de la API de Conversiones
+            <?php if ($pxToken): ?><span class="estado-suave si">Guardado</span><?php endif; ?></label>
+          <input type="password" id="pixel_token" name="pixel_token" maxlength="400"
+                 autocomplete="new-password" spellcheck="false"
+                 placeholder="<?= $pxToken ? 'Guardado — escribe uno nuevo solo si vas a cambiarlo' : 'EAAG…' ?>">
+          <p class="ayuda">
+            Recomendado. Con él, cada evento sale también desde el servidor, y así se cuentan las
+            compras que el navegador pierde (bloqueadores, iPhone, el navegador interno de
+            Instagram). Meta junta las dos copias y cuenta una sola.
+            Se genera en <strong>Administrador de eventos → el conjunto de datos → Configuración →
+            API de Conversiones → Generar token de acceso</strong>.
+            No se vuelve a mostrar; si lo dejas vacío se conserva el que ya está.</p>
+        </div>
+        <?php if ($pxToken): ?>
+          <div class="interruptor">
+            <input type="checkbox" id="pixel_token_quitar" name="pixel_token_quitar" value="1">
+            <label for="pixel_token_quitar">Quitar el token guardado
+              <small>El servidor deja de enviar eventos; el píxel del navegador sigue midiendo.</small></label>
+          </div>
+        <?php endif; ?>
+
+        <div class="rejilla-campos dos">
+          <div class="campo">
+            <label for="pixel_prueba">Código de prueba (opcional)</label>
+            <input type="text" id="pixel_prueba" name="pixel_prueba" maxlength="40" autocomplete="off"
+                   style="font-family:ui-monospace,monospace;" placeholder="TEST12345"
+                   value="<?= e((string)($c['pixel_prueba'] ?? '')) ?>">
+            <p class="ayuda">Sale en <strong>Administrador de eventos → Probar eventos</strong>.
+              Ponlo solo mientras compruebas y bórralo después.</p>
+          </div>
+          <div class="campo" style="align-self:end;">
+            <div class="interruptor">
+              <input type="checkbox" id="pixel_excluir_equipo" name="pixel_excluir_equipo" value="1"
+                     <?= !isset($c['pixel_excluir_equipo']) || !empty($c['pixel_excluir_equipo']) ? 'checked' : '' ?>>
+              <label for="pixel_excluir_equipo">No contar al equipo
+                <small>Tus visitas no se toman por las de una clienta ni reciben tus propios anuncios.</small></label>
+            </div>
+          </div>
+        </div>
+
+        <hr style="border:0;border-top:1px solid var(--linea,#E3DAD6);margin:22px 0;">
+        <h3 style="font-size:1.02rem;margin-bottom:4px;">Qué se envía a Meta</h3>
+        <p class="ayuda" style="margin-bottom:12px;">
+          Son los eventos estándar que Meta usa para optimizar las campañas. Se ven en
+          <strong>Administrador de eventos → Información general</strong>. La moneda es la de la
+          tienda (<?= e(Analitica::moneda()) ?>, la misma de Analytics) y cada arreglo se identifica
+          por su dirección, igual que en un catálogo de Meta.</p>
+        <div class="tabla-envoltura">
+          <table class="tabla">
+            <thead><tr><th>Evento</th><th>Cuándo ocurre</th><th>Desde</th></tr></thead>
+            <tbody>
+              <?php foreach ([
+                  'PageView'             => ['Se abre cualquier página.', 'Navegador'],
+                  'ViewContent'          => ['Se abre la ficha de un arreglo.', 'Navegador y servidor'],
+                  'Search'               => ['Se busca algo en el catálogo.', 'Navegador y servidor'],
+                  'AddToWishlist'        => ['Se guarda un arreglo en favoritos.', 'Navegador y servidor'],
+                  'AddToCart'            => ['Se añade un arreglo al carrito.', 'Navegador y servidor'],
+                  'InitiateCheckout'     => ['Se empieza a completar el pedido.', 'Navegador y servidor'],
+                  'AddPaymentInfo'       => ['Se elige forma de pago.', 'Navegador'],
+                  'Purchase'             => ['El pedido queda registrado, con su importe y su código. Se cuenta una sola vez.', 'Navegador y servidor'],
+                  'CompleteRegistration' => ['Alguien crea una cuenta.', 'Navegador y servidor'],
+                  'Contact'              => ['Se escribe por WhatsApp desde el sitio.', 'Navegador'],
+              ] as $evento => [$cuando, $desde]): ?>
+                <tr>
+                  <td class="celda-principal"><code><?= e($evento) ?></code></td>
+                  <td><?= e($cuando) ?></td>
+                  <td><?= e($pxToken || $desde === 'Navegador' ? $desde : 'Navegador') ?></td>
+                </tr>
+              <?php endforeach; ?>
+            </tbody>
+          </table>
+        </div>
+        <p class="ayuda" style="margin-top:10px;">
+          Desde el servidor solo sale lo de quien aceptó las cookies. Con el pedido van además el
+          correo, el teléfono y el nombre del cliente <strong>resumidos con SHA-256</strong>: Meta
+          compara resúmenes y nunca recibe los datos en claro.</p>
+
+        <?php if ($editable): ?>
+          <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:18px;">
+            <button type="submit" class="boton boton-principal">
+              <i class="fa-solid fa-floppy-disk" aria-hidden="true"></i> Guardar</button>
+            <button type="submit" name="accion" value="pixel_probar" class="boton boton-claro"
+                    formnovalidate>
+              <i class="fa-solid fa-plug-circle-check" aria-hidden="true"></i> Guardar y probar conexión</button>
+          </div>
         <?php endif; ?>
       </div>
     </section>

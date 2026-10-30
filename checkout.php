@@ -199,7 +199,7 @@ require __DIR__ . '/includes/vistas/cabecera.php';
   <form method="post" action="<?= e(url('checkout.php')) ?>" novalidate data-una-vez data-checkout
         data-espera="Confirmando tu pedido…">
     <?= campoToken() ?>
-    <div class="diseno-compra"<?php if (Analitica::activo() && $detalle['items']):
+    <div class="diseno-compra"<?php if (Analitica::mide() && $detalle['items']):
         echo ' data-ga-checkout="' . e((string)json_encode(array_filter([
             'currency' => Analitica::moneda(),
             'value'    => round((float)$detalle['total'], 2),

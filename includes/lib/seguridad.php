@@ -224,6 +224,13 @@ function cabeceraCSP(): void
                   . 'https://www.googletagmanager.com';
     }
 
+    // El píxel de Meta: su script sale de connect.facebook.net y las medidas
+    // van a www.facebook.com. La imagen de respaldo ya la cubre img-src https:.
+    if (class_exists('MetaPixel') && MetaPixel::activo()) {
+        $script  .= ' https://connect.facebook.net';
+        $conecta .= ' https://connect.facebook.net https://www.facebook.com';
+    }
+
     header(
         "Content-Security-Policy: " .
         "default-src 'self'; " .

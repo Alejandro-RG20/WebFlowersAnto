@@ -1064,3 +1064,62 @@ falta migración ni vaciar la caché.
 Subir `includes/lib/ia/cliente.php`, `includes/lib/ia/agente.php`,
 `includes/lib/ia/config.php` y `admin/ia-diagnostico.php`. Recomendado en el
 `.env`: `AI_TIMEOUT=40` o menos.
+
+## 24. Píxel de Meta y API de Conversiones, configurables desde el panel
+
+### Qué hace
+- **Píxel de Meta (Facebook e Instagram)** en todas las páginas de la
+  tienda, con los eventos estándar que Meta usa para optimizar campañas de
+  ventas: `PageView`, `ViewContent`, `Search`, `AddToWishlist`, `AddToCart`,
+  `InitiateCheckout`, `AddPaymentInfo`, `Purchase` (con importe, productos y
+  código del pedido), `CompleteRegistration` y `Contact` (WhatsApp).
+- **API de Conversiones** (desde el servidor) si se guarda un token: cada
+  evento sale también del servidor con el **mismo identificador** que el del
+  navegador, y Meta cuenta uno solo. Recupera las ventas que el navegador
+  pierde (bloqueadores, iPhone, navegador interno de Instagram). Se envía
+  cuando la página ya llegó al cliente, en una sola petición: no la retrasa.
+- **Coincidencia avanzada**: con el pedido (o la cuenta abierta) van el
+  correo, el teléfono (con prefijo 505) y el nombre **resumidos con
+  SHA-256**; Meta nunca los recibe en claro. El `fbclid` del anuncio se
+  guarda en la sesión, así la venta se atribuye aunque se acepten las
+  cookies dos páginas después.
+- Los eventos salen de **la misma cola que Google Analytics**: una venta
+  vale lo mismo en los dos informes y lo que se mida en el futuro queda
+  medido en ambos.
+
+### Privacidad
+- Respeta el aviso de cookies: hasta que se pulsa «Aceptar todo» el
+  navegador **no descarga nada de Meta** y el servidor no envía nada. Al
+  aceptar, sale lo pendiente de esa página sin recargar.
+- La política de privacidad y el aviso de cookies lo explican solos cuando
+  el píxel está encendido (y dejan de decir «No usamos publicidad»).
+- **Corregido de paso:** la página del pedido de un invitado llevaba su
+  llave (`&t=`) en la dirección, y Analytics —y ahora el píxel— la habrían
+  recibido. Ahora se guarda en la sesión y se quita de la barra en cuanto se
+  comprueba; recargar sigue funcionando.
+- Las visitas del equipo no se cuentan (se puede cambiar).
+
+### Configuración (Panel → Configuración → Píxel de Meta)
+1. En **business.facebook.com → Administrador de eventos** copia el
+   identificador del conjunto de datos (solo números) y pégalo.
+2. Recomendado: en ese conjunto de datos, **Configuración → API de
+   Conversiones → Generar token de acceso**, y pégalo en «Token». No se
+   vuelve a mostrar.
+3. Enciende «Medir con el píxel de Meta» y pulsa **Guardar y probar
+   conexión**. Para ver los eventos llegar en directo, copia el código de
+   **Probar eventos** en «Código de prueba», prueba, y **bórralo** después:
+   con él puesto, lo del servidor no cuenta para las campañas.
+4. La salud del sitio avisa si el identificador está mal, si Meta rechaza
+   el token (caducado o sin permiso) o si se quedó el código de prueba.
+
+### Al subirlo a Hostinger
+Archivos nuevos: `db/migraciones/029_meta_pixel.php`,
+`includes/lib/meta_pixel.php`, `includes/vistas/meta_pixel.php`,
+`assets/js/meta.js`. Modificados: `includes/bootstrap.php`,
+`includes/lib/analitica.php`, `includes/lib/seguridad.php`,
+`includes/lib/salud.php`, `includes/vistas/cabecera.php`,
+`includes/vistas/pie.php`, `includes/vistas/cookies.php`,
+`includes/vistas/legal_textos.php`, `admin/configuracion.php`,
+`api/carrito.php`, `api/favoritos.php`, `assets/js/app.js`, `carrito.php`,
+`checkout.php` y `pedido.php`. Después: **Panel → Base de datos → aplicar
+la migración 029**.

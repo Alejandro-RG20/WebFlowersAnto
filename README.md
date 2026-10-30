@@ -125,6 +125,7 @@ Se leen en este orden: variable de entorno real → `.env` → `config.local.php
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Acceso con Google (opcional) |
 | `FACEBOOK_APP_ID`, `FACEBOOK_APP_SECRET`, `FACEBOOK_GRAPH_VERSION` | Acceso con Facebook (opcional, requiere la migración 023) |
 | `OAUTH_SIMULADOR` | Solo con `APP_ENTORNO=dev`: simulador local de Google y Facebook para pruebas |
+| `META_GRAPH_SIMULADOR` | Solo con `APP_ENTORNO=dev`: simulador local de la API de Conversiones de Meta (`tests/meta/simulador-graph.js`) |
 | `MAIL_TRANSPORTE` | `log`, `mail` o `smtp` |
 | `MAIL_REMITENTE`, `MAIL_REMITENTE_NOMBRE` | Remitente de los correos |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_SEGURIDAD`, `SMTP_USUARIO`, `SMTP_PASSWORD` | Servidor SMTP |

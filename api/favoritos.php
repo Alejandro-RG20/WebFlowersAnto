@@ -33,6 +33,18 @@ if ($accion === 'quitar') {
     $favorito = Favoritos::alternar($pdo, $productoId);
 }
 
+// Guardar en favoritos es la señal de interés más clara antes de comprar:
+// Meta la usa para enseñar el arreglo otra vez a quien lo guardó.
+$meta = null;
+if ($favorito && MetaPixel::activo() && ($p = Catalogo::porIds($pdo, [$productoId])[$productoId] ?? null)) {
+    $item = Analitica::item($p);
+    $meta = MetaPixel::enRespuesta('add_to_wishlist', [
+        'currency' => Analitica::moneda(),
+        'value'    => $item['price'],
+        'items'    => [$item],
+    ]);
+}
+
 // Devolvemos la lista completa para que el navegador refleje el servidor
 // tal cual, en vez de ir acumulando ids por su cuenta.
 $actuales = Favoritos::ids($pdo);
@@ -41,4 +53,5 @@ responderJson([
     'favorito' => $favorito,
     'total'    => count($actuales),
     'ids'      => $actuales,
+    'meta'     => $meta,
 ]);

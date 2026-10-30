@@ -25,7 +25,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Nada de esto se duplica con lo que mide el navegador: el JavaScript
     // habla con api/carrito.php, no con esta página. Aquí llegan la ficha del
     // producto y quien navega sin JavaScript.
-    $antes = ($accion === 'quitar' || $accion === 'vaciar') && Analitica::activo()
+    $antes = ($accion === 'quitar' || $accion === 'vaciar') && Analitica::mide()
         ? Carrito::detalle($pdo)['items']
         : [];
     $linea = fn(int $id): ?array => current(array_filter($antes,
@@ -35,7 +35,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         case 'agregar':
             $cantidad = entero('cantidad', 1, Carrito::MAX_UNIDADES, 1);
             $error = Carrito::agregar($pdo, $productoId, $cantidad);
-            if ($error === '' && Analitica::activo()) {
+            if ($error === '' && Analitica::mide()) {
                 $p = Catalogo::porIds($pdo, [$productoId])[$productoId] ?? null;
                 if ($p) {
                     $item = Analitica::item($p, $cantidad);

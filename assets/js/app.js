@@ -92,17 +92,21 @@
       const r = await pedir('carrito.php', { accion: 'agregar', producto_id: datos.producto_id, cantidad: datos.cantidad || 1 });
       pintarContador('cartCount', r.unidades);
       aviso(r.mensaje || 'Añadido al carrito', r.aviso ? 'info' : 'exito');
-      // La medición se entera cuando el servidor ya aceptó, no al pulsar.
-      // Quien escucha esto es analitica.js, si la medición está encendida.
-      // Medir nunca puede estropear una compra que ya salió bien: por eso va
-      // en su propio try, y un dato mal formado se queda sin evento y ya.
+      // La medición se entera cuando el servidor ya aceptó, no al pulsar, y
+      // solo de lo que de verdad entró: «está agotado» también responde bien,
+      // pero no es un «añadir al carrito». Quienes escuchan esto son
+      // analitica.js y meta.js, si están encendidos; `meta` trae el evento que
+      // el servidor ya mandó a Meta, con su identificador, para no contarlo dos
+      // veces. Medir nunca puede estropear una compra que ya salió bien: por
+      // eso va en su propio try, y un dato mal formado se queda sin evento y ya.
       try {
         const conProducto = form.closest('[data-ga-item]');
-        if (conProducto) {
+        if (conProducto && r.agregadas > 0) {
           document.dispatchEvent(new CustomEvent('fa:carrito:agregado', {
             detail: {
               item: JSON.parse(conProducto.dataset.gaItem),
-              cantidad: Number(datos.cantidad) || 1
+              cantidad: r.agregadas,
+              meta: r.meta || null
             }
           }));
         }
@@ -140,6 +144,9 @@
       pintarContador('favCount', r.total);
       espejarFavoritos(r.ids);
       aviso(r.favorito ? 'Guardado en favoritos' : 'Quitado de favoritos', 'exito');
+      if (r.favorito && r.meta) {
+        document.dispatchEvent(new CustomEvent('fa:favorito:agregado', { detail: { meta: r.meta } }));
+      }
 
       // En la página de favoritos, la tarjeta desaparece al quitarla.
       if (!r.favorito && document.body.classList.contains('pagina-favoritos')) {

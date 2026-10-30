@@ -46,6 +46,18 @@ final class Analitica
         return !(Ajustes::activo('ga_excluir_equipo', true) && Auth::esPersonal());
     }
 
+    /**
+     * ¿Hay alguna medición —Google o Meta— que deba recibir los eventos?
+     *
+     * La cola es una sola y la comparten las dos: cada una se queda luego con
+     * lo que le sirve. Así un evento nuevo que se mida queda medido en ambas,
+     * con el mismo importe y los mismos productos.
+     */
+    public static function mide(): bool
+    {
+        return self::activo() || (class_exists('MetaPixel') && MetaPixel::activo());
+    }
+
     public static function id(): string
     {
         return strtoupper(trim(Ajustes::texto('ga_id')));
@@ -56,7 +68,11 @@ final class Analitica
         return (bool)preg_match(self::PATRON_ID, $id);
     }
 
-    /** Moneda ISO-4217; GA4 rechaza el importe si no la reconoce. */
+    /**
+     * Moneda ISO-4217 de la tienda; GA4 y Meta rechazan el importe si no la
+     * reconocen. Es la misma para los dos, así una venta vale lo mismo en
+     * ambos informes.
+     */
     public static function moneda(): string
     {
         $m = strtoupper(trim(Ajustes::texto('ga_moneda', 'NIO')));
@@ -127,7 +143,7 @@ final class Analitica
      */
     public static function atributo(array $p, int $cantidad = 1, int $posicion = 0): string
     {
-        if (!self::activo()) {
+        if (!self::mide()) {
             return '';
         }
         $json = json_encode(self::item($p, $cantidad, $posicion),
@@ -143,16 +159,33 @@ final class Analitica
      */
     public static function evento(string $nombre, array $parametros = []): void
     {
-        if (!self::activo()) {
+        if (!self::mide()) {
             return;
         }
-        self::$cola[] = ['nombre' => $nombre, 'datos' => $parametros];
+        self::$cola[] = ['nombre' => $nombre, 'datos' => $parametros,
+                         'id' => self::idEvento($nombre, $parametros)];
     }
 
-    /** @var list<array{nombre:string,datos:array}> */
+    /**
+     * Identificador único de un evento.
+     *
+     * Meta recibe cada evento dos veces —del navegador y del servidor— y los
+     * junta en uno solo porque llevan este mismo identificador. La compra usa
+     * el código del pedido: aunque por lo que sea se mandara dos veces, Meta
+     * la contaría una.
+     */
+    public static function idEvento(string $nombre, array $parametros = []): string
+    {
+        if ($nombre === 'purchase' && ($codigo = (string)($parametros['transaction_id'] ?? '')) !== '') {
+            return 'compra-' . $codigo;
+        }
+        return $nombre . '-' . bin2hex(random_bytes(8));
+    }
+
+    /** @var list<array{nombre:string,datos:array,id:string}> */
     private static array $cola = [];
 
-    /** @return list<array{nombre:string,datos:array}> */
+    /** @return list<array{nombre:string,datos:array,id:string}> */
     public static function cola(): array
     {
         self::recogerDiferidos();
@@ -168,10 +201,11 @@ final class Analitica
      */
     public static function eventoDiferido(string $nombre, array $parametros = []): void
     {
-        if (!self::activo()) {
+        if (!self::mide()) {
             return;
         }
-        $_SESSION['ga_diferidos'][] = ['nombre' => $nombre, 'datos' => $parametros];
+        $_SESSION['ga_diferidos'][] = ['nombre' => $nombre, 'datos' => $parametros,
+                                       'id' => self::idEvento($nombre, $parametros)];
     }
 
     /** Recoge los diferidos y los vacía: se miden una vez y nunca más. */
@@ -179,7 +213,8 @@ final class Analitica
     {
         foreach ((array)($_SESSION['ga_diferidos'] ?? []) as $ev) {
             if (isset($ev['nombre'])) {
-                self::$cola[] = ['nombre' => (string)$ev['nombre'], 'datos' => (array)($ev['datos'] ?? [])];
+                self::$cola[] = ['nombre' => (string)$ev['nombre'], 'datos' => (array)($ev['datos'] ?? []),
+                                 'id' => (string)($ev['id'] ?? self::idEvento((string)$ev['nombre']))];
             }
         }
         unset($_SESSION['ga_diferidos']);

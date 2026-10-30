@@ -14,6 +14,16 @@ require_once __DIR__ . '/includes/bootstrap.php';
 $codigo = texto('codigo', 20, $_GET);
 $token  = texto('t', 40, $_GET);
 
+// El enlace del correo trae la llave del pedido en la dirección (`&t=`). En
+// cuanto se comprueba, se guarda en la sesión y se quita de la barra (ver más
+// abajo, `$urlVisible`): así no viaja a Google ni a Meta —que reciben la
+// dirección de cada página que miden— ni a otras webs como página de
+// procedencia. Recargar sigue funcionando porque la llave ya está en la sesión.
+$tokenEnUrl = $token !== '';
+if (!$tokenEnUrl && $codigo !== '') {
+    $token = (string)($_SESSION['pedido_llaves'][$codigo] ?? '');
+}
+
 $pedido = $codigo !== '' ? Pedidos::porCodigo($pdo, $codigo) : null;
 
 if (!$pedido || !Pedidos::puedeVer($pedido, $token !== '' ? $token : null)) {
@@ -36,6 +46,15 @@ if (!$pedido || !Pedidos::puedeVer($pedido, $token !== '' ? $token : null)) {
     <?php
     require __DIR__ . '/includes/vistas/pie.php';
     exit;
+}
+
+if ($tokenEnUrl && hash_equals((string)$pedido['token_seguimiento'], $token)) {
+    // Las diez últimas bastan: es para recargar, no un historial.
+    $_SESSION['pedido_llaves'] = array_slice(
+        [$codigo => $token] + array_diff_key((array)($_SESSION['pedido_llaves'] ?? []), [$codigo => 1]),
+        0, 10, true
+    );
+    $urlVisible = url('pedido.php?codigo=' . rawurlencode($codigo));
 }
 
 // --- Subida del comprobante ------------------------------------------
@@ -108,6 +127,15 @@ if (Analitica::compraPendiente((int)$pedido['id'])) {
         'metodo_pago'    => (string)$pedido['metodo_pago'],
         'items'          => $itemsGa,
     ], fn($v) => $v !== ''));
+
+    // Meta reconoce mejor a quien compró con sus datos —resumidos, nunca en
+    // claro—, y es justo aquí donde se saben aunque el pedido sea de invitado.
+    MetaPixel::cliente([
+        'email'      => (string)$pedido['cliente_email'],
+        'telefono'   => (string)$pedido['cliente_telefono'],
+        'nombre'     => (string)$pedido['cliente_nombre'],
+        'usuario_id' => (int)($pedido['usuario_id'] ?? 0),
+    ]);
 }
 
 require __DIR__ . '/includes/vistas/cabecera.php';

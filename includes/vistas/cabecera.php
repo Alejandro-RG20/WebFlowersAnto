@@ -57,10 +57,19 @@ $waGeneral = enlace_whatsapp(
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 
+<?php // Una página con una llave en la dirección (el pedido de un invitado) la
+      // quita de la barra antes de que nada pueda leerla: Analytics y el píxel
+      // mandan la dirección de la página, y la llave abre el pedido.
+      if (!empty($urlVisible)): ?>
+<script>history.replaceState(history.state, '', <?= json_encode((string)$urlVisible, JSON_UNESCAPED_SLASHES | JSON_HEX_TAG) ?>);</script>
+<?php endif; ?>
+
 <?php // Analytics va lo más arriba posible, solo por detrás del juego de
       // caracteres: el consentimiento por defecto tiene que quedar fijado
       // antes de que el navegador empiece a pedir nada de Google.
-      require __DIR__ . '/analitica.php'; ?>
+      require __DIR__ . '/analitica.php';
+      // El píxel de Meta lee la misma cola de eventos, justo detrás.
+      require __DIR__ . '/meta_pixel.php'; ?>
 
 <title><?= e($tituloPagina) ?></title>
 <meta name="description" content="<?= e($descripcionPagina) ?>">

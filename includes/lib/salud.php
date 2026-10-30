@@ -199,6 +199,35 @@ final class Salud
                  'Propiedad ' . Analitica::id() . ', en ' . Analitica::moneda() . '.');
         }
 
+        // --- Píxel de Meta ---------------------------------------------
+        // Apagado no es un problema: no todas las tiendas anuncian. Lo que sí
+        // lo es: encendido y sin medir, o midiendo solo la mitad.
+        if (Ajustes::activo('pixel_activo', false)) {
+            $estadoMeta = MetaPixel::estado();
+            if (!MetaPixel::idValido(MetaPixel::id())) {
+                $add('meta', 'grave', 'El identificador del píxel de Meta está mal',
+                     'El píxel está encendido, pero «' . (MetaPixel::id() ?: 'está vacío')
+                   . '» no es un identificador válido, así que las campañas no reciben ni una venta.',
+                     'Corrígelo en Configuración → Píxel de Meta: son solo números.');
+            } elseif (MetaPixel::conServidor() && $estadoMeta && !$estadoMeta['ok']) {
+                $add('meta', 'grave', 'Meta rechaza los envíos del servidor',
+                     $estadoMeta['mensaje'],
+                     'Revisa el token en Configuración → Píxel de Meta y pulsa «Guardar y probar conexión».');
+            } elseif (MetaPixel::codigoPrueba() !== '') {
+                $add('meta', 'aviso', 'El píxel de Meta tiene puesto el código de prueba',
+                     'Lo que manda el servidor sale en «Probar eventos» y no cuenta para las campañas.',
+                     'Borra el código de prueba en Configuración → Píxel de Meta.');
+            } elseif (!MetaPixel::conServidor()) {
+                $add('meta', 'aviso', 'El píxel de Meta mide solo desde el navegador',
+                     'Sin la API de Conversiones se pierden las ventas de quien usa bloqueadores, iPhone '
+                   . 'o el navegador de Instagram, y las campañas optimizan con menos datos.',
+                     'Añade el token en Configuración → Píxel de Meta.');
+            } else {
+                $add('meta', 'bien', 'Píxel de Meta midiendo',
+                     'Píxel ' . MetaPixel::id() . ', desde el navegador y el servidor, en ' . Analitica::moneda() . '.');
+            }
+        }
+
         // --- Catálogo --------------------------------------------------
         $publicados = (int)$pdo->query("SELECT COUNT(*) FROM productos WHERE activo = 1")->fetchColumn();
         if ($publicados === 0) {

@@ -90,7 +90,9 @@
     <p>Usamos una cookie propia imprescindible: la que mantiene tu carrito y tu sesión. Sin
        ella la tienda no funciona. Aparte, si lo aceptas, guardamos tus favoritos en tu
        propio navegador para no perderlos.
+<?php if (!MetaPixel::configurado()): ?>
        <strong>No usamos publicidad.</strong>
+<?php endif; ?>
        Puedes cambiar tu decisión cuando quieras desde el enlace «Cookies» del pie de página.</p>
 <?php if (Analitica::configurado()): ?>
     <p>Usamos <strong>Google Analytics</strong> para saber qué páginas se visitan y qué
@@ -101,6 +103,21 @@
        una señal anónima de que hubo una visita. Si eliges «Solo lo necesario», sigue sin
        guardarse nada tuyo, y si cambias de opinión más tarde, el cambio se aplica al
        momento. Nunca le mandamos tu nombre, tu correo, tu teléfono ni tu dirección.</p>
+<?php endif; ?>
+<?php if (MetaPixel::configurado()): ?>
+    <p>Anunciamos la tienda en <strong>Facebook e Instagram</strong>, y para saber qué
+       anuncios funcionan usamos el <strong>píxel de Meta</strong>: le cuenta a Meta Platforms
+       qué arreglos se miran, qué se añade al carrito y qué pedidos se hacen, con su importe.
+       Con eso Meta mide las campañas y puede enseñar nuestros anuncios a personas con gustos
+       parecidos. No vendemos tus datos a nadie.</p>
+    <p>También <strong>depende de tu respuesta a este aviso</strong>: hasta que pulsas
+       «Aceptar todo», tu navegador no descarga nada de Meta y no le enviamos nada tuyo. Si
+       aceptas, al hacer un pedido le enviamos además tu correo, tu teléfono y tu nombre
+       <strong>convertidos en un código irreversible</strong> (SHA-256), que Meta solo puede
+       comparar con los de sus propias cuentas para saber si el pedido vino de un anuncio;
+       nunca recibe esos datos tal cual. Si eliges «Solo lo necesario», o cambias de opinión
+       más tarde desde el enlace «Cookies» del pie, deja de enviarse al momento. Meta trata esos
+       datos según su propia política, en <em>facebook.com/privacy/policy</em>.</p>
 <?php endif; ?>
 
     <h2>Menores</h2>
